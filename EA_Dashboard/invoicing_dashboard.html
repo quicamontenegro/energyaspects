@@ -185,6 +185,126 @@ tr.tr td{background:#f8fafc;font-weight:700;border-top:2px solid var(--border);}
 .sos-block-list{margin-top:8px;font-size:12px;color:#cbd5e1;line-height:1.6;}
 @media(max-width:1200px){.de-cols{grid-template-columns:1fr 1fr 1fr;}}
 @media(max-width:700px){.de-kpi-bar{grid-template-columns:1fr 1fr 1fr;}.de-cols{grid-template-columns:1fr;}.de-col+.de-col{border-left:none;border-top:1px solid var(--border);}}
+
+/* ── RP & DE TEAM ── */
+.rpde-subtabs{display:flex;gap:8px;margin-bottom:24px;}
+.rpde-subtab{padding:8px 24px;border-radius:10px;border:1px solid var(--border);font-size:13px;font-weight:600;cursor:pointer;background:var(--card);color:var(--muted);transition:all .15s;}
+.rpde-subtab.active{background:var(--primary);color:#fff;border-color:var(--primary);}
+.rpde-subtab:not(.active):hover{border-color:var(--primary);color:var(--primary);}
+.rpde-members-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;}
+.rpde-member-card{background:var(--card);border-radius:var(--r);border:1px solid var(--border);box-shadow:var(--sh);overflow:hidden;display:flex;flex-direction:column;}
+.rpde-card-hdr{display:flex;align-items:center;gap:12px;padding:14px 16px;border-bottom:1px solid var(--border);}
+.rpde-card-avatar{width:38px;height:38px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;color:#fff;font-size:13px;flex-shrink:0;}
+.rpde-card-name{font-size:14px;font-weight:700;line-height:1.2;}
+.rpde-card-role{font-size:10px;font-weight:700;padding:2px 7px;border-radius:8px;margin-top:3px;display:inline-block;letter-spacing:.4px;}
+.rpde-card-stats{display:flex;gap:5px;flex-wrap:wrap;padding:8px 14px;border-bottom:1px solid var(--border);background:var(--bg);}
+.rpde-sstat{font-size:10px;font-weight:700;padding:2px 7px;border-radius:8px;}
+.rpde-tickets{padding:12px 14px;flex:1;min-height:60px;}
+.rpde-ticket{display:flex;flex-direction:column;gap:5px;padding:10px 11px;border:1px solid var(--border);border-radius:8px;margin-bottom:8px;background:#fff;transition:all .15s;position:relative;}
+.rpde-ticket:hover{box-shadow:0 2px 10px rgba(0,0,0,.08);border-color:#c7d2fe;}
+.rpde-ticket-top{display:flex;align-items:flex-start;gap:7px;flex-wrap:wrap;}
+.rpde-jira-link{font-size:11px;font-weight:700;color:var(--primary);text-decoration:none;background:var(--pl);padding:2px 7px;border-radius:5px;flex-shrink:0;white-space:nowrap;}
+.rpde-jira-link:hover{background:var(--primary);color:#fff;}
+.rpde-ticket-title{font-size:12px;font-weight:600;flex:1;line-height:1.4;}
+.rpde-status-badge{font-size:10px;font-weight:700;padding:2px 7px;border-radius:8px;white-space:nowrap;flex-shrink:0;}
+.rpde-pri-badge{font-size:10px;font-weight:700;padding:2px 6px;border-radius:6px;white-space:nowrap;flex-shrink:0;}
+.rpde-ticket-notes{font-size:11px;color:var(--muted);line-height:1.4;border-top:1px dashed var(--border);padding-top:5px;margin-top:2px;}
+.rpde-ticket-actions{display:none;position:absolute;top:6px;right:6px;gap:4px;}
+.rpde-ticket:hover .rpde-ticket-actions{display:flex;}
+.rpde-btn-edit{font-size:10px;padding:2px 7px;border-radius:5px;border:1px solid var(--border);background:#fff;cursor:pointer;color:var(--primary);}
+.rpde-btn-del{font-size:10px;padding:2px 7px;border-radius:5px;border:none;background:#fee2e2;cursor:pointer;color:#dc2626;}
+.rpde-empty-tickets{font-size:12px;color:var(--muted);text-align:center;padding:20px 0;font-style:italic;}
+.rpde-card-footer{padding:8px 14px;border-top:1px solid var(--border);}
+.rpde-add-btn{width:100%;padding:7px;border-radius:7px;border:1px dashed var(--border);background:transparent;font-size:12px;font-weight:600;color:var(--muted);cursor:pointer;transition:all .15s;}
+.rpde-add-btn:hover{border-color:var(--primary);color:var(--primary);background:var(--pl);}
+.rpde-modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:200;align-items:center;justify-content:center;}
+.rpde-modal{background:#fff;border-radius:16px;padding:28px;width:500px;max-width:95vw;max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.2);}
+@media(max-width:1100px){.rpde-members-grid{grid-template-columns:1fr 1fr;}}
+@media(max-width:700px){.rpde-members-grid{grid-template-columns:1fr;}}
+
+/* ── MILESTONES ── */
+.ms-list{display:flex;flex-direction:column;gap:16px;}
+.ms-card{background:var(--card);border-radius:var(--r);border:1px solid var(--border);box-shadow:var(--sh);overflow:hidden;}
+.ms-card-hdr{display:flex;align-items:center;gap:14px;padding:16px 20px;cursor:pointer;user-select:none;transition:background .15s;}
+.ms-card-hdr:hover{background:#f8faff;}
+.ms-chevron{font-size:12px;color:var(--muted);transition:transform .2s;flex-shrink:0;}
+.ms-chevron.open{transform:rotate(90deg);}
+.ms-card-name{font-size:15px;font-weight:700;flex:1;}
+.ms-status-badge{font-size:11px;font-weight:700;padding:3px 10px;border-radius:10px;white-space:nowrap;flex-shrink:0;}
+.ms-progress-wrap{display:flex;align-items:center;gap:8px;flex-shrink:0;}
+.ms-progress-bar{width:80px;height:6px;background:var(--border);border-radius:3px;overflow:hidden;}
+.ms-progress-fill{height:100%;border-radius:3px;transition:width .4s ease;}
+.ms-progress-txt{font-size:11px;color:var(--muted);font-weight:600;white-space:nowrap;}
+.ms-card-actions{display:flex;gap:6px;flex-shrink:0;}
+.ms-btn{font-size:11px;padding:3px 9px;border-radius:6px;border:1px solid var(--border);background:#fff;cursor:pointer;color:var(--muted);transition:all .15s;}
+.ms-btn:hover{background:var(--tag);}
+.ms-btn-del{border:none;background:#fee2e2;color:#dc2626;}
+.ms-btn-del:hover{background:#fecaca;}
+.ms-body{border-top:1px solid var(--border);padding:16px 20px;background:#fafbff;}
+.ms-notes{font-size:12px;color:var(--muted);margin-bottom:14px;padding:8px 12px;background:var(--card);border-radius:8px;border:1px solid var(--border);}
+.ms-tasks-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;}
+.ms-tasks-label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);}
+.ms-task-item{display:flex;align-items:flex-start;gap:10px;padding:9px 12px;background:var(--card);border:1px solid var(--border);border-radius:8px;margin-bottom:7px;transition:all .15s;position:relative;}
+.ms-task-item:hover{box-shadow:0 2px 8px rgba(0,0,0,.06);border-color:#c7d2fe;}
+.ms-task-name{font-size:13px;font-weight:500;flex:1;line-height:1.4;}
+.ms-task-status{font-size:10px;font-weight:700;padding:2px 8px;border-radius:8px;white-space:nowrap;flex-shrink:0;}
+.ms-task-notes{font-size:11px;color:var(--muted);margin-top:3px;}
+.ms-task-actions{display:none;position:absolute;top:6px;right:6px;gap:4px;}
+.ms-task-item:hover .ms-task-actions{display:flex;}
+.ms-no-tasks{font-size:12px;color:var(--muted);font-style:italic;text-align:center;padding:16px 0;}
+.ms-add-task-btn{width:100%;padding:7px;border-radius:7px;border:1px dashed var(--border);background:transparent;font-size:12px;font-weight:600;color:var(--muted);cursor:pointer;margin-top:4px;transition:all .15s;}
+.ms-add-task-btn:hover{border-color:var(--primary);color:var(--primary);background:var(--pl);}
+.ms-modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:200;align-items:center;justify-content:center;}
+.ms-modal{background:#fff;border-radius:16px;padding:28px;width:540px;max-width:95vw;max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.2);}
+.ms-inline-task-add{display:flex;gap:8px;margin-bottom:8px;}
+.ms-inline-task-add input{flex:1;padding:7px 10px;border:1px solid var(--border);border-radius:7px;font-size:12px;outline:none;font-family:inherit;}
+.ms-inline-task-add input:focus{border-color:var(--primary);}
+.ms-inline-task-add select{padding:7px 10px;border:1px solid var(--border);border-radius:7px;font-size:12px;outline:none;background:var(--card);font-family:inherit;}
+.ms-inline-task-add button{padding:7px 12px;border-radius:7px;border:none;background:var(--primary);color:#fff;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;}
+.ms-modal-task-list{max-height:180px;overflow-y:auto;margin-bottom:4px;}
+.ms-modal-task-row{display:flex;align-items:center;gap:8px;padding:6px 10px;background:var(--bg);border:1px solid var(--border);border-radius:7px;margin-bottom:5px;}
+.ms-modal-task-row span{flex:1;font-size:12px;font-weight:500;}
+.ms-modal-task-del{border:none;background:#fee2e2;color:#dc2626;border-radius:5px;padding:2px 7px;font-size:11px;cursor:pointer;flex-shrink:0;}
+.ms-empty-state{text-align:center;padding:60px 0;color:var(--muted);}
+.ms-empty-state div:first-child{font-size:40px;margin-bottom:12px;}
+@media(max-width:700px){.ms-progress-wrap{display:none;}}
+
+/* ── SPRINTS ── */
+.sp-header-row{display:flex;align-items:center;gap:10px;margin-bottom:20px;flex-wrap:wrap;}
+.sp-chips{display:flex;gap:8px;flex-wrap:wrap;flex:1;}
+.sp-chip{display:flex;align-items:center;gap:6px;padding:7px 14px;border-radius:20px;border:1px solid var(--border);font-size:13px;font-weight:600;cursor:pointer;background:var(--card);color:var(--muted);transition:all .15s;white-space:nowrap;}
+.sp-chip.active{background:var(--primary);color:#fff;border-color:var(--primary);}
+.sp-chip:not(.active):hover{border-color:var(--primary);color:var(--primary);}
+.sp-chip-del{font-size:11px;opacity:.6;margin-left:2px;line-height:1;}
+.sp-chip-del:hover{opacity:1;}
+.sp-empty-sprint{text-align:center;padding:60px 0;color:var(--muted);}
+.sp-members-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:20px;}
+.sp-member-card{background:var(--card);border-radius:var(--r);border:1px solid var(--border);box-shadow:var(--sh);overflow:hidden;display:flex;flex-direction:column;}
+.sp-card-hdr{display:flex;align-items:center;gap:12px;padding:14px 16px;border-bottom:1px solid var(--border);background:linear-gradient(135deg,var(--card),#f8faff);}
+.sp-card-avatar{width:38px;height:38px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;color:#fff;font-size:13px;flex-shrink:0;}
+.sp-card-name{font-size:14px;font-weight:700;}
+.sp-card-role{font-size:10px;font-weight:700;padding:2px 7px;border-radius:8px;margin-top:3px;display:inline-block;}
+.sp-tickets{padding:12px 14px;flex:1;min-height:60px;}
+.sp-ticket{display:flex;flex-direction:column;gap:5px;padding:10px 12px;border:1px solid var(--border);border-radius:8px;margin-bottom:8px;background:#fff;transition:all .15s;position:relative;}
+.sp-ticket:hover{box-shadow:0 2px 10px rgba(0,0,0,.08);border-color:#c7d2fe;}
+.sp-ticket-row1{display:flex;align-items:center;gap:7px;flex-wrap:wrap;}
+.sp-jira-link{font-size:11px;font-weight:700;color:var(--primary);text-decoration:none;background:var(--pl);padding:2px 7px;border-radius:5px;flex-shrink:0;white-space:nowrap;}
+.sp-jira-link:hover{background:var(--primary);color:#fff;}
+.sp-ticket-title{font-size:12px;font-weight:600;flex:1;line-height:1.3;}
+.sp-ticket-desc{font-size:11px;color:var(--muted);line-height:1.4;padding-top:3px;border-top:1px dashed var(--border);}
+.sp-ticket-actions{display:none;position:absolute;top:6px;right:6px;gap:4px;}
+.sp-ticket:hover .sp-ticket-actions{display:flex;}
+.sp-btn-edit{font-size:10px;padding:2px 7px;border-radius:5px;border:1px solid var(--border);background:#fff;cursor:pointer;color:var(--primary);}
+.sp-btn-del{font-size:10px;padding:2px 7px;border-radius:5px;border:none;background:#fee2e2;cursor:pointer;color:#dc2626;}
+.sp-no-tickets{font-size:12px;color:var(--muted);text-align:center;padding:20px 0;font-style:italic;}
+.sp-card-footer{padding:8px 14px;border-top:1px solid var(--border);}
+.sp-add-btn{width:100%;padding:7px;border-radius:7px;border:1px dashed var(--border);background:transparent;font-size:12px;font-weight:600;color:var(--muted);cursor:pointer;transition:all .15s;}
+.sp-add-btn:hover{border-color:var(--primary);color:var(--primary);background:var(--pl);}
+.sp-modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:200;align-items:center;justify-content:center;}
+.sp-modal{background:#fff;border-radius:16px;padding:28px;width:480px;max-width:95vw;max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.2);}
+.sp-status-badge{font-size:10px;font-weight:700;padding:2px 7px;border-radius:8px;white-space:nowrap;flex-shrink:0;}
+@media(max-width:900px){.sp-members-grid{grid-template-columns:1fr;}}
+@media(max-width:700px){.sp-header-row{flex-direction:column;align-items:flex-start;}}
 </style>
 </head>
 <body>
@@ -195,6 +315,9 @@ tr.tr td{background:#f8fafc;font-weight:700;border-top:2px solid var(--border);}
     <button class="tab-btn" onclick="switchTab('vel-rp',this)">⚡ RP Team</button>
     <button class="tab-btn" onclick="switchTab('vel-ia',this)">⚡ IA Team</button>
     <button class="tab-btn" onclick="switchTab('data-explorer',this)">🗂 Data Explorer</button>
+    <button class="tab-btn" onclick="switchTab('rp-de',this)">👥 RP & DE Team</button>
+    <button class="tab-btn" onclick="switchTab('milestones',this)">🏁 Milestones</button>
+    <button class="tab-btn" onclick="switchTab('sprints',this)">🏃 Sprints</button>
   </nav>
 </header>
 <div class="main">
@@ -362,6 +485,289 @@ tr.tr td{background:#f8fafc;font-weight:700;border-top:2px solid var(--border);}
   <div id="de-panels"></div>
 </section>
 
+</div>
+
+<!-- RP & DE TEAM -->
+<section id="rp-de" class="section">
+  <div class="sec-hdr">
+    <h2>RP & DE Team <span class="group-badge" style="background:#eef2ff;color:#4f46e5">Ticket Tracker</span></h2>
+    <p>Work in progress por team member — links Jira, estados e notas</p>
+  </div>
+  <div class="rpde-subtabs">
+    <button class="rpde-subtab active" onclick="switchRPDE('rp',this)">⚡ RP Team</button>
+    <button class="rpde-subtab" onclick="switchRPDE('de',this)">🔬 DE Team</button>
+  </div>
+  <div class="de-kpi-bar" id="rpde-kpis"></div>
+  <div class="toolbar" style="margin-bottom:20px">
+    <select class="fsel" id="rpde-status-filter" onchange="buildRPDE()">
+      <option value="all">All Statuses</option>
+      <option value="todo">📋 To Do</option>
+      <option value="inprogress">🔄 In Progress</option>
+      <option value="inreview">🔍 In Review</option>
+      <option value="testing">🧪 Testing</option>
+      <option value="blocked">🚫 Blocked</option>
+      <option value="onhold">⏸ On Hold</option>
+      <option value="done">✅ Done</option>
+      <option value="deployed">🚀 Deployed</option>
+    </select>
+    <span style="font-size:12px;color:var(--muted);font-weight:500" id="rpde-summary-txt"></span>
+  </div>
+  <div class="rpde-members-grid" id="rpde-grid"></div>
+</section>
+
+<!-- MILESTONES -->
+<section id="milestones" class="section">
+  <div class="sec-hdr">
+    <h2>Milestones <span class="group-badge" style="background:#f0fdf4;color:#16a34a">RP & DE</span></h2>
+    <p>Progresso das milestones e tarefas associadas por equipa</p>
+  </div>
+  <div class="rpde-subtabs">
+    <button class="rpde-subtab active" onclick="switchMSTeam('rp',this)">⚡ RP Team</button>
+    <button class="rpde-subtab" onclick="switchMSTeam('de',this)">🔬 DE Team</button>
+  </div>
+  <div class="de-kpi-bar" id="ms-kpis"></div>
+  <div class="toolbar" style="margin-bottom:20px">
+    <select class="fsel" id="ms-status-filter" onchange="buildMilestones()">
+      <option value="all">All Statuses</option>
+      <option value="notstarted">⬜ Not Started</option>
+      <option value="inprogress">🔄 In Progress</option>
+      <option value="completed">✅ Completed</option>
+      <option value="blocked">🚫 Blocked</option>
+      <option value="onhold">⏸ On Hold</option>
+    </select>
+    <button class="btn btn-primary ml-auto" onclick="openMSModal()">+ Add Milestone</button>
+  </div>
+  <div class="ms-list" id="ms-list"></div>
+</section>
+
+<!-- MILESTONE MODAL -->
+<div class="ms-modal-overlay" id="ms-modal" onclick="if(event.target===this)closeMSModal()">
+  <div class="ms-modal">
+    <h3 id="ms-modal-title" style="font-size:18px;font-weight:800;margin-bottom:20px">Add Milestone</h3>
+    <form id="ms-form" onsubmit="event.preventDefault();saveMilestone()">
+      <div class="de-field">
+        <label>Nome da Milestone *</label>
+        <input class="de-inp" id="ms-f-name" type="text" placeholder="ex: MVP Launch, Phase 1 Completion..." required/>
+      </div>
+      <div class="de-row2">
+        <div class="de-field">
+          <label>Estado</label>
+          <select class="de-inp" id="ms-f-status">
+            <option value="notstarted">⬜ Not Started</option>
+            <option value="inprogress" selected>🔄 In Progress</option>
+            <option value="completed">✅ Completed</option>
+            <option value="blocked">🚫 Blocked</option>
+            <option value="onhold">⏸ On Hold</option>
+          </select>
+        </div>
+        <div class="de-field">
+          <label>Assignee</label>
+          <select class="de-inp" id="ms-f-assignee">
+            <option value="">— Unassigned —</option>
+          </select>
+        </div>
+      </div>
+      <div class="de-field">
+        <label>URL (Jira / Confluence / Doc)</label>
+        <input class="de-inp" id="ms-f-url" type="text" placeholder="https://..."/>
+      </div>
+      <div class="de-field">
+        <label>Notas / Descrição</label>
+        <textarea class="de-inp" id="ms-f-notes" rows="2" placeholder="Contexto, objectivo ou observações..." style="resize:vertical"></textarea>
+      </div>
+      <div class="de-field">
+        <label>Tasks associadas</label>
+        <div class="ms-inline-task-add">
+          <input id="ms-f-task-inp" type="text" placeholder="Nome da tarefa..."/>
+          <select id="ms-f-task-status">
+            <option value="notstarted">⬜ Not Started</option>
+            <option value="inprogress" selected>🔄 In Progress</option>
+            <option value="completed">✅ Completed</option>
+            <option value="blocked">🚫 Blocked</option>
+            <option value="onhold">⏸ On Hold</option>
+          </select>
+          <button type="button" onclick="addMSModalTask()">+ Add</button>
+        </div>
+        <div class="ms-modal-task-list" id="ms-modal-task-list"></div>
+      </div>
+      <div class="de-modal-actions">
+        <button type="button" class="btn btn-outline" onclick="closeMSModal()">Cancel</button>
+        <button type="submit" class="btn btn-primary">Save Milestone</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- MILESTONE TASK MODAL -->
+<div class="ms-modal-overlay" id="ms-task-modal" onclick="if(event.target===this)closeMSTaskModal()">
+  <div class="ms-modal">
+    <h3 id="ms-task-modal-title" style="font-size:18px;font-weight:800;margin-bottom:20px">Add Task</h3>
+    <form id="ms-task-form" onsubmit="event.preventDefault();saveMSTask()">
+      <div class="de-field">
+        <label>Nome da Tarefa *</label>
+        <input class="de-inp" id="ms-tf-name" type="text" placeholder="Descreve a tarefa..." required/>
+      </div>
+      <div class="de-field">
+        <label>Estado</label>
+        <select class="de-inp" id="ms-tf-status">
+          <option value="notstarted">⬜ Not Started</option>
+          <option value="inprogress" selected>🔄 In Progress</option>
+          <option value="completed">✅ Completed</option>
+          <option value="blocked">🚫 Blocked</option>
+          <option value="onhold">⏸ On Hold</option>
+        </select>
+      </div>
+      <div class="de-field">
+        <label>Notas</label>
+        <textarea class="de-inp" id="ms-tf-notes" rows="2" placeholder="Notas ou blockers..." style="resize:vertical"></textarea>
+      </div>
+      <div class="de-modal-actions">
+        <button type="button" class="btn btn-outline" onclick="closeMSTaskModal()">Cancel</button>
+        <button type="submit" class="btn btn-primary">Save Task</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- SPRINTS -->
+<section id="sprints" class="section">
+  <div class="sec-hdr">
+    <h2>Sprints <span class="group-badge" style="background:#eef2ff;color:#4f46e5">RP & DE</span></h2>
+    <p>Planned Jira tickets per team member for each sprint</p>
+  </div>
+  <div class="rpde-subtabs">
+    <button class="rpde-subtab active" onclick="switchSPTeam('rp',this)">⚡ RP Team</button>
+    <button class="rpde-subtab" onclick="switchSPTeam('de',this)">🔬 DE Team</button>
+  </div>
+  <div class="de-kpi-bar" id="sp-kpis"></div>
+  <div class="sp-header-row">
+    <div class="sp-chips" id="sp-chips"></div>
+    <button class="btn btn-outline" onclick="openNewSprintModal()">+ New Sprint</button>
+  </div>
+  <div id="sp-board"></div>
+</section>
+
+<!-- NEW SPRINT MODAL -->
+<div class="sp-modal-overlay" id="sp-sprint-modal" onclick="if(event.target===this)closeSPSprintModal()">
+  <div class="sp-modal" style="width:360px">
+    <h3 style="font-size:18px;font-weight:800;margin-bottom:20px">New Sprint</h3>
+    <form onsubmit="event.preventDefault();saveNewSprint()">
+      <div class="de-field">
+        <label>Sprint Name *</label>
+        <input class="de-inp" id="sp-f-sprint-name" type="text" placeholder="ex: Sprint 1, RP-08, Q2 Sprint..." required/>
+      </div>
+      <div class="de-modal-actions">
+        <button type="button" class="btn btn-outline" onclick="closeSPSprintModal()">Cancel</button>
+        <button type="submit" class="btn btn-primary">Create Sprint</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- SPRINT TICKET MODAL -->
+<div class="sp-modal-overlay" id="sp-ticket-modal" onclick="if(event.target===this)closeSPTicketModal()">
+  <div class="sp-modal">
+    <h3 id="sp-ticket-modal-title" style="font-size:18px;font-weight:800;margin-bottom:20px">Add Ticket</h3>
+    <form id="sp-ticket-form" onsubmit="event.preventDefault();saveSPTicket()">
+      <div class="de-row2">
+        <div class="de-field">
+          <label>Ticket ID</label>
+          <input class="de-inp" id="sp-f-id" type="text" placeholder="ex: RP-123"/>
+        </div>
+        <div class="de-field">
+          <label>Assignee</label>
+          <select class="de-inp" id="sp-f-assignee"></select>
+        </div>
+      </div>
+      <div class="de-field">
+        <label>Jira URL</label>
+        <input class="de-inp" id="sp-f-url" type="text" placeholder="https://jira.../browse/RP-123"/>
+      </div>
+      <div class="de-field">
+        <label>Title *</label>
+        <input class="de-inp" id="sp-f-title" type="text" placeholder="What is planned..." required/>
+      </div>
+      <div class="de-field">
+        <label>Description</label>
+        <textarea class="de-inp" id="sp-f-desc" rows="2" placeholder="Additional context or scope..." style="resize:vertical"></textarea>
+      </div>
+      <div class="de-field">
+        <label>Status</label>
+        <select class="de-inp" id="sp-f-status">
+          <option value="todo">📋 To Do</option>
+          <option value="inprogress" selected>🔄 In Progress</option>
+          <option value="inreview">🔍 In Review</option>
+          <option value="testing">🧪 Testing</option>
+          <option value="blocked">🚫 Blocked</option>
+          <option value="onhold">⏸ On Hold</option>
+          <option value="done">✅ Done</option>
+          <option value="deployed">🚀 Deployed</option>
+        </select>
+      </div>
+      <div class="de-modal-actions">
+        <button type="button" class="btn btn-outline" onclick="closeSPTicketModal()">Cancel</button>
+        <button type="submit" class="btn btn-primary">Save Ticket</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- RPDE TICKET MODAL -->
+<div class="rpde-modal-overlay" id="rpde-modal" onclick="if(event.target===this)closeRPDEModal()">
+  <div class="rpde-modal">
+    <h3 id="rpde-modal-title" style="font-size:18px;font-weight:800;margin-bottom:20px">Add Ticket</h3>
+    <form id="rpde-form" onsubmit="event.preventDefault();saveRPDETicket()">
+      <div class="de-row2">
+        <div class="de-field">
+          <label>Ticket ID (Jira)</label>
+          <input class="de-inp" id="rpde-f-id" type="text" placeholder="ex: RP-123"/>
+        </div>
+        <div class="de-field">
+          <label>Assignee</label>
+          <select class="de-inp" id="rpde-f-assignee"></select>
+        </div>
+      </div>
+      <div class="de-field">
+        <label>Jira URL</label>
+        <input class="de-inp" id="rpde-f-url" type="text" placeholder="https://jira.../browse/RP-123"/>
+      </div>
+      <div class="de-field">
+        <label>Title *</label>
+        <input class="de-inp" id="rpde-f-title" type="text" placeholder="O que está a ser desenvolvido..." required/>
+      </div>
+      <div class="de-row2">
+        <div class="de-field">
+          <label>Status</label>
+          <select class="de-inp" id="rpde-f-status">
+            <option value="todo">📋 To Do</option>
+            <option value="inprogress" selected>🔄 In Progress</option>
+            <option value="inreview">🔍 In Review</option>
+            <option value="testing">🧪 Testing</option>
+            <option value="blocked">🚫 Blocked</option>
+            <option value="onhold">⏸ On Hold</option>
+            <option value="done">✅ Done</option>
+            <option value="deployed">🚀 Deployed</option>
+          </select>
+        </div>
+        <div class="de-field">
+          <label>Priority</label>
+          <select class="de-inp" id="rpde-f-priority">
+            <option value="Alta">🔴 Alta</option>
+            <option value="Média" selected>🟡 Média</option>
+            <option value="Baixa">🟢 Baixa</option>
+          </select>
+        </div>
+      </div>
+      <div class="de-field">
+        <label>Notes / Blockers</label>
+        <textarea class="de-inp" id="rpde-f-notes" rows="3" placeholder="Contexto, blockers, ou notas de progresso..." style="resize:vertical"></textarea>
+      </div>
+      <div class="de-modal-actions">
+        <button type="button" class="btn btn-outline" onclick="closeRPDEModal()">Cancel</button>
+        <button type="submit" class="btn btn-primary">Save Ticket</button>
+      </div>
+    </form>
+  </div>
 </div>
 
 <!-- ADD/EDIT TASK MODAL -->
@@ -1123,10 +1529,716 @@ function deleteTask(id) {
   saveDE(); buildDE(); showToast();
 }
 
+// ═══ RP & DE TEAM TRACKER ═══
+const TICKET_STATUSES = {
+  todo:       {label:'To Do',       color:'#64748b', bg:'#f1f5f9', icon:'📋'},
+  inprogress: {label:'In Progress', color:'#2563eb', bg:'#eff6ff', icon:'🔄'},
+  inreview:   {label:'In Review',   color:'#7c3aed', bg:'#f5f3ff', icon:'🔍'},
+  testing:    {label:'Testing',     color:'#0891b2', bg:'#ecfeff', icon:'🧪'},
+  done:       {label:'Done',        color:'#16a34a', bg:'#f0fdf4', icon:'✅'},
+  blocked:    {label:'Blocked',     color:'#dc2626', bg:'#fef2f2', icon:'🚫'},
+  onhold:     {label:'On Hold',     color:'#d97706', bg:'#fffbeb', icon:'⏸'},
+  deployed:   {label:'Deployed',    color:'#0d9488', bg:'#f0fdfa', icon:'🚀'}
+};
+
+const RPDE_MEMBERS = {
+  rp: [
+    {name:'Pavol Soltés',         role:'DEV'},
+    {name:'Vadym Levkovych',      role:'DEV'},
+    {name:'Vitalii Tsimbolynets', role:'DEV'},
+    {name:'Yurii Rybak',          role:'DEV'}
+  ],
+  de: [
+    {name:'Francisco Garcia', role:'DEV'},
+    {name:'Yurii Rybak',      role:'DEV'}
+  ]
+};
+
+let RPDE_TICKETS  = JSON.parse(localStorage.getItem('rpde_tickets') || '[]');
+let RPDE_EDIT_ID  = null;
+let RPDE_CUR_TEAM = 'rp';
+
+function saveRPDE() { localStorage.setItem('rpde_tickets', JSON.stringify(RPDE_TICKETS)); }
+
+function switchRPDE(team, btn) {
+  RPDE_CUR_TEAM = team;
+  document.querySelectorAll('.rpde-subtab').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  buildRPDE();
+}
+
+function buildRPDE() {
+  const members     = RPDE_MEMBERS[RPDE_CUR_TEAM];
+  const teamTickets = RPDE_TICKETS.filter(t => t.team === RPDE_CUR_TEAM);
+  const sf          = document.getElementById('rpde-status-filter').value;
+
+  // KPIs
+  const totalActive   = teamTickets.filter(t => !['done','deployed'].includes(t.status)).length;
+  const blockedCount  = teamTickets.filter(t => t.status === 'blocked').length;
+  const doneCount     = teamTickets.filter(t => ['done','deployed'].includes(t.status)).length;
+  const reviewCount   = teamTickets.filter(t => ['inreview','testing'].includes(t.status)).length;
+  document.getElementById('rpde-kpis').innerHTML = `
+    <div class="de-kpi" style="border-left-color:#4f46e5">
+      <span class="de-kpi-label">Total Tickets</span>
+      <div class="de-kpi-val" style="color:#4f46e5">${teamTickets.length}</div>
+      <span class="de-kpi-sub">Todos os tickets</span>
+    </div>
+    <div class="de-kpi" style="border-left-color:#2563eb">
+      <span class="de-kpi-label">Active</span>
+      <div class="de-kpi-val" style="color:#2563eb">${totalActive}</div>
+      <span class="de-kpi-sub">Em progresso</span>
+    </div>
+    <div class="de-kpi" style="border-left-color:#7c3aed">
+      <span class="de-kpi-label">In Review / QA</span>
+      <div class="de-kpi-val" style="color:#7c3aed">${reviewCount}</div>
+      <span class="de-kpi-sub">Review + Testing</span>
+    </div>
+    <div class="de-kpi" style="border-left-color:#dc2626">
+      <span class="de-kpi-label">Blocked</span>
+      <div class="de-kpi-val" style="color:#dc2626">${blockedCount}</div>
+      <span class="de-kpi-sub">Needs attention</span>
+    </div>
+    <div class="de-kpi" style="border-left-color:#16a34a">
+      <span class="de-kpi-label">Completed</span>
+      <div class="de-kpi-val" style="color:#16a34a">${doneCount}</div>
+      <span class="de-kpi-sub">Done + Deployed</span>
+    </div>
+    <div class="de-kpi" style="border-left-color:#64748b">
+      <span class="de-kpi-label">Members</span>
+      <div class="de-kpi-val" style="color:#64748b">${members.length}</div>
+      <span class="de-kpi-sub">Na equipa</span>
+    </div>`;
+
+  document.getElementById('rpde-summary-txt').textContent =
+    sf !== 'all' ? `A mostrar: ${TICKET_STATUSES[sf]?.label || sf}` : '';
+
+  document.getElementById('rpde-grid').innerHTML =
+    members.map(m => renderMemberCard(m)).join('');
+}
+
+function renderMemberCard(m) {
+  const sf            = document.getElementById('rpde-status-filter').value;
+  const memberTickets = RPDE_TICKETS.filter(t => t.team === RPDE_CUR_TEAM && t.assignee === m.name);
+  const displayed     = sf === 'all' ? memberTickets : memberTickets.filter(t => t.status === sf);
+
+  const activeKeys  = ['todo','inprogress','inreview','testing','blocked','onhold'];
+  const statsHtml   = activeKeys
+    .map(s => ({s, n: memberTickets.filter(t => t.status === s).length}))
+    .filter(x => x.n > 0)
+    .map(x => { const st = TICKET_STATUSES[x.s];
+      return `<span class="rpde-sstat" style="background:${st.bg};color:${st.color}">${st.icon} ${x.n}</span>`; })
+    .join('');
+
+  const roleColors = {DEV:['#eef2ff','#4f46e5'], QA:['#ecfeff','#0891b2'], DE:['#f5f3ff','#7c3aed']};
+  const [roleBg, roleCol] = roleColors[m.role] || ['#f1f5f9','#64748b'];
+  const safeN = m.name.replace(/'/g,"\\'");
+
+  const ticketsHtml = displayed.length
+    ? displayed.map(renderTicketItem).join('')
+    : `<div class="rpde-empty-tickets">${sf !== 'all' ? 'Sem tickets com este estado' : 'Sem tickets — clica em + Add Ticket'}</div>`;
+
+  return `<div class="rpde-member-card">
+    <div class="rpde-card-hdr">
+      <div class="rpde-card-avatar" style="background:${ac(m.name)}">${ini(m.name)}</div>
+      <div style="min-width:0">
+        <div class="rpde-card-name">${m.name}</div>
+        <span class="rpde-card-role" style="background:${roleBg};color:${roleCol}">${m.role}</span>
+      </div>
+      <span style="margin-left:auto;font-size:11px;color:var(--muted);font-weight:600;flex-shrink:0">${memberTickets.length} ticket${memberTickets.length!==1?'s':''}</span>
+    </div>
+    ${statsHtml ? `<div class="rpde-card-stats">${statsHtml}</div>` : ''}
+    <div class="rpde-tickets">${ticketsHtml}</div>
+    <div class="rpde-card-footer">
+      <button class="rpde-add-btn" onclick="openRPDEModal('${safeN}')">+ Add Ticket</button>
+    </div>
+  </div>`;
+}
+
+function renderTicketItem(t) {
+  const st      = TICKET_STATUSES[t.status] || TICKET_STATUSES.todo;
+  const priColor = t.priority==='Alta'?'#dc2626':t.priority==='Média'?'#d97706':'#16a34a';
+  const priBg    = t.priority==='Alta'?'#fee2e2':t.priority==='Média'?'#fef3c7':'#dcfce7';
+  const jiraEl   = t.jiraUrl
+    ? `<a class="rpde-jira-link" href="${t.jiraUrl}" target="_blank" onclick="event.stopPropagation()">${t.jiraId||'🔗 Jira'}</a>`
+    : (t.jiraId ? `<span class="rpde-jira-link" style="cursor:default">${t.jiraId}</span>` : '');
+  return `<div class="rpde-ticket">
+    <div class="rpde-ticket-top">
+      ${jiraEl}
+      <span class="rpde-ticket-title">${t.title}</span>
+      <span class="rpde-status-badge" style="background:${st.bg};color:${st.color}">${st.icon} ${st.label}</span>
+      <span class="rpde-pri-badge" style="background:${priBg};color:${priColor}">${t.priority}</span>
+    </div>
+    ${t.notes ? `<div class="rpde-ticket-notes">💬 ${t.notes}</div>` : ''}
+    <div class="rpde-ticket-actions">
+      <button class="rpde-btn-edit" onclick="editRPDETicket('${t.id}')">Edit</button>
+      <button class="rpde-btn-del" onclick="deleteRPDETicket('${t.id}')">✕</button>
+    </div>
+  </div>`;
+}
+
+function populateAssigneeDropdown(selected) {
+  const sel = document.getElementById('rpde-f-assignee');
+  sel.innerHTML = RPDE_MEMBERS[RPDE_CUR_TEAM]
+    .map(m => `<option value="${m.name}"${m.name===selected?' selected':''}>${m.name}</option>`)
+    .join('');
+}
+
+function openRPDEModal(assignee) {
+  RPDE_EDIT_ID = null;
+  document.getElementById('rpde-modal-title').textContent = 'Add Ticket';
+  document.getElementById('rpde-form').reset();
+  document.getElementById('rpde-f-status').value   = 'inprogress';
+  document.getElementById('rpde-f-priority').value = 'Média';
+  populateAssigneeDropdown(assignee || null);
+  document.getElementById('rpde-modal').style.display = 'flex';
+}
+
+function editRPDETicket(id) {
+  const t = RPDE_TICKETS.find(t => t.id === id);
+  if (!t) return;
+  RPDE_EDIT_ID = id;
+  document.getElementById('rpde-modal-title').textContent = 'Edit Ticket';
+  populateAssigneeDropdown(t.assignee);
+  document.getElementById('rpde-f-id').value       = t.jiraId  || '';
+  document.getElementById('rpde-f-url').value      = t.jiraUrl || '';
+  document.getElementById('rpde-f-title').value    = t.title;
+  document.getElementById('rpde-f-status').value   = t.status;
+  document.getElementById('rpde-f-priority').value = t.priority;
+  document.getElementById('rpde-f-notes').value    = t.notes   || '';
+  document.getElementById('rpde-modal').style.display = 'flex';
+}
+
+function closeRPDEModal() { document.getElementById('rpde-modal').style.display = 'none'; }
+
+function saveRPDETicket() {
+  const title = document.getElementById('rpde-f-title').value.trim();
+  if (!title) { alert('O título é obrigatório.'); return; }
+  const ticket = {
+    id:        RPDE_EDIT_ID || Date.now().toString(),
+    team:      RPDE_CUR_TEAM,
+    assignee:  document.getElementById('rpde-f-assignee').value,
+    jiraId:    document.getElementById('rpde-f-id').value.trim(),
+    jiraUrl:   document.getElementById('rpde-f-url').value.trim(),
+    title,
+    status:    document.getElementById('rpde-f-status').value,
+    priority:  document.getElementById('rpde-f-priority').value,
+    notes:     document.getElementById('rpde-f-notes').value.trim(),
+    createdAt: RPDE_EDIT_ID
+      ? (RPDE_TICKETS.find(t=>t.id===RPDE_EDIT_ID)||{}).createdAt || new Date().toISOString()
+      : new Date().toISOString()
+  };
+  if (RPDE_EDIT_ID) {
+    const idx = RPDE_TICKETS.findIndex(t => t.id === RPDE_EDIT_ID);
+    if (idx !== -1) RPDE_TICKETS[idx] = ticket;
+  } else { RPDE_TICKETS.push(ticket); }
+  saveRPDE(); closeRPDEModal(); buildRPDE(); showToast();
+}
+
+function deleteRPDETicket(id) {
+  if (!confirm('Eliminar este ticket?')) return;
+  RPDE_TICKETS = RPDE_TICKETS.filter(t => t.id !== id);
+  saveRPDE(); buildRPDE(); showToast();
+}
+
+// ═══ MILESTONES ═══
+const MS_STATUSES = {
+  notstarted: {label:'Not Started', color:'#64748b', bg:'#f1f5f9', icon:'⬜'},
+  inprogress: {label:'In Progress', color:'#2563eb', bg:'#eff6ff', icon:'🔄'},
+  completed:  {label:'Completed',   color:'#16a34a', bg:'#f0fdf4', icon:'✅'},
+  blocked:    {label:'Blocked',     color:'#dc2626', bg:'#fef2f2', icon:'🚫'},
+  onhold:     {label:'On Hold',     color:'#d97706', bg:'#fffbeb', icon:'⏸'}
+};
+
+let MS_DATA         = JSON.parse(localStorage.getItem('ms_data') || '[]');
+let MS_CUR_TEAM     = 'rp';
+let MS_EDIT_ID      = null;
+let MS_TASK_MS_ID   = null;
+let MS_TASK_EDIT_ID = null;
+let MS_MODAL_TASKS  = [];   // temp tasks while modal is open
+const MS_OPEN       = new Set();
+
+function saveMS() { localStorage.setItem('ms_data', JSON.stringify(MS_DATA)); }
+
+function switchMSTeam(team, btn) {
+  MS_CUR_TEAM = team;
+  document.querySelectorAll('.rpde-subtab').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  buildMilestones();
+}
+
+function buildMilestones() {
+  const sf   = document.getElementById('ms-status-filter').value;
+  const all  = MS_DATA.filter(m => m.team === MS_CUR_TEAM);
+  const list = sf === 'all' ? all : all.filter(m => m.status === sf);
+
+  // KPIs
+  const kpiCounts = {};
+  Object.keys(MS_STATUSES).forEach(k => { kpiCounts[k] = all.filter(m => m.status === k).length; });
+  const totalTasks = all.reduce((s, m) => s + (m.tasks||[]).length, 0);
+  const doneTasks  = all.reduce((s, m) => s + (m.tasks||[]).filter(t => t.status === 'completed').length, 0);
+  document.getElementById('ms-kpis').innerHTML = `
+    <div class="de-kpi" style="border-left-color:#4f46e5">
+      <span class="de-kpi-label">Total Milestones</span>
+      <div class="de-kpi-val" style="color:#4f46e5">${all.length}</div>
+      <span class="de-kpi-sub">Nesta equipa</span>
+    </div>
+    <div class="de-kpi" style="border-left-color:#2563eb">
+      <span class="de-kpi-label">In Progress</span>
+      <div class="de-kpi-val" style="color:#2563eb">${kpiCounts.inprogress}</div>
+      <span class="de-kpi-sub">A decorrer</span>
+    </div>
+    <div class="de-kpi" style="border-left-color:#16a34a">
+      <span class="de-kpi-label">Completed</span>
+      <div class="de-kpi-val" style="color:#16a34a">${kpiCounts.completed}</div>
+      <span class="de-kpi-sub">Concluídas</span>
+    </div>
+    <div class="de-kpi" style="border-left-color:#dc2626">
+      <span class="de-kpi-label">Blocked</span>
+      <div class="de-kpi-val" style="color:#dc2626">${kpiCounts.blocked}</div>
+      <span class="de-kpi-sub">Bloqueadas</span>
+    </div>
+    <div class="de-kpi" style="border-left-color:#d97706">
+      <span class="de-kpi-label">On Hold</span>
+      <div class="de-kpi-val" style="color:#d97706">${kpiCounts.onhold}</div>
+      <span class="de-kpi-sub">Em pausa</span>
+    </div>
+    <div class="de-kpi" style="border-left-color:#64748b">
+      <span class="de-kpi-label">Tasks Done</span>
+      <div class="de-kpi-val" style="color:#64748b">${doneTasks}<span style="font-size:16px;font-weight:500">/${totalTasks}</span></div>
+      <span class="de-kpi-sub">Tarefas completas</span>
+    </div>`;
+
+  // Render list
+  const el = document.getElementById('ms-list');
+  if (list.length === 0) {
+    el.innerHTML = `<div class="ms-empty-state card" style="padding:40px">
+      <div>🏁</div>
+      <div style="font-size:16px;font-weight:700;margin-bottom:6px">${all.length === 0 ? 'Sem milestones' : 'Sem resultados para este filtro'}</div>
+      <div style="font-size:13px">${all.length === 0 ? 'Clica em "+ Add Milestone" para começar' : 'Tenta outro estado'}</div>
+    </div>`;
+    return;
+  }
+  el.innerHTML = list.map(m => renderMilestoneCard(m)).join('');
+}
+
+function renderMilestoneCard(m) {
+  const st      = MS_STATUSES[m.status] || MS_STATUSES.notstarted;
+  const tasks   = m.tasks || [];
+  const total   = tasks.length;
+  const done    = tasks.filter(t => t.status === 'completed').length;
+  const pct     = total > 0 ? Math.round(done / total * 100) : 0;
+  const barCol  = pct === 100 ? '#16a34a' : pct > 50 ? '#2563eb' : '#d97706';
+  const isOpen  = MS_OPEN.has(m.id);
+
+  const taskHtml = tasks.length === 0
+    ? `<div class="ms-no-tasks">Sem tarefas — clica em "+ Add Task"</div>`
+    : tasks.map(t => renderMSTask(t, m.id)).join('');
+
+  const assigneeEl = m.assignee ? `<span style="font-size:12px;color:var(--muted);font-weight:600;flex-shrink:0">👤 ${m.assignee}</span>` : '';
+  const urlEl      = m.url ? `<a href="${m.url}" target="_blank" onclick="event.stopPropagation()" style="font-size:11px;font-weight:700;color:var(--primary);background:var(--pl);padding:2px 8px;border-radius:5px;text-decoration:none;flex-shrink:0" title="${m.url}">🔗 Link</a>` : '';
+
+  return `<div class="ms-card" id="ms-card-${m.id}">
+    <div class="ms-card-hdr" onclick="toggleMS('${m.id}')">
+      <span class="ms-chevron ${isOpen ? 'open' : ''}">▶</span>
+      <span class="ms-card-name">${m.name}</span>
+      <span class="ms-status-badge" style="background:${st.bg};color:${st.color}">${st.icon} ${st.label}</span>
+      ${assigneeEl}
+      ${urlEl}
+      <div class="ms-progress-wrap">
+        <div class="ms-progress-bar"><div class="ms-progress-fill" style="width:${pct}%;background:${barCol}"></div></div>
+        <span class="ms-progress-txt">${done}/${total} tasks</span>
+      </div>
+      <div class="ms-card-actions" onclick="event.stopPropagation()">
+        <button class="ms-btn" onclick="openMSModal('${m.id}')">Edit</button>
+        <button class="ms-btn ms-btn-del" onclick="deleteMilestone('${m.id}')">✕</button>
+      </div>
+    </div>
+    <div id="ms-body-${m.id}" style="display:${isOpen ? 'block' : 'none'}">
+      <div class="ms-body">
+        ${m.notes ? `<div class="ms-notes">📝 ${m.notes}</div>` : ''}
+        <div class="ms-tasks-hdr">
+          <span class="ms-tasks-label">Tasks (${total})</span>
+        </div>
+        ${taskHtml}
+        <button class="ms-add-task-btn" onclick="openMSTaskModal('${m.id}')">+ Add Task</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+function renderMSTask(t, msId) {
+  const st = MS_STATUSES[t.status] || MS_STATUSES.notstarted;
+  return `<div class="ms-task-item">
+    <div style="flex:1;min-width:0">
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+        <span class="ms-task-name">${t.name}</span>
+        <span class="ms-task-status" style="background:${st.bg};color:${st.color}">${st.icon} ${st.label}</span>
+      </div>
+      ${t.notes ? `<div class="ms-task-notes">💬 ${t.notes}</div>` : ''}
+    </div>
+    <div class="ms-task-actions">
+      <button class="ms-btn" onclick="openMSTaskModal('${msId}','${t.id}')">Edit</button>
+      <button class="ms-btn ms-btn-del" onclick="deleteMSTask('${msId}','${t.id}')">✕</button>
+    </div>
+  </div>`;
+}
+
+function toggleMS(id) {
+  if (MS_OPEN.has(id)) { MS_OPEN.delete(id); } else { MS_OPEN.add(id); }
+  buildMilestones();
+}
+
+// — Milestone modal —
+function openMSModal(id) {
+  MS_EDIT_ID = id || null;
+  const m = id ? MS_DATA.find(x => x.id === id) : null;
+  MS_MODAL_TASKS = m ? JSON.parse(JSON.stringify(m.tasks || [])) : [];
+  document.getElementById('ms-modal-title').textContent = m ? 'Edit Milestone' : 'Add Milestone';
+  document.getElementById('ms-f-name').value     = m ? m.name       : '';
+  document.getElementById('ms-f-status').value   = m ? m.status     : 'inprogress';
+  document.getElementById('ms-f-url').value      = m ? (m.url   || '') : '';
+  document.getElementById('ms-f-notes').value    = m ? (m.notes || '') : '';
+  document.getElementById('ms-f-task-inp').value = '';
+  document.getElementById('ms-f-task-status').value = 'inprogress';
+  // Populate assignee dropdown for current team
+  const members = RPDE_MEMBERS[MS_CUR_TEAM] || [];
+  const sel = document.getElementById('ms-f-assignee');
+  sel.innerHTML = '<option value="">— Unassigned —</option>' +
+    members.map(mem => `<option value="${mem.name}"${m && m.assignee===mem.name?' selected':''}>${mem.name}</option>`).join('');
+  renderMSModalTasks();
+  document.getElementById('ms-modal').style.display = 'flex';
+}
+function closeMSModal() { document.getElementById('ms-modal').style.display = 'none'; }
+
+function addMSModalTask() {
+  const inp = document.getElementById('ms-f-task-inp');
+  const name = inp.value.trim();
+  if (!name) return;
+  MS_MODAL_TASKS.push({id: Date.now().toString(), name, status: document.getElementById('ms-f-task-status').value, notes: ''});
+  inp.value = '';
+  renderMSModalTasks();
+}
+
+function removeMSModalTask(idx) {
+  MS_MODAL_TASKS.splice(idx, 1);
+  renderMSModalTasks();
+}
+
+function renderMSModalTasks() {
+  const el = document.getElementById('ms-modal-task-list');
+  if (!MS_MODAL_TASKS.length) { el.innerHTML = '<div style="font-size:12px;color:var(--muted);font-style:italic;padding:4px 0">Nenhuma task adicionada</div>'; return; }
+  el.innerHTML = MS_MODAL_TASKS.map((t, i) => {
+    const st = MS_STATUSES[t.status] || MS_STATUSES.notstarted;
+    return `<div class="ms-modal-task-row">
+      <span class="ms-task-status" style="background:${st.bg};color:${st.color};border-radius:6px">${st.icon}</span>
+      <span>${t.name}</span>
+      <button type="button" class="ms-modal-task-del" onclick="removeMSModalTask(${i})">✕</button>
+    </div>`;
+  }).join('');
+}
+
+function saveMilestone() {
+  const name = document.getElementById('ms-f-name').value.trim();
+  if (!name) { alert('O nome é obrigatório.'); return; }
+  const fields = {
+    name,
+    status:   document.getElementById('ms-f-status').value,
+    assignee: document.getElementById('ms-f-assignee').value,
+    url:      document.getElementById('ms-f-url').value.trim(),
+    notes:    document.getElementById('ms-f-notes').value.trim(),
+    tasks:    MS_MODAL_TASKS
+  };
+  if (MS_EDIT_ID) {
+    const m = MS_DATA.find(x => x.id === MS_EDIT_ID);
+    if (m) Object.assign(m, fields);
+  } else {
+    const newMs = {id: Date.now().toString(), team: MS_CUR_TEAM, ...fields};
+    MS_DATA.push(newMs);
+    MS_OPEN.add(newMs.id);
+  }
+  saveMS(); closeMSModal(); buildMilestones(); showToast();
+}
+
+function deleteMilestone(id) {
+  if (!confirm('Eliminar esta milestone e todas as suas tarefas?')) return;
+  MS_DATA = MS_DATA.filter(m => m.id !== id);
+  MS_OPEN.delete(id);
+  saveMS(); buildMilestones(); showToast();
+}
+
+// — Task modal —
+function openMSTaskModal(msId, taskId) {
+  MS_TASK_MS_ID   = msId;
+  MS_TASK_EDIT_ID = taskId || null;
+  const m  = MS_DATA.find(x => x.id === msId);
+  const t  = taskId ? (m?.tasks||[]).find(x => x.id === taskId) : null;
+  document.getElementById('ms-task-modal-title').textContent = t ? 'Edit Task' : 'Add Task';
+  document.getElementById('ms-tf-name').value   = t ? t.name  : '';
+  document.getElementById('ms-tf-status').value = t ? t.status : 'inprogress';
+  document.getElementById('ms-tf-notes').value  = t ? (t.notes || '') : '';
+  document.getElementById('ms-task-modal').style.display = 'flex';
+}
+function closeMSTaskModal() { document.getElementById('ms-task-modal').style.display = 'none'; }
+
+function saveMSTask() {
+  const name = document.getElementById('ms-tf-name').value.trim();
+  if (!name) { alert('O nome é obrigatório.'); return; }
+  const m = MS_DATA.find(x => x.id === MS_TASK_MS_ID);
+  if (!m) return;
+  if (!m.tasks) m.tasks = [];
+  const task = {id: MS_TASK_EDIT_ID || Date.now().toString(), name, status: document.getElementById('ms-tf-status').value, notes: document.getElementById('ms-tf-notes').value.trim()};
+  if (MS_TASK_EDIT_ID) {
+    const idx = m.tasks.findIndex(t => t.id === MS_TASK_EDIT_ID);
+    if (idx !== -1) m.tasks[idx] = task;
+  } else { m.tasks.push(task); }
+  saveMS(); closeMSTaskModal(); buildMilestones(); showToast();
+}
+
+function deleteMSTask(msId, taskId) {
+  if (!confirm('Eliminar esta tarefa?')) return;
+  const m = MS_DATA.find(x => x.id === msId);
+  if (m) m.tasks = (m.tasks||[]).filter(t => t.id !== taskId);
+  saveMS(); buildMilestones(); showToast();
+}
+
+// ═══ SPRINTS ═══
+// Sprint structure: {id, team, name, tickets:[{id,assignee,jiraId,jiraUrl,title,desc,status}]}
+let SP_DATA       = JSON.parse(localStorage.getItem('sp_data') || '[]');
+let SP_CUR_TEAM   = 'rp';
+let SP_CUR_SPRINT = null; // active sprint id
+let SP_EDIT_TID   = null; // editing ticket id
+let SP_ADD_ASSIGNEE = null;
+
+function saveSP() { localStorage.setItem('sp_data', JSON.stringify(SP_DATA)); }
+
+function switchSPTeam(team, btn) {
+  SP_CUR_TEAM = team;
+  document.querySelectorAll('.rpde-subtab').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  // Select first sprint of this team if current doesn't belong
+  const teamSprints = SP_DATA.filter(s => s.team === team);
+  if (!teamSprints.find(s => s.id === SP_CUR_SPRINT)) {
+    SP_CUR_SPRINT = teamSprints.length ? teamSprints[0].id : null;
+  }
+  buildSprints();
+}
+
+function buildSprints() {
+  const teamSprints = SP_DATA.filter(s => s.team === SP_CUR_TEAM);
+  if (teamSprints.length && !teamSprints.find(s => s.id === SP_CUR_SPRINT)) {
+    SP_CUR_SPRINT = teamSprints[0].id;
+  }
+  const sprint = SP_DATA.find(s => s.id === SP_CUR_SPRINT);
+  const tickets = sprint ? (sprint.tickets || []) : [];
+
+  // Sprint chips
+  document.getElementById('sp-chips').innerHTML = teamSprints.length
+    ? teamSprints.map(s => `
+        <div class="sp-chip ${s.id===SP_CUR_SPRINT?'active':''}" onclick="selectSprint('${s.id}')">
+          ${s.name}
+          <span class="sp-chip-del" onclick="event.stopPropagation();deleteSprint('${s.id}')" title="Delete sprint">✕</span>
+        </div>`).join('')
+    : '<span style="font-size:13px;color:var(--muted)">No sprints yet — click "+ New Sprint"</span>';
+
+  // KPIs
+  const total    = tickets.length;
+  const active   = tickets.filter(t => ['inprogress','inreview','testing'].includes(t.status)).length;
+  const blocked  = tickets.filter(t => t.status === 'blocked').length;
+  const done     = tickets.filter(t => ['done','deployed'].includes(t.status)).length;
+  const todo     = tickets.filter(t => t.status === 'todo').length;
+  const members  = RPDE_MEMBERS[SP_CUR_TEAM] || [];
+  document.getElementById('sp-kpis').innerHTML = `
+    <div class="de-kpi" style="border-left-color:#4f46e5">
+      <span class="de-kpi-label">Total Tickets</span>
+      <div class="de-kpi-val" style="color:#4f46e5">${total}</div>
+      <span class="de-kpi-sub">In this sprint</span>
+    </div>
+    <div class="de-kpi" style="border-left-color:#64748b">
+      <span class="de-kpi-label">To Do</span>
+      <div class="de-kpi-val" style="color:#64748b">${todo}</div>
+      <span class="de-kpi-sub">Not started</span>
+    </div>
+    <div class="de-kpi" style="border-left-color:#2563eb">
+      <span class="de-kpi-label">Active</span>
+      <div class="de-kpi-val" style="color:#2563eb">${active}</div>
+      <span class="de-kpi-sub">In progress / review</span>
+    </div>
+    <div class="de-kpi" style="border-left-color:#dc2626">
+      <span class="de-kpi-label">Blocked</span>
+      <div class="de-kpi-val" style="color:#dc2626">${blocked}</div>
+      <span class="de-kpi-sub">Needs attention</span>
+    </div>
+    <div class="de-kpi" style="border-left-color:#16a34a">
+      <span class="de-kpi-label">Done</span>
+      <div class="de-kpi-val" style="color:#16a34a">${done}</div>
+      <span class="de-kpi-sub">Completed + deployed</span>
+    </div>
+    <div class="de-kpi" style="border-left-color:#7c3aed">
+      <span class="de-kpi-label">Members</span>
+      <div class="de-kpi-val" style="color:#7c3aed">${members.length}</div>
+      <span class="de-kpi-sub">In this team</span>
+    </div>`;
+
+  // Board
+  const board = document.getElementById('sp-board');
+  if (!sprint) {
+    board.innerHTML = `<div class="sp-empty-sprint card" style="padding:40px">
+      <div style="font-size:40px;margin-bottom:12px">🏃</div>
+      <div style="font-size:16px;font-weight:700;margin-bottom:6px">No sprint selected</div>
+      <div style="font-size:13px;color:var(--muted)">Create a sprint with "+ New Sprint" to get started</div>
+    </div>`;
+    return;
+  }
+  board.innerHTML = `<div class="sp-members-grid">${members.map(m => renderSPMemberCard(m, tickets)).join('')}</div>`;
+}
+
+function renderSPMemberCard(m, allTickets) {
+  const myTickets = allTickets.filter(t => t.assignee === m.name);
+  const roleColors = {DEV:['#eef2ff','#4f46e5'], QA:['#ecfeff','#0891b2'], DE:['#f5f3ff','#7c3aed']};
+  const [roleBg, roleCol] = roleColors[m.role] || ['#f1f5f9','#64748b'];
+  const safeN = m.name.replace(/'/g,"\\'");
+
+  // small status summary
+  const activeStatuses = ['todo','inprogress','inreview','testing','blocked','onhold'];
+  const statsHtml = activeStatuses
+    .map(s => ({s, n: myTickets.filter(t => t.status === s).length}))
+    .filter(x => x.n > 0)
+    .map(x => { const st = TICKET_STATUSES[x.s];
+      return `<span class="rpde-sstat" style="background:${st.bg};color:${st.color}">${st.icon} ${x.n}</span>`; })
+    .join('');
+
+  const ticketsHtml = myTickets.length
+    ? myTickets.map(t => renderSPTicket(t)).join('')
+    : `<div class="sp-no-tickets">No tickets planned — click "+ Add Ticket"</div>`;
+
+  return `<div class="sp-member-card">
+    <div class="sp-card-hdr">
+      <div class="sp-card-avatar" style="background:${ac(m.name)}">${ini(m.name)}</div>
+      <div style="min-width:0">
+        <div class="sp-card-name">${m.name}</div>
+        <span class="sp-card-role" style="background:${roleBg};color:${roleCol}">${m.role}</span>
+      </div>
+      <span style="margin-left:auto;font-size:11px;color:var(--muted);font-weight:600;flex-shrink:0">${myTickets.length} ticket${myTickets.length!==1?'s':''}</span>
+    </div>
+    ${statsHtml ? `<div class="rpde-card-stats">${statsHtml}</div>` : ''}
+    <div class="sp-tickets">${ticketsHtml}</div>
+    <div class="sp-card-footer">
+      <button class="sp-add-btn" onclick="openSPTicketModal('${safeN}')">+ Add Ticket</button>
+    </div>
+  </div>`;
+}
+
+function renderSPTicket(t) {
+  const st = TICKET_STATUSES[t.status] || TICKET_STATUSES.todo;
+  const jiraEl = t.jiraUrl
+    ? `<a class="sp-jira-link" href="${t.jiraUrl}" target="_blank" onclick="event.stopPropagation()">${t.jiraId||'🔗 Jira'}</a>`
+    : (t.jiraId ? `<span class="sp-jira-link" style="cursor:default">${t.jiraId}</span>` : '');
+  return `<div class="sp-ticket">
+    <div class="sp-ticket-row1">
+      ${jiraEl}
+      <span class="sp-ticket-title">${t.title}</span>
+      <span class="sp-status-badge" style="background:${st.bg};color:${st.color}">${st.icon} ${st.label}</span>
+    </div>
+    ${t.desc ? `<div class="sp-ticket-desc">${t.desc}</div>` : ''}
+    <div class="sp-ticket-actions">
+      <button class="sp-btn-edit" onclick="editSPTicket('${t.id}')">Edit</button>
+      <button class="sp-btn-del" onclick="deleteSPTicket('${t.id}')">✕</button>
+    </div>
+  </div>`;
+}
+
+function selectSprint(id) { SP_CUR_SPRINT = id; buildSprints(); }
+
+// — Sprint CRUD —
+function openNewSprintModal() {
+  document.getElementById('sp-f-sprint-name').value = '';
+  document.getElementById('sp-sprint-modal').style.display = 'flex';
+}
+function closeSPSprintModal() { document.getElementById('sp-sprint-modal').style.display = 'none'; }
+function saveNewSprint() {
+  const name = document.getElementById('sp-f-sprint-name').value.trim();
+  if (!name) return;
+  const s = {id: Date.now().toString(), team: SP_CUR_TEAM, name, tickets: []};
+  SP_DATA.push(s);
+  SP_CUR_SPRINT = s.id;
+  saveSP(); closeSPSprintModal(); buildSprints(); showToast();
+}
+function deleteSprint(id) {
+  const s = SP_DATA.find(x => x.id === id);
+  if (!confirm(`Delete sprint "${s?.name}"? All tickets will be lost.`)) return;
+  SP_DATA = SP_DATA.filter(x => x.id !== id);
+  if (SP_CUR_SPRINT === id) {
+    const remaining = SP_DATA.filter(x => x.team === SP_CUR_TEAM);
+    SP_CUR_SPRINT = remaining.length ? remaining[0].id : null;
+  }
+  saveSP(); buildSprints(); showToast();
+}
+
+// — Ticket CRUD —
+function openSPTicketModal(assignee) {
+  SP_EDIT_TID = null;
+  SP_ADD_ASSIGNEE = assignee || null;
+  document.getElementById('sp-ticket-modal-title').textContent = 'Add Ticket';
+  document.getElementById('sp-ticket-form').reset();
+  document.getElementById('sp-f-status').value = 'inprogress';
+  populateSPAssignee(assignee);
+  document.getElementById('sp-ticket-modal').style.display = 'flex';
+}
+function editSPTicket(tid) {
+  const sprint = SP_DATA.find(s => s.id === SP_CUR_SPRINT);
+  const t = sprint?.tickets.find(x => x.id === tid);
+  if (!t) return;
+  SP_EDIT_TID = tid;
+  document.getElementById('sp-ticket-modal-title').textContent = 'Edit Ticket';
+  populateSPAssignee(t.assignee);
+  document.getElementById('sp-f-id').value     = t.jiraId  || '';
+  document.getElementById('sp-f-url').value    = t.jiraUrl || '';
+  document.getElementById('sp-f-title').value  = t.title;
+  document.getElementById('sp-f-desc').value   = t.desc    || '';
+  document.getElementById('sp-f-status').value = t.status;
+  document.getElementById('sp-ticket-modal').style.display = 'flex';
+}
+function populateSPAssignee(selected) {
+  const sel = document.getElementById('sp-f-assignee');
+  sel.innerHTML = (RPDE_MEMBERS[SP_CUR_TEAM]||[])
+    .map(m => `<option value="${m.name}"${m.name===selected?' selected':''}>${m.name}</option>`).join('');
+}
+function closeSPTicketModal() { document.getElementById('sp-ticket-modal').style.display = 'none'; }
+function saveSPTicket() {
+  const title = document.getElementById('sp-f-title').value.trim();
+  if (!title) { alert('Title is required.'); return; }
+  const sprint = SP_DATA.find(s => s.id === SP_CUR_SPRINT);
+  if (!sprint) return;
+  if (!sprint.tickets) sprint.tickets = [];
+  const ticket = {
+    id:      SP_EDIT_TID || Date.now().toString(),
+    assignee: document.getElementById('sp-f-assignee').value,
+    jiraId:  document.getElementById('sp-f-id').value.trim(),
+    jiraUrl: document.getElementById('sp-f-url').value.trim(),
+    title,
+    desc:    document.getElementById('sp-f-desc').value.trim(),
+    status:  document.getElementById('sp-f-status').value
+  };
+  if (SP_EDIT_TID) {
+    const idx = sprint.tickets.findIndex(x => x.id === SP_EDIT_TID);
+    if (idx !== -1) sprint.tickets[idx] = ticket;
+  } else { sprint.tickets.push(ticket); }
+  saveSP(); closeSPTicketModal(); buildSprints(); showToast();
+}
+function deleteSPTicket(tid) {
+  if (!confirm('Delete this ticket?')) return;
+  const sprint = SP_DATA.find(s => s.id === SP_CUR_SPRINT);
+  if (sprint) sprint.tickets = sprint.tickets.filter(x => x.id !== tid);
+  saveSP(); buildSprints(); showToast();
+}
+
 buildInvoicing();
 buildVelocity('rp');
 buildVelocity('ia');
 buildDE();
+buildRPDE();
+buildMilestones();
+buildSprints();
 </script>
 </body>
 </html>
