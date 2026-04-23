@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "description": "Este dashboard agora suporta sincronizacao de estado com Supabase.",
   "scripts": {
-    "dev": "vite",
+    "dev": "vite --port 5173 --strictPort",
     "build": "vite build",
     "preview": "vite preview"
   },

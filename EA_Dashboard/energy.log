@@ -1,0 +1,9 @@
+
+> ea_dashboard@1.0.0 dev
+> vite --port 5173 --strictPort
+
+
+  VITE v7.3.2  ready in 216 ms
+
+  ➜  Local:   http://localhost:5173/
+  ➜  Network: use --host to expose
