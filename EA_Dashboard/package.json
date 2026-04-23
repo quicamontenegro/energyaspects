@@ -1,0 +1,16 @@
+{
+  "name": "ea_dashboard",
+  "version": "1.0.0",
+  "description": "Este dashboard agora suporta sincronizacao de estado com Supabase.",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "vite": "^7.1.11"
+  }
+}

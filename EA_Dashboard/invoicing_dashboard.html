@@ -4,7 +4,18 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Burocracy Dashboard</title>
+<meta name="supabase-url" content="%VITE_SUPABASE_URL%">
+<meta name="supabase-anon-key" content="%VITE_SUPABASE_ANON_KEY%">
+<script type="module">
+const url=import.meta.env.VITE_SUPABASE_URL||'';
+const key=import.meta.env.VITE_SUPABASE_ANON_KEY||'';
+window.__EA_ENV__={url,key};
+if(url)document.querySelector('meta[name="supabase-url"]').content=url;
+if(key)document.querySelector('meta[name="supabase-anon-key"]').content=key;
+</script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="/supabase-data-layer.js"></script>
 <style>
 :root{--bg:#f4f6fb;--card:#fff;--border:#e2e8f0;--primary:#4f46e5;--pl:#eef2ff;--pd:#3730a3;--text:#1e293b;--muted:#64748b;--green:#16a34a;--amber:#d97706;--red:#dc2626;--tag:#f1f5f9;--r:12px;--sh:0 1px 4px rgba(0,0,0,.07),0 4px 16px rgba(0,0,0,.06);}
 *{box-sizing:border-box;margin:0;padding:0;}
@@ -124,6 +135,7 @@ tr.tr td{background:#f8fafc;font-weight:700;border-top:2px solid var(--border);}
 .group-badge{display:inline-flex;align-items:center;gap:6px;padding:4px 14px;border-radius:20px;font-size:12px;font-weight:700;margin-left:12px;vertical-align:middle;}
 .toast{position:fixed;bottom:24px;right:24px;background:var(--green);color:#fff;padding:10px 20px;border-radius:8px;font-size:13px;font-weight:600;opacity:0;transform:translateY(8px);transition:all .3s;pointer-events:none;z-index:999;}
 .toast.show{opacity:1;transform:translateY(0);}
+.debug-pill{position:fixed;top:74px;right:18px;z-index:1000;padding:8px 12px;border-radius:10px;background:rgba(15,23,42,.9);color:#fff;font-size:11px;font-weight:700;box-shadow:0 6px 20px rgba(0,0,0,.18);max-width:280px;line-height:1.45;}
 @media(max-width:1100px){.drill-grid{grid-template-columns:1fr;}}
 @media(max-width:960px){.vel-kpi-grid{grid-template-columns:1fr 1fr;}}
 @media(max-width:700px){.main{padding:16px;}.stats-bar{grid-template-columns:1fr 1fr;}.hdr{padding:0 16px;}}
@@ -326,8 +338,8 @@ tr.tr td{background:#f8fafc;font-weight:700;border-top:2px solid var(--border);}
 <section id="invoicing" class="section active">
   <div class="sec-hdr"><h2>Invoicing</h2><p>Monthly hours logged per project and team member — April 2026</p></div>
   <div class="stats-bar">
-    <div class="stat-card"><span class="stat-label">Monthly Hours</span><div class="stat-editable"><input type="number" id="mh" value="176" min="1" oninput="recalcInv()"/><span style="font-size:14px;color:var(--muted)">h</span></div><span class="stat-sub">Total capacity per person</span></div>
-    <div class="stat-card"><span class="stat-label">Hours / Day</span><div class="stat-editable"><input type="number" id="hpd" value="8" min="1" oninput="recalcInv()"/><span style="font-size:14px;color:var(--muted)">h</span></div><span class="stat-sub">Standard workday</span></div>
+    <div class="stat-card"><span class="stat-label">Monthly Hours</span><div class="stat-editable"><input type="number" id="mh" value="176" min="1" oninput="recalcInv();scheduleSync()"/><span style="font-size:14px;color:var(--muted)">h</span></div><span class="stat-sub">Total capacity per person</span></div>
+    <div class="stat-card"><span class="stat-label">Hours / Day</span><div class="stat-editable"><input type="number" id="hpd" value="8" min="1" oninput="recalcInv();scheduleSync()"/><span style="font-size:14px;color:var(--muted)">h</span></div><span class="stat-sub">Standard workday</span></div>
     <div class="stat-card"><span class="stat-label">Working Days</span><div class="stat-value" id="wdays">22</div><span class="stat-sub">This month</span></div>
     <div class="stat-card"><span class="stat-label">Total Members</span><div class="stat-value" id="totmem">12</div><span class="stat-sub">Across all projects</span></div>
   </div>
@@ -828,7 +840,7 @@ tr.tr td{background:#f8fafc;font-weight:700;border-top:2px solid var(--border);}
 <div class="toast" id="toast">✓ Updated</div>
 <script>
 // ═══ DATA ═══
-const PROJECTS=[
+let PROJECTS=[
   {name:'Enterprise – Phase 1 – Initiation',tag:'Enterprise',color:'#4f46e5',members:[
     {name:'Tetiana Rudenko',pto:6,feriados:2,hoursOff:16,tl:96},
     {name:'Yurii Androshchuk',pto:0,feriados:1,hoursOff:8,tl:168},
@@ -847,7 +859,7 @@ const PROJECTS=[
 
 // RP Team = DEV + QA (sprints: RP 06, RP 07, RP 08)
 // IA Team = BE + FE  (sprints: IA 2, IA 3, IA 4)
-const TEAMS=[
+let TEAMS=[
   {id:'dev',name:'DEV Team',color:'#4f46e5',group:'rp',sprints:['RP 06','RP 07','RP 08'],
    members:[
     {name:'Francisco Garcia',sp:[18,8,0]},
@@ -933,6 +945,307 @@ function calcTeamMetrics(t){
   t.top=[...t.members].sort((a,b)=>b.avg-a.avg)[0];
 }
 TEAMS.forEach(calcTeamMetrics);
+
+const INITIAL_PROJECTS=JSON.parse(JSON.stringify(PROJECTS));
+const INITIAL_TEAMS=JSON.parse(JSON.stringify(TEAMS));
+const SB_TABLE='dashboard_state';
+const SB_ROW_ID='invoicing_dashboard';
+let sbClient=null;
+let syncTimer=null;
+let structuredBackendReady=false;
+
+function cloneData(v){
+  return JSON.parse(JSON.stringify(v));
+}
+
+function mergeMembers(defaultMembers,currentMembers){
+  const base=Array.isArray(currentMembers)?cloneData(currentMembers):[];
+  let changed=!Array.isArray(currentMembers);
+  const byName=new Set(base.map(m=>m?.name).filter(Boolean));
+  defaultMembers.forEach(dm=>{
+    if(!byName.has(dm.name)){
+      base.push(cloneData(dm));
+      changed=true;
+    }
+  });
+  return {members:base,changed};
+}
+
+function mergeProjectsWithDefaults(currentProjects){
+  const out=Array.isArray(currentProjects)?cloneData(currentProjects):[];
+  let changed=!Array.isArray(currentProjects);
+  const idxByName=new Map(out.map((p,i)=>[p?.name,i]));
+  INITIAL_PROJECTS.forEach(dp=>{
+    if(!idxByName.has(dp.name)){
+      out.push(cloneData(dp));
+      changed=true;
+      return;
+    }
+    const idx=idxByName.get(dp.name);
+    const mm=mergeMembers(dp.members,out[idx]?.members);
+    if(mm.changed){
+      out[idx].members=mm.members;
+      changed=true;
+    }
+  });
+  return {data:out,changed};
+}
+
+function mergeTeamsWithDefaults(currentTeams){
+  const out=Array.isArray(currentTeams)?cloneData(currentTeams):[];
+  let changed=!Array.isArray(currentTeams);
+  const idxById=new Map(out.map((t,i)=>[t?.id,i]));
+  INITIAL_TEAMS.forEach(dt=>{
+    if(!idxById.has(dt.id)){
+      out.push(cloneData(dt));
+      changed=true;
+      return;
+    }
+    const idx=idxById.get(dt.id);
+    if(!Array.isArray(out[idx].sprints)){
+      out[idx].sprints=cloneData(dt.sprints);
+      changed=true;
+    }
+    const mm=mergeMembers(dt.members,out[idx]?.members);
+    if(mm.changed){
+      out[idx].members=mm.members;
+      changed=true;
+    }
+  });
+  return {data:out,changed};
+}
+
+function readLegacyArray(key){
+  try{
+    const parsed=JSON.parse(localStorage.getItem(key)||'[]');
+    return Array.isArray(parsed)?parsed:[];
+  }catch(_){
+    return [];
+  }
+}
+
+function clearLegacyLocalData(){
+  ['de_tasks','rpde_tickets','ms_data','sp_data'].forEach(key=>{
+    try{localStorage.removeItem(key);}catch(_){/* ignore storage cleanup errors */}
+  });
+}
+
+const EMBEDDED_SUPABASE_URL='%VITE_SUPABASE_URL%';
+const EMBEDDED_SUPABASE_ANON_KEY='%VITE_SUPABASE_ANON_KEY%';
+const HARD_FALLBACK_SUPABASE_URL='https://dhfgtvuwxpssoovrpemo.supabase.co';
+const HARD_FALLBACK_SUPABASE_ANON_KEY='sb_publishable_gnKuPqDC4wCBNNrSwbANBw_KrNsp14Z';
+
+function getSupabaseConfig(){
+  const runtimeEnv=window.__EA_ENV__||{};
+  const metaUrl=document.querySelector('meta[name="supabase-url"]')?.content||'';
+  const metaKey=document.querySelector('meta[name="supabase-anon-key"]')?.content||'';
+  const rawUrl=runtimeEnv.url||metaUrl||EMBEDDED_SUPABASE_URL||HARD_FALLBACK_SUPABASE_URL;
+  const rawKey=runtimeEnv.key||metaKey||EMBEDDED_SUPABASE_ANON_KEY||HARD_FALLBACK_SUPABASE_ANON_KEY;
+  const urlCandidate=(rawUrl||'').trim();
+  const keyCandidate=(rawKey||'').trim();
+  const invalidUrl=!urlCandidate||urlCandidate.includes('VITE_SUPABASE_URL');
+  const invalidKey=!keyCandidate||keyCandidate.includes('VITE_SUPABASE_ANON_KEY');
+  const url=invalidUrl?HARD_FALLBACK_SUPABASE_URL:urlCandidate;
+  const anonKey=invalidKey?HARD_FALLBACK_SUPABASE_ANON_KEY:keyCandidate;
+  return {
+    url,
+    anonKey
+  };
+}
+
+async function waitForSupabaseConfig(maxAttempts=20,delayMs=50){
+  let cfg=getSupabaseConfig();
+  if(cfg.url&&cfg.anonKey)return cfg;
+  for(let attempt=0;attempt<maxAttempts;attempt++){
+    await new Promise(resolve=>setTimeout(resolve,delayMs));
+    cfg=getSupabaseConfig();
+    if(cfg.url&&cfg.anonKey)return cfg;
+  }
+  return cfg;
+}
+
+async function loadStateViaRest(cfg){
+  if(!cfg?.url||!cfg?.anonKey)return null;
+  const res=await fetch(`${cfg.url}/rest/v1/${SB_TABLE}?select=state&id=eq.${SB_ROW_ID}`,{
+    headers:{apikey:cfg.anonKey,Authorization:`Bearer ${cfg.anonKey}`}
+  });
+  if(!res.ok)throw new Error(`REST load failed: ${res.status}`);
+  const rows=await res.json();
+  return Array.isArray(rows)&&rows[0]?.state?rows[0].state:null;
+}
+
+function syncInvoicingModelFromDom(){
+  document.querySelectorAll('.rd').forEach(row=>{
+    const pid=parseInt(row.dataset.pid,10);
+    if(Number.isNaN(pid)||!PROJECTS[pid])return;
+    const memberName=row.dataset.m;
+    const member=PROJECTS[pid].members.find(m=>m.name===memberName);
+    if(!member)return;
+    const pto=parseFloat(row.querySelector('td:nth-child(2) input')?.value)||0;
+    const feriados=parseFloat(row.querySelector('td:nth-child(3) input')?.value)||0;
+    const hoursOff=parseFloat(row.querySelector('.hoff')?.value)||0;
+    member.pto=pto;
+    member.feriados=feriados;
+    member.hoursOff=hoursOff;
+    member.tl=Math.max(0,getMH()-hoursOff);
+  });
+}
+
+function serializeState(){
+  syncInvoicingModelFromDom();
+  return {
+    settings:{
+      monthlyHours:getMH(),
+      hoursPerDay:getHPD()
+    },
+    projects:JSON.parse(JSON.stringify(PROJECTS)),
+    teams:JSON.parse(JSON.stringify(TEAMS)),
+    deTasks:JSON.parse(JSON.stringify(DE_TASKS||[])),
+    rpdeTickets:JSON.parse(JSON.stringify(RPDE_TICKETS||[])),
+    msData:JSON.parse(JSON.stringify(MS_DATA||[])),
+    spData:JSON.parse(JSON.stringify(SP_DATA||[])),
+    updatedAt:new Date().toISOString()
+  };
+}
+
+function applyState(state){
+  const st=state&&typeof state==='object'?state:{};
+  let migrated=false;
+  const legacyDe=Array.isArray(DE_TASKS)&&DE_TASKS.length?DE_TASKS:readLegacyArray('de_tasks');
+  const legacyRpde=Array.isArray(RPDE_TICKETS)&&RPDE_TICKETS.length?RPDE_TICKETS:readLegacyArray('rpde_tickets');
+  const legacyMs=Array.isArray(MS_DATA)&&MS_DATA.length?MS_DATA:readLegacyArray('ms_data');
+  const legacySp=Array.isArray(SP_DATA)&&SP_DATA.length?SP_DATA:readLegacyArray('sp_data');
+
+  const mergedProjects=mergeProjectsWithDefaults(st.projects);
+  const mergedTeams=mergeTeamsWithDefaults(st.teams);
+  PROJECTS=mergedProjects.data;
+  TEAMS=mergedTeams.data;
+  migrated=migrated||mergedProjects.changed||mergedTeams.changed;
+
+  TEAMS.forEach(calcTeamMetrics);
+
+  if(Array.isArray(st.deTasks)){DE_TASKS=cloneData(st.deTasks);}else{DE_TASKS=cloneData(legacyDe);if(legacyDe.length)migrated=true;}
+  if(Array.isArray(st.rpdeTickets)){RPDE_TICKETS=cloneData(st.rpdeTickets);}else{RPDE_TICKETS=cloneData(legacyRpde);if(legacyRpde.length)migrated=true;}
+  if(Array.isArray(st.msData)){MS_DATA=cloneData(st.msData);}else{MS_DATA=cloneData(legacyMs);if(legacyMs.length)migrated=true;}
+  if(Array.isArray(st.spData)){SP_DATA=cloneData(st.spData);}else{SP_DATA=cloneData(legacySp);if(legacySp.length)migrated=true;}
+
+  const mh=Number.isFinite(Number(st.settings?.monthlyHours))?Math.max(1,parseInt(st.settings.monthlyHours,10)):176;
+  const hpd=Number.isFinite(Number(st.settings?.hoursPerDay))?Math.max(1,parseInt(st.settings.hoursPerDay,10)):8;
+  document.getElementById('mh').value=String(mh);
+  document.getElementById('hpd').value=String(hpd);
+  return migrated;
+}
+
+function buildStructuredSnapshot(){
+  syncInvoicingModelFromDom();
+  return {
+    settings:{
+      monthlyHours:getMH(),
+      hoursPerDay:getHPD()
+    },
+    projects:cloneData(PROJECTS),
+    teams:cloneData(TEAMS),
+    deTasks:cloneData(DE_TASKS||[]),
+    rpdeTickets:cloneData(RPDE_TICKETS||[]),
+    msData:cloneData(MS_DATA||[]),
+    spData:cloneData(SP_DATA||[])
+  };
+}
+
+async function saveLegacyStateToSupabase(state){
+  if(!sbClient)return;
+  const payload={id:SB_ROW_ID,state:state||serializeState(),updated_at:new Date().toISOString()};
+  const {error}=await sbClient.from(SB_TABLE).upsert(payload,{onConflict:'id'});
+  if(error)throw error;
+}
+
+async function flushSync(){
+  if(!sbClient)return;
+  clearTimeout(syncTimer);
+  syncTimer=null;
+  try{
+    if(structuredBackendReady){
+      await saveCoreSnapshot(buildStructuredSnapshot());
+    }else{
+      await saveLegacyStateToSupabase();
+    }
+  }
+  catch(_){/* keep UI responsive even if sync fails */}
+}
+
+function scheduleSync(immediate=false){
+  syncInvoicingModelFromDom();
+  if(!sbClient)return;
+  clearTimeout(syncTimer);
+  if(immediate){
+    return flushSync();
+  }
+  syncTimer=setTimeout(async()=>{
+    try{await flushSync();}
+    catch(_){/* keep UI responsive even if sync fails */}
+  },400);
+}
+
+async function initSupabaseAndState(){
+  const cfg=await waitForSupabaseConfig();
+  if(!cfg.url||!cfg.anonKey){
+    return;
+  }
+
+  if(window.supabase&&window.supabase.createClient){
+    sbClient=window.supabase.createClient(cfg.url,cfg.anonKey,{auth:{persistSession:false}});
+  }
+
+  try{
+    let state=null;
+
+    if(sbClient&&typeof loadAllData==='function'){
+      state=await loadAllData();
+      if(state){
+        structuredBackendReady=true;
+        applyState(state);
+        clearLegacyLocalData();
+        return;
+      }
+    }
+
+    structuredBackendReady=false;
+
+    if(sbClient){
+      try{
+        const {data,error}=await sbClient.from(SB_TABLE).select('state').eq('id',SB_ROW_ID).maybeSingle();
+        if(error)throw error;
+        state=data?.state||null;
+      }catch(err){
+        console.warn('Supabase client read failed, trying REST fallback.', err);
+      }
+    }
+
+    if(!state){
+      state=await loadStateViaRest(cfg);
+    }
+
+    if(state){
+      const migrated=applyState(state);
+      if(migrated){
+        await saveLegacyStateToSupabase(state);
+      }
+      clearLegacyLocalData();
+    } else {
+      applyState(null);
+      await saveLegacyStateToSupabase();
+      clearLegacyLocalData();
+    }
+  }catch(err){
+    console.error('Failed to initialize dashboard state from Supabase.', err);
+    sbClient=null;
+  }
+}
+
+window.addEventListener('pagehide',()=>{flushSync();});
+document.addEventListener('visibilitychange',()=>{
+  if(document.visibilityState==='hidden')flushSync();
+});
 
 // ═══ VELOCITY RENDER FUNCTIONS (group-aware) ═══
 
@@ -1078,12 +1391,14 @@ function onSpEdit(tidx,mi,si,val,gid){
   TEAMS[tidx].members[mi].sp[si]=parseFloat(val)||0;
   calcTeamMetrics(TEAMS[tidx]);
   refreshAll(gid,tidx);
+  scheduleSync();
   showToast();
   document.getElementById('lastUpdate_'+gid).textContent='Last update: '+new Date().toLocaleTimeString();
 }
 
 function renameS(tidx,si,val,gid){
   TEAMS[tidx].sprints[si]=val;
+  scheduleSync();
   const gs=GS[gid];
   if(gs.vr){renderOverviewChart(gid);renderDrillChart(gid,TEAMS[tidx]);}
 }
@@ -1108,6 +1423,7 @@ function addSprint(gid){
   t.members.forEach(m=>m.sp.push(0));
   calcTeamMetrics(t);
   renderTeam(gid,gs.ati,gs.vr);
+  scheduleSync();
   showToast();
   setTimeout(()=>{const inp=document.querySelector('#sprintTable_'+gid+' .sp-inp.new-sprint');if(inp)inp.scrollIntoView({behavior:'smooth',block:'nearest'});},100);
 }
@@ -1201,7 +1517,11 @@ function recalcInv(){
     const ho=parseFloat(tr.querySelector('.hoff')?.value)||0;
     const tl=Math.max(0,getMH()-ho);
     const tc=tr.querySelector('.ctl');
-    if(tc){tc.textContent=tl;tc.style.color=tl<getMH()*.5?'var(--red)':tl===getMH()?'var(--green)':'var(--text)';}
+    if(tc){
+      if(tc.tagName==='INPUT'){tc.value=tl;}
+      else{tc.textContent=tl;}
+      tc.style.color=tl<getMH()*.5?'var(--red)':tl===getMH()?'var(--green)':'var(--text)';
+    }
     const uc=tr.querySelector('.cut');if(uc)uc.textContent=Math.round(tl/getMH()*100)+'%';
   });
 }
@@ -1232,8 +1552,8 @@ function buildInvoicing(){
         <td><div class="mc"><div class="av" style="background:${c};width:32px;height:32px;font-size:12px">${ini(m.name)}</div><span style="font-weight:500">${m.name}</span></div></td>
         <td style="text-align:center"><input class="ec" style="width:60px" type="number" value="${m.pto}" min="0" oninput="onPTO(this)"/></td>
         <td style="text-align:center"><input class="ec" style="width:60px" type="number" value="${m.feriados}" min="0" oninput="onPTO(this)"/></td>
-        <td style="text-align:center"><input class="ec hoff" style="width:70px" type="number" value="${m.hoursOff}" min="0" oninput="recalcInv();showToast()"/></td>
-        <td><div class="cc ctl" style="color:${m.tl===mh?'var(--green)':m.tl<mh*.5?'var(--red)':'var(--text)'}">${m.tl}</div></td>
+        <td style="text-align:center"><input class="ec hoff" style="width:70px" type="number" value="${m.hoursOff}" min="0" oninput="recalcInv();scheduleSync();showToast()"/></td>
+        <td style="text-align:center"><input class="ec ctl" style="width:80px;color:${m.tl===mh?'var(--green)':m.tl<mh*.5?'var(--red)':'var(--text)'}" type="number" value="${m.tl}" min="0" max="${mh}" oninput="onTL(this)"/></td>
         <td><div class="cc cut">${u}%</div></td>
       </tr>`;
     });
@@ -1256,7 +1576,16 @@ function onPTO(inp){
   const p=parseFloat(tr.querySelector('td:nth-child(2) input')?.value)||0;
   const f=parseFloat(tr.querySelector('td:nth-child(3) input')?.value)||0;
   const h=tr.querySelector('.hoff');if(h)h.value=(p+f)*getHPD();
-  recalcInv();showToast();
+  recalcInv();scheduleSync();showToast();
+}
+function onTL(inp){
+  const tr=inp.closest('tr');
+  const mh=getMH();
+  const raw=parseFloat(inp.value);
+  const safe=Number.isFinite(raw)?Math.max(0,Math.min(mh,raw)):0;
+  inp.value=safe;
+  const h=tr.querySelector('.hoff');if(h)h.value=Math.max(0,mh-safe);
+  recalcInv();scheduleSync();showToast();
 }
 function applyIF(){
   const pv=document.getElementById('pf').value,mv=document.getElementById('mf').value;
@@ -1275,9 +1604,11 @@ function clearAll(){
   if(!confirm('Clear all PTO, Holiday, and Hours Off values?')) return;
   PROJECTS.forEach(p=>p.members.forEach(m=>{m.pto=0;m.feriados=0;m.hoursOff=0;m.tl=getMH();}));
   buildInvoicing();
+  scheduleSync();
   showToast();
 }
 function exportCSV(){
+  syncInvoicingModelFromDom();
   let csv='Project,Member,PTO Days,Holidays,Hours Off,Total Logged,Utilization\n';
   const mh=getMH();
   PROJECTS.forEach(p=>p.members.forEach(m=>{
@@ -1300,11 +1631,12 @@ function dl(content,name,type){const a=document.createElement('a');a.href=URL.cr
 let tt;function showToast(){const el=document.getElementById('toast');el.classList.add('show');clearTimeout(tt);tt=setTimeout(()=>el.classList.remove('show'),2000);}
 
 // ═══ DATA EXPLORER ═══
-let DE_TASKS = JSON.parse(localStorage.getItem('de_tasks') || '[]');
+let DE_TASKS = [];
 let DE_EDIT_ID = null;
 
-function saveDE() {
-  localStorage.setItem('de_tasks', JSON.stringify(DE_TASKS));
+async function saveDE() {
+  if(structuredBackendReady)return replaceDataExplorerSnapshot(DE_TASKS);
+  return scheduleSync(true);
 }
 
 function getWeekLabel(dateStr) {
@@ -1500,7 +1832,7 @@ function closeModal() {
   document.getElementById('de-modal').style.display = 'none';
 }
 
-function saveTask() {
+async function saveTask() {
   const name = document.getElementById('de-f-name').value.trim();
   if (!name) { alert('Task name is required.'); return; }
   const task = {
@@ -1520,13 +1852,13 @@ function saveTask() {
   } else {
     DE_TASKS.push(task);
   }
-  saveDE(); closeModal(); buildDE(); showToast();
+  await saveDE(); closeModal(); buildDE(); showToast();
 }
 
-function deleteTask(id) {
+async function deleteTask(id) {
   if (!confirm('Delete this task?')) return;
   DE_TASKS = DE_TASKS.filter(t => t.id !== id);
-  saveDE(); buildDE(); showToast();
+  await saveDE(); buildDE(); showToast();
 }
 
 // ═══ RP & DE TEAM TRACKER ═══
@@ -1554,11 +1886,14 @@ const RPDE_MEMBERS = {
   ]
 };
 
-let RPDE_TICKETS  = JSON.parse(localStorage.getItem('rpde_tickets') || '[]');
+let RPDE_TICKETS  = [];
 let RPDE_EDIT_ID  = null;
 let RPDE_CUR_TEAM = 'rp';
 
-function saveRPDE() { localStorage.setItem('rpde_tickets', JSON.stringify(RPDE_TICKETS)); }
+async function saveRPDE() {
+  if(structuredBackendReady)return replaceRPDETicketsSnapshot(RPDE_TICKETS);
+  return scheduleSync(true);
+}
 
 function switchRPDE(team, btn) {
   RPDE_CUR_TEAM = team;
@@ -1710,7 +2045,7 @@ function editRPDETicket(id) {
 
 function closeRPDEModal() { document.getElementById('rpde-modal').style.display = 'none'; }
 
-function saveRPDETicket() {
+async function saveRPDETicket() {
   const title = document.getElementById('rpde-f-title').value.trim();
   if (!title) { alert('O título é obrigatório.'); return; }
   const ticket = {
@@ -1731,13 +2066,13 @@ function saveRPDETicket() {
     const idx = RPDE_TICKETS.findIndex(t => t.id === RPDE_EDIT_ID);
     if (idx !== -1) RPDE_TICKETS[idx] = ticket;
   } else { RPDE_TICKETS.push(ticket); }
-  saveRPDE(); closeRPDEModal(); buildRPDE(); showToast();
+  await saveRPDE(); closeRPDEModal(); buildRPDE(); showToast();
 }
 
-function deleteRPDETicket(id) {
+async function deleteRPDETicket(id) {
   if (!confirm('Eliminar este ticket?')) return;
   RPDE_TICKETS = RPDE_TICKETS.filter(t => t.id !== id);
-  saveRPDE(); buildRPDE(); showToast();
+  await saveRPDE(); buildRPDE(); showToast();
 }
 
 // ═══ MILESTONES ═══
@@ -1749,7 +2084,7 @@ const MS_STATUSES = {
   onhold:     {label:'On Hold',     color:'#d97706', bg:'#fffbeb', icon:'⏸'}
 };
 
-let MS_DATA         = JSON.parse(localStorage.getItem('ms_data') || '[]');
+let MS_DATA         = [];
 let MS_CUR_TEAM     = 'rp';
 let MS_EDIT_ID      = null;
 let MS_TASK_MS_ID   = null;
@@ -1757,7 +2092,20 @@ let MS_TASK_EDIT_ID = null;
 let MS_MODAL_TASKS  = [];   // temp tasks while modal is open
 const MS_OPEN       = new Set();
 
-function saveMS() { localStorage.setItem('ms_data', JSON.stringify(MS_DATA)); }
+async function saveMS() {
+  try{
+    if(structuredBackendReady){
+      await replaceMilestonesSnapshot(MS_DATA);
+    }else{
+      await scheduleSync(true);
+    }
+    return true;
+  }catch(err){
+    console.error('MS save failed:', err);
+    alert(`Erro ao guardar milestone/task na BD: ${err?.message || err}`);
+    return false;
+  }
+}
 
 function switchMSTeam(team, btn) {
   MS_CUR_TEAM = team;
@@ -1937,7 +2285,7 @@ function renderMSModalTasks() {
   }).join('');
 }
 
-function saveMilestone() {
+async function saveMilestone() {
   const name = document.getElementById('ms-f-name').value.trim();
   if (!name) { alert('O nome é obrigatório.'); return; }
   const fields = {
@@ -1956,14 +2304,19 @@ function saveMilestone() {
     MS_DATA.push(newMs);
     MS_OPEN.add(newMs.id);
   }
-  saveMS(); closeMSModal(); buildMilestones(); showToast();
+  const persisted = await saveMS();
+  closeMSModal();
+  buildMilestones();
+  if (persisted) showToast();
 }
 
-function deleteMilestone(id) {
+async function deleteMilestone(id) {
   if (!confirm('Eliminar esta milestone e todas as suas tarefas?')) return;
   MS_DATA = MS_DATA.filter(m => m.id !== id);
   MS_OPEN.delete(id);
-  saveMS(); buildMilestones(); showToast();
+  const persisted = await saveMS();
+  buildMilestones();
+  if (persisted) showToast();
 }
 
 // — Task modal —
@@ -1980,7 +2333,7 @@ function openMSTaskModal(msId, taskId) {
 }
 function closeMSTaskModal() { document.getElementById('ms-task-modal').style.display = 'none'; }
 
-function saveMSTask() {
+async function saveMSTask() {
   const name = document.getElementById('ms-tf-name').value.trim();
   if (!name) { alert('O nome é obrigatório.'); return; }
   const m = MS_DATA.find(x => x.id === MS_TASK_MS_ID);
@@ -1991,25 +2344,43 @@ function saveMSTask() {
     const idx = m.tasks.findIndex(t => t.id === MS_TASK_EDIT_ID);
     if (idx !== -1) m.tasks[idx] = task;
   } else { m.tasks.push(task); }
-  saveMS(); closeMSTaskModal(); buildMilestones(); showToast();
+  const persisted = await saveMS();
+  closeMSTaskModal();
+  buildMilestones();
+  if (persisted) showToast();
 }
 
-function deleteMSTask(msId, taskId) {
+async function deleteMSTask(msId, taskId) {
   if (!confirm('Eliminar esta tarefa?')) return;
   const m = MS_DATA.find(x => x.id === msId);
   if (m) m.tasks = (m.tasks||[]).filter(t => t.id !== taskId);
-  saveMS(); buildMilestones(); showToast();
+  const persisted = await saveMS();
+  buildMilestones();
+  if (persisted) showToast();
 }
 
 // ═══ SPRINTS ═══
 // Sprint structure: {id, team, name, tickets:[{id,assignee,jiraId,jiraUrl,title,desc,status}]}
-let SP_DATA       = JSON.parse(localStorage.getItem('sp_data') || '[]');
+let SP_DATA       = [];
 let SP_CUR_TEAM   = 'rp';
 let SP_CUR_SPRINT = null; // active sprint id
 let SP_EDIT_TID   = null; // editing ticket id
 let SP_ADD_ASSIGNEE = null;
 
-function saveSP() { localStorage.setItem('sp_data', JSON.stringify(SP_DATA)); }
+async function saveSP() {
+  try{
+    if(structuredBackendReady){
+      await replaceSprintsSnapshot(SP_DATA);
+    }else{
+      await scheduleSync(true);
+    }
+    return true;
+  }catch(err){
+    console.error('SP save failed:', err);
+    alert(`Erro ao guardar sprint/TT na BD: ${err?.message || err}`);
+    return false;
+  }
+}
 
 function switchSPTeam(team, btn) {
   SP_CUR_TEAM = team;
@@ -2155,15 +2526,18 @@ function openNewSprintModal() {
   document.getElementById('sp-sprint-modal').style.display = 'flex';
 }
 function closeSPSprintModal() { document.getElementById('sp-sprint-modal').style.display = 'none'; }
-function saveNewSprint() {
+async function saveNewSprint() {
   const name = document.getElementById('sp-f-sprint-name').value.trim();
   if (!name) return;
   const s = {id: Date.now().toString(), team: SP_CUR_TEAM, name, tickets: []};
   SP_DATA.push(s);
   SP_CUR_SPRINT = s.id;
-  saveSP(); closeSPSprintModal(); buildSprints(); showToast();
+  const persisted = await saveSP();
+  closeSPSprintModal();
+  buildSprints();
+  if (persisted) showToast();
 }
-function deleteSprint(id) {
+async function deleteSprint(id) {
   const s = SP_DATA.find(x => x.id === id);
   if (!confirm(`Delete sprint "${s?.name}"? All tickets will be lost.`)) return;
   SP_DATA = SP_DATA.filter(x => x.id !== id);
@@ -2171,7 +2545,9 @@ function deleteSprint(id) {
     const remaining = SP_DATA.filter(x => x.team === SP_CUR_TEAM);
     SP_CUR_SPRINT = remaining.length ? remaining[0].id : null;
   }
-  saveSP(); buildSprints(); showToast();
+  const persisted = await saveSP();
+  buildSprints();
+  if (persisted) showToast();
 }
 
 // — Ticket CRUD —
@@ -2204,7 +2580,7 @@ function populateSPAssignee(selected) {
     .map(m => `<option value="${m.name}"${m.name===selected?' selected':''}>${m.name}</option>`).join('');
 }
 function closeSPTicketModal() { document.getElementById('sp-ticket-modal').style.display = 'none'; }
-function saveSPTicket() {
+async function saveSPTicket() {
   const title = document.getElementById('sp-f-title').value.trim();
   if (!title) { alert('Title is required.'); return; }
   const sprint = SP_DATA.find(s => s.id === SP_CUR_SPRINT);
@@ -2223,22 +2599,44 @@ function saveSPTicket() {
     const idx = sprint.tickets.findIndex(x => x.id === SP_EDIT_TID);
     if (idx !== -1) sprint.tickets[idx] = ticket;
   } else { sprint.tickets.push(ticket); }
-  saveSP(); closeSPTicketModal(); buildSprints(); showToast();
+  const persisted = await saveSP();
+  closeSPTicketModal();
+  buildSprints();
+  if (persisted) showToast();
 }
-function deleteSPTicket(tid) {
+async function deleteSPTicket(tid) {
   if (!confirm('Delete this ticket?')) return;
   const sprint = SP_DATA.find(s => s.id === SP_CUR_SPRINT);
   if (sprint) sprint.tickets = sprint.tickets.filter(x => x.id !== tid);
-  saveSP(); buildSprints(); showToast();
+  const persisted = await saveSP();
+  buildSprints();
+  if (persisted) showToast();
 }
 
-buildInvoicing();
-buildVelocity('rp');
-buildVelocity('ia');
-buildDE();
-buildRPDE();
-buildMilestones();
-buildSprints();
+function rebuildAll(){
+  buildInvoicing();
+  buildVelocity('rp');
+  buildVelocity('ia');
+  buildDE();
+  buildRPDE();
+  buildMilestones();
+  buildSprints();
+}
+
+async function bootstrap(){
+  await initSupabaseAndState();
+  rebuildAll();
+  const hashTab=(window.location.hash||'').replace('#','').trim();
+  if(hashTab&&document.getElementById(hashTab)){
+    const targetBtn=document.querySelector(`.tab-btn[onclick*="'${hashTab}'"]`);
+    switchTab(hashTab,targetBtn||null);
+  }
+  if(sbClient){
+    scheduleSync();
+  }
+}
+
+bootstrap();
 </script>
 </body>
 </html>

@@ -4,7 +4,10 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>EA Burocracy Dashboard</title>
+<meta name="supabase-url" content="%VITE_SUPABASE_URL%">
+<meta name="supabase-anon-key" content="%VITE_SUPABASE_ANON_KEY%">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 :root{--bg:#f4f6fb;--card:#fff;--border:#e2e8f0;--primary:#4f46e5;--pl:#eef2ff;--pd:#3730a3;--text:#1e293b;--muted:#64748b;--green:#16a34a;--amber:#d97706;--red:#dc2626;--tag:#f1f5f9;--r:12px;--sh:0 1px 4px rgba(0,0,0,.07),0 4px 16px rgba(0,0,0,.06);}
 *{box-sizing:border-box;margin:0;padding:0;}
@@ -12,6 +15,10 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
 .hdr{background:var(--card);border-bottom:1px solid var(--border);padding:0 32px;display:flex;align-items:center;height:64px;position:sticky;top:0;z-index:100;box-shadow:0 1px 8px rgba(0,0,0,.06);}
 .logo{font-weight:700;font-size:18px;color:var(--primary);letter-spacing:-.5px;}.logo span{color:var(--text);}
 .tabs{display:flex;gap:4px;margin-left:auto;}
+.sync-pill{margin-left:14px;padding:6px 10px;border-radius:999px;border:1px solid var(--border);font-size:11px;font-weight:700;color:var(--muted);background:var(--tag);}
+.sync-pill.online{background:#dcfce7;color:#166534;border-color:#bbf7d0;}
+.sync-pill.syncing{background:#fef3c7;color:#92400e;border-color:#fde68a;}
+.sync-pill.error{background:#fee2e2;color:#991b1b;border-color:#fecaca;}
 .tab-btn{padding:8px 20px;border:none;border-radius:8px;cursor:pointer;font-size:14px;font-weight:500;background:transparent;color:var(--muted);transition:all .15s;}
 .tab-btn.active{background:var(--primary);color:#fff;}
 .tab-btn:not(.active):hover{background:var(--tag);color:var(--text);}
@@ -132,6 +139,7 @@ tr.tr td{background:#f8fafc;font-weight:700;border-top:2px solid var(--border);}
 <body>
 <header class="hdr">
   <div class="logo">Buro<span>cracy</span></div>
+  <span id="syncStatus" class="sync-pill">Local mode</span>
   <nav class="tabs">
     <button class="tab-btn active" onclick="switchTab('invoicing',this)">📄 Invoicing</button>
     <button class="tab-btn" onclick="switchTab('vel-rp',this)">⚡ RP Team</button>
@@ -144,7 +152,7 @@ tr.tr td{background:#f8fafc;font-weight:700;border-top:2px solid var(--border);}
 <section id="invoicing" class="section active">
   <div class="sec-hdr"><h2>Invoicing</h2><p>Monthly hours logged per project and team member — April 2026</p></div>
   <div class="stats-bar">
-    <div class="stat-card"><span class="stat-label">Working Days</span><div class="stat-editable"><input type="number" id="wdays" value="22" min="1" oninput="recalcInv()"/><span style="font-size:14px;color:var(--muted)">days</span></div><span class="stat-sub">This month</span></div>
+    <div class="stat-card"><span class="stat-label">Working Days</span><div class="stat-editable"><input type="number" id="wdays" value="22" min="1" oninput="recalcInv();scheduleSync()"/><span style="font-size:14px;color:var(--muted)">days</span></div><span class="stat-sub">This month</span></div>
     <div class="stat-card"><span class="stat-label">Hours / Day</span><div class="stat-value">8<span style="font-size:14px;font-weight:400;color:var(--muted)"> h</span></div><span class="stat-sub">Standard workday</span></div>
     <div class="stat-card"><span class="stat-label">Monthly Hours</span><div class="stat-value" id="mh">176</div><span class="stat-sub">Working days × hours/day</span></div>
     <div class="stat-card"><span class="stat-label">Total Members</span><div class="stat-value" id="totmem">12</div><span class="stat-sub">Across all projects</span></div>
@@ -248,7 +256,7 @@ tr.tr td{background:#f8fafc;font-weight:700;border-top:2px solid var(--border);}
 <div class="toast" id="toast">✓ Updated</div>
 <script>
 // ═══ DATA ═══
-const PROJECTS=[
+let PROJECTS=[
   {name:'Enterprise – Phase 1 – Initiation',tag:'Enterprise',color:'#4f46e5',members:[
     {name:'Tetiana Rudenko',pto:6,feriados:2,hoursOff:16,tl:96},
     {name:'Yurii Androshchuk',pto:0,feriados:1,hoursOff:8,tl:168},
@@ -268,7 +276,7 @@ const PROJECTS=[
 
 // RP Team = DEV + QA (sprints: RP 06, RP 07, RP 08)
 // IA Team = BE + FE  (sprints: IA 2, IA 3, IA 4)
-const TEAMS=[
+let TEAMS=[
   {id:'dev',name:'DEV Team',color:'#4f46e5',group:'rp',sprints:['RP 06','RP 07','RP 08'],
    members:[
     {name:'Francisco Garcia',sp:[18,8,0]},
@@ -355,6 +363,129 @@ function calcTeamMetrics(t){
   t.top=[...t.members].sort((a,b)=>b.avg-a.avg)[0];
 }
 TEAMS.forEach(calcTeamMetrics);
+
+const DEFAULT_STATE={
+  workingDays:22,
+  projects:JSON.parse(JSON.stringify(PROJECTS)),
+  teams:JSON.parse(JSON.stringify(TEAMS))
+};
+
+const SB_TABLE='dashboard_state';
+const SB_ROW_ID='main';
+let sbClient=null;
+let syncTimer=null;
+
+function setSyncStatus(text,cls){
+  const el=document.getElementById('syncStatus');
+  if(!el)return;
+  el.textContent=text;
+  el.classList.remove('online','syncing','error');
+  if(cls)el.classList.add(cls);
+}
+
+function getSupabaseConfig(){
+  const metaUrl=document.querySelector('meta[name="supabase-url"]')?.content||'';
+  const metaKey=document.querySelector('meta[name="supabase-anon-key"]')?.content||'';
+  return {
+    url:(metaUrl&&metaUrl!=='%VITE_SUPABASE_URL%')?metaUrl:'',
+    anonKey:(metaKey&&metaKey!=='%VITE_SUPABASE_ANON_KEY%')?metaKey:''
+  };
+}
+
+function serializeState(){
+  syncInvoicingModelFromDom();
+  return {
+    workingDays:getWD(),
+    projects:JSON.parse(JSON.stringify(PROJECTS)),
+    teams:JSON.parse(JSON.stringify(TEAMS)),
+    updatedAt:new Date().toISOString()
+  };
+}
+
+function applyState(state){
+  const safeState=state&&typeof state==='object'?state:DEFAULT_STATE;
+  PROJECTS=Array.isArray(safeState.projects)?JSON.parse(JSON.stringify(safeState.projects)):JSON.parse(JSON.stringify(DEFAULT_STATE.projects));
+  TEAMS=Array.isArray(safeState.teams)?JSON.parse(JSON.stringify(safeState.teams)):JSON.parse(JSON.stringify(DEFAULT_STATE.teams));
+  TEAMS.forEach(calcTeamMetrics);
+  const wd=Number.isFinite(Number(safeState.workingDays))?Math.max(1,parseInt(safeState.workingDays,10)):DEFAULT_STATE.workingDays;
+  document.getElementById('wdays').value=String(wd);
+}
+
+function rebuildDashboard(){
+  buildInvoicing();
+  buildVelocity('rp');
+  buildVelocity('ia');
+  recalcInv();
+}
+
+async function loadStateFromSupabase(){
+  if(!sbClient)return false;
+  const {data,error}=await sbClient.from(SB_TABLE).select('state').eq('id',SB_ROW_ID).maybeSingle();
+  if(error){throw error;}
+  if(data&&data.state){
+    applyState(data.state);
+    rebuildDashboard();
+    return true;
+  }
+  return false;
+}
+
+async function saveStateToSupabase(){
+  if(!sbClient)return;
+  const payload={id:SB_ROW_ID,state:serializeState(),updated_at:new Date().toISOString()};
+  const {error}=await sbClient.from(SB_TABLE).upsert(payload,{onConflict:'id'});
+  if(error){throw error;}
+  setSyncStatus('Synced','online');
+}
+
+function scheduleSync(){
+  syncInvoicingModelFromDom();
+  if(!sbClient)return;
+  setSyncStatus('Syncing...','syncing');
+  clearTimeout(syncTimer);
+  syncTimer=setTimeout(async()=>{
+    try{await saveStateToSupabase();}
+    catch(_){setSyncStatus('Sync error','error');}
+  },500);
+}
+
+async function initSupabase(){
+  const cfg=getSupabaseConfig();
+  if(!cfg.url||!cfg.anonKey||!window.supabase||!window.supabase.createClient){
+    setSyncStatus('Local mode');
+    return;
+  }
+  sbClient=window.supabase.createClient(cfg.url,cfg.anonKey,{auth:{persistSession:false}});
+  setSyncStatus('Connecting...','syncing');
+  try{
+    const loaded=await loadStateFromSupabase();
+    if(!loaded){
+      await saveStateToSupabase();
+    } else {
+      setSyncStatus('Synced','online');
+      showToast('Synced from Supabase');
+    }
+  }catch(_){
+    setSyncStatus('Sync error','error');
+  }
+}
+
+function syncInvoicingModelFromDom(){
+  document.querySelectorAll('.rd').forEach(row=>{
+    const pid=parseInt(row.dataset.pid,10);
+    if(Number.isNaN(pid)||!PROJECTS[pid])return;
+    const memberName=row.dataset.m;
+    const member=PROJECTS[pid].members.find(m=>m.name===memberName);
+    if(!member)return;
+    const pto=parseFloat(row.querySelector('td:nth-child(2) input')?.value)||0;
+    const feriados=parseFloat(row.querySelector('td:nth-child(3) input')?.value)||0;
+    const hoursOff=parseFloat(row.querySelector('.hoff')?.value)||0;
+    member.pto=pto;
+    member.feriados=feriados;
+    member.hoursOff=hoursOff;
+    member.tl=Math.max(0,getMH()-hoursOff);
+  });
+}
 
 // ═══ VELOCITY RENDER FUNCTIONS (group-aware) ═══
 
@@ -500,12 +631,14 @@ function onSpEdit(tidx,mi,si,val,gid){
   TEAMS[tidx].members[mi].sp[si]=parseFloat(val)||0;
   calcTeamMetrics(TEAMS[tidx]);
   refreshAll(gid,tidx);
+  scheduleSync();
   showToast();
   document.getElementById('lastUpdate_'+gid).textContent='Last update: '+new Date().toLocaleTimeString();
 }
 
 function renameS(tidx,si,val,gid){
   TEAMS[tidx].sprints[si]=val;
+  scheduleSync();
   const gs=GS[gid];
   if(gs.vr){renderOverviewChart(gid);renderDrillChart(gid,TEAMS[tidx]);}
 }
@@ -530,6 +663,7 @@ function addSprint(gid){
   t.members.forEach(m=>m.sp.push(0));
   calcTeamMetrics(t);
   renderTeam(gid,gs.ati,gs.vr);
+  scheduleSync();
   showToast();
   setTimeout(()=>{const inp=document.querySelector('#sprintTable_'+gid+' .sp-inp.new-sprint');if(inp)inp.scrollIntoView({behavior:'smooth',block:'nearest'});},100);
 }
@@ -654,7 +788,7 @@ function buildInvoicing(){
         <td><div class="mc"><div class="av" style="background:${c};width:32px;height:32px;font-size:12px">${ini(m.name)}</div><span style="font-weight:500">${m.name}</span></div></td>
         <td style="text-align:center"><input class="ec" style="width:60px" type="number" value="${m.pto}" min="0" oninput="onPTO(this)"/></td>
         <td style="text-align:center"><input class="ec" style="width:60px" type="number" value="${m.feriados}" min="0" oninput="onPTO(this)"/></td>
-        <td style="text-align:center"><input class="ec hoff" style="width:70px" type="number" value="${m.hoursOff}" min="0" oninput="recalcInv();showToast()"/></td>
+        <td style="text-align:center"><input class="ec hoff" style="width:70px" type="number" value="${m.hoursOff}" min="0" oninput="recalcInv();scheduleSync();showToast()"/></td>
         <td><div class="cc ctl" style="color:${m.tl===mh?'var(--green)':m.tl<mh*.5?'var(--red)':'var(--text)'}">${m.tl}</div></td>
         <td><div class="cc cut">${u}%</div></td>
       </tr>`;
@@ -678,7 +812,7 @@ function onPTO(inp){
   const p=parseFloat(tr.querySelector('td:nth-child(2) input')?.value)||0;
   const f=parseFloat(tr.querySelector('td:nth-child(3) input')?.value)||0;
   const h=tr.querySelector('.hoff');if(h)h.value=(p+f)*getHPD();
-  recalcInv();showToast();
+  recalcInv();scheduleSync();showToast();
 }
 function applyIF(){
   const pv=document.getElementById('pf').value,mv=document.getElementById('mf').value;
@@ -694,6 +828,7 @@ function applyIF(){
 }
 function resetIF(){document.getElementById('pf').value='all';document.getElementById('mf').value='all';applyIF();}
 function exportCSV(){
+  syncInvoicingModelFromDom();
   let csv='Project,Member,PTO Days,Holidays,Hours Off,Total Logged,Utilization\n';
   const mh=getMH();
   PROJECTS.forEach(p=>p.members.forEach(m=>{
@@ -713,11 +848,14 @@ function switchTab(id,btn){
   if(id==='vel-ia'&&!GS.ia.vr){setTimeout(()=>{GS.ia.vr=true;renderOverviewChart('ia');renderDrillChart('ia',getGroupTeams('ia')[GS.ia.ati]);},60);}
 }
 function dl(content,name,type){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([content],{type}));a.download=name;a.click();}
-let tt;function showToast(){const el=document.getElementById('toast');el.classList.add('show');clearTimeout(tt);tt=setTimeout(()=>el.classList.remove('show'),2000);}
+let tt;function showToast(msg='Updated'){const el=document.getElementById('toast');el.textContent='✓ '+msg;el.classList.add('show');clearTimeout(tt);tt=setTimeout(()=>el.classList.remove('show'),2000);}
 
-buildInvoicing();
-buildVelocity('rp');
-buildVelocity('ia');
+async function bootstrap(){
+  rebuildDashboard();
+  await initSupabase();
+}
+
+bootstrap();
 </script>
 </body>
 </html>
