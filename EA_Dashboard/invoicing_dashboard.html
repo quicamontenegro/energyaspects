@@ -6,13 +6,6 @@
 <title>Burocracy Dashboard</title>
 <meta name="supabase-url" content="%VITE_SUPABASE_URL%">
 <meta name="supabase-anon-key" content="%VITE_SUPABASE_ANON_KEY%">
-<script type="module">
-const url=import.meta.env.VITE_SUPABASE_URL||'';
-const key=import.meta.env.VITE_SUPABASE_ANON_KEY||'';
-window.__EA_ENV__={url,key};
-if(url)document.querySelector('meta[name="supabase-url"]').content=url;
-if(key)document.querySelector('meta[name="supabase-anon-key"]').content=key;
-</script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="/supabase-data-layer.js"></script>
@@ -1193,8 +1186,10 @@ function scheduleSync(immediate=false){
 async function initSupabaseAndState(){
   const cfg=await waitForSupabaseConfig();
   if(!cfg.url||!cfg.anonKey){
+    console.warn('⚠ No Supabase config found');
     return;
   }
+  console.log('→ Supabase config loaded, creating client...');
 
   if(window.supabase&&window.supabase.createClient){
     sbClient=window.supabase.createClient(cfg.url,cfg.anonKey,{auth:{persistSession:false}});
@@ -1280,6 +1275,7 @@ async function initSupabaseAndState(){
       if(Array.isArray(state.msData)&&state.msData.length<currentMs.length){
         state.msData=currentMs;
       }
+      console.log('✓ State loaded from DB:', {deTasks: state.deTasks?.length, deMeetings: state.deMeetings?.length});
       const migrated=applyState(state);
       if(migrated||velocityRecovered||sprintsRecovered||milestonesRecovered){
         await saveLegacyStateToSupabase();
@@ -1819,15 +1815,21 @@ function buildDE() {
   document.getElementById('de-stat-blocked').textContent = blocked;
   document.getElementById('de-stat-hold').textContent    = onhold;
 
-  // Group by week — weeks exist only when a meeting exists for that week
+  // Group by week — weeks exist when either a meeting or task exists for that week
   const weeks = {};
+  // First, create weeks for all meetings
   DE_MEETINGS.forEach(m => {
     const wk = m.week || 'unscheduled';
     if (!weeks[wk]) weeks[wk] = [];
   });
+  // Then, create weeks for all tasks (even if no meeting)
   DE_TASKS.forEach(t => {
     const wk = t.week || 'unscheduled';
-    if (!weeks[wk]) return;
+    if (!weeks[wk]) weeks[wk] = [];
+  });
+  // Now populate tasks into their respective weeks
+  DE_TASKS.forEach(t => {
+    const wk = t.week || 'unscheduled';
     weeks[wk].push(t);
   });
   const sortedWeeks = Object.keys(weeks).sort((a,b) => {
@@ -1839,7 +1841,7 @@ function buildDE() {
   // Update filter dropdown
   const sel = document.getElementById('de-wk-filter');
   const curVal = sel.value;
-  sel.innerHTML = '<option value="all">All Meetings</option>';
+  sel.innerHTML = '<option value="all">All Weeks</option>';
   sortedWeeks.forEach(w => {
     const o = document.createElement('option');
     o.value = w; o.textContent = getWeekLabel(w);
