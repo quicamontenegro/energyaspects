@@ -719,6 +719,7 @@ tr.tr td{background:#f8fafc;font-weight:700;border-top:2px solid var(--border);}
         <textarea class="de-inp" id="de-m-notes" rows="3" placeholder="Agenda ou notas da reunião..." style="resize:vertical"></textarea>
       </div>
       <div class="de-modal-actions">
+        <button type="button" class="btn btn-outline" id="de-meeting-delete-btn" style="color:var(--red);border-color:var(--red);margin-right:auto;display:none" onclick="deleteMeetingFromModal()">Delete Meeting</button>
         <button type="button" class="btn btn-outline" onclick="closeMeetingModal()">Cancel</button>
         <button type="submit" class="btn btn-primary">Save Meeting</button>
       </div>
@@ -1138,7 +1139,7 @@ async function saveLegacyStateToSupabase(state){
   try{
     const {data:existing}=await sbClient.from(SB_TABLE).select('state').eq('id',SB_ROW_ID).maybeSingle();
     const dbState=existing?.state||{};
-    ['msData','deTasks','rpdeTickets'].forEach(key=>{
+    ['msData','deTasks','deMeetings','rpdeTickets'].forEach(key=>{
       const dbArr=dbState[key];
       if(Array.isArray(dbArr)&&dbArr.length>(stateToSave[key]||[]).length){
         const memById={};
@@ -1818,14 +1819,17 @@ function buildDE() {
   document.getElementById('de-stat-blocked').textContent = blocked;
   document.getElementById('de-stat-hold').textContent    = onhold;
 
-  // Group by week — include weeks from meetings even if no tasks
+  // Group by week — weeks exist only when a meeting exists for that week
   const weeks = {};
+  DE_MEETINGS.forEach(m => {
+    const wk = m.week || 'unscheduled';
+    if (!weeks[wk]) weeks[wk] = [];
+  });
   DE_TASKS.forEach(t => {
     const wk = t.week || 'unscheduled';
-    if (!weeks[wk]) weeks[wk] = [];
+    if (!weeks[wk]) return;
     weeks[wk].push(t);
   });
-  DE_MEETINGS.forEach(m => { const wk = m.week||'unscheduled'; if(!weeks[wk]) weeks[wk]=[]; });
   const sortedWeeks = Object.keys(weeks).sort((a,b) => {
     if (a === 'unscheduled') return 1;
     if (b === 'unscheduled') return -1;
@@ -1865,12 +1869,23 @@ function buildDE() {
     const roadList    = tasks.filter(t => t.status === 'roadmap');
     const blockedList = tasks.filter(t => t.status === 'blocked');
     const holdList    = tasks.filter(t => t.status === 'onhold');
-    const mtg = DE_MEETINGS.find(m => m.week === wk);
+    const mtgs = DE_MEETINGS.filter(m => m.week === wk);
+    const mtgLabel = mtgs.length
+      ? ` <span style="font-size:13px;font-weight:500;color:var(--muted);margin-left:6px">— ${mtgs.map(m=>m.name).join(' · ')}</span>`
+      : '';
+    const mtgActions = mtgs.map(m => {
+      const mtgRef = m.id || m.week;
+      return `<span style="display:inline-flex;align-items:center;gap:4px;background:var(--tag);padding:2px 6px;border-radius:8px">
+        <span style="font-size:11px;color:var(--muted)">${m.name}</span>
+        <button class="ms-btn" onclick="openMeetingModal('${mtgRef}')" style="font-size:11px">Edit</button>
+        <button class="ms-btn ms-btn-del" onclick="deleteMeeting('${mtgRef}')" style="font-size:11px">✕</button>
+      </span>`;
+    }).join('');
     return `<div class="de-week-panel card">
       <div class="de-week-hdr">
-        <div class="de-week-title">📅 ${getWeekLabel(wk)}${mtg ? ` <span style="font-size:13px;font-weight:500;color:var(--muted);margin-left:6px">— ${mtg.name}</span>` : ''}</div>
+        <div class="de-week-title">📅 ${getWeekLabel(wk)}${mtgLabel}</div>
         <div style="display:flex;align-items:center;gap:8px">
-        ${mtg ? `<button class="ms-btn" onclick="openMeetingModal('${mtg.id}')" style="font-size:11px">Edit</button><button class="ms-btn ms-btn-del" onclick="deleteMeeting('${mtg.id}')" style="font-size:11px">✕</button>` : ''}
+        ${mtgActions}
         <div class="de-week-stats">
           <span class="de-wstat de-wstat-ip">${ipList.length} In Progress</span>
           <span class="de-wstat de-wstat-done">${doneList.length} Completed</span>
@@ -1964,9 +1979,15 @@ function renderTaskCard(t) {
   </div>`;
 }
 
+function findMeetingByRef(ref) {
+  return DE_MEETINGS.find(m => m.id === ref || (!m.id && m.week === ref));
+}
+
 function openMeetingModal(id) {
   DE_MEETING_EDIT_ID = id || null;
-  const m = id ? DE_MEETINGS.find(x => x.id === id) : null;
+  const m = id ? findMeetingByRef(id) : null;
+  const delBtn = document.getElementById('de-meeting-delete-btn');
+  if (delBtn) delBtn.style.display = m ? 'inline-flex' : 'none';
   document.getElementById('de-meeting-modal-title').textContent = m ? 'Edit Meeting' : 'Nova Meeting';
   document.getElementById('de-m-name').value = m ? m.name : '';
   const d = new Date();
@@ -1982,22 +2003,33 @@ async function saveMeeting() {
   const name = document.getElementById('de-m-name').value.trim();
   const week = document.getElementById('de-m-week').value;
   if (!name || !week) return;
+  const prev = DE_MEETING_EDIT_ID ? findMeetingByRef(DE_MEETING_EDIT_ID) : null;
   const mtg = {
     id: DE_MEETING_EDIT_ID || Date.now().toString(),
     name, week,
     notes: document.getElementById('de-m-notes').value.trim(),
-    createdAt: DE_MEETING_EDIT_ID ? (DE_MEETINGS.find(m=>m.id===DE_MEETING_EDIT_ID)||{}).createdAt||new Date().toISOString() : new Date().toISOString()
+    createdAt: prev?.createdAt || new Date().toISOString()
   };
   if (DE_MEETING_EDIT_ID) {
-    const idx = DE_MEETINGS.findIndex(m => m.id === DE_MEETING_EDIT_ID);
+    const idx = DE_MEETINGS.findIndex(m => m.id === DE_MEETING_EDIT_ID || (!m.id && m.week === DE_MEETING_EDIT_ID));
     if (idx !== -1) DE_MEETINGS[idx] = mtg;
   } else {
     DE_MEETINGS.push(mtg);
   }
   await saveDE(); closeMeetingModal(); buildDE(); showToast();
 }
+async function deleteMeetingFromModal() {
+  if (!DE_MEETING_EDIT_ID) return;
+  await deleteMeeting(DE_MEETING_EDIT_ID, true);
+}
 async function deleteMeeting(id) {
-  DE_MEETINGS = DE_MEETINGS.filter(m => m.id !== id);
+  const mtg = findMeetingByRef(id);
+  if (!mtg) return;
+  const linkedTasks = DE_TASKS.filter(t => (t.week || 'unscheduled') === (mtg.week || 'unscheduled')).length;
+  if (!confirm(`Delete meeting "${mtg.name}"? This will also delete ${linkedTasks} task(s) from that week.`)) return;
+  DE_MEETINGS = DE_MEETINGS.filter(m => !(m.id === id || (!m.id && m.week === id)));
+  DE_TASKS = DE_TASKS.filter(t => (t.week || 'unscheduled') !== (mtg.week || 'unscheduled'));
+  if (DE_MEETING_EDIT_ID === id) closeMeetingModal();
   await saveDE(); buildDE(); showToast();
 }
 
