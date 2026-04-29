@@ -1792,13 +1792,14 @@ function buildDE() {
   document.getElementById('de-stat-blocked').textContent = blocked;
   document.getElementById('de-stat-hold').textContent    = onhold;
 
-  // Group by week
+  // Group by week — include weeks from meetings even if no tasks
   const weeks = {};
   DE_TASKS.forEach(t => {
     const wk = t.week || 'unscheduled';
     if (!weeks[wk]) weeks[wk] = [];
     weeks[wk].push(t);
   });
+  DE_MEETINGS.forEach(m => { const wk = m.week||'unscheduled'; if(!weeks[wk]) weeks[wk]=[]; });
   const sortedWeeks = Object.keys(weeks).sort((a,b) => {
     if (a === 'unscheduled') return 1;
     if (b === 'unscheduled') return -1;
@@ -1828,12 +1829,9 @@ function buildDE() {
   // Render panels
   const container = document.getElementById('de-panels');
   if (filtered.length === 0) {
-    container.innerHTML = '<div style="text-align:center;padding:60px 0;color:var(--muted)"><div style="font-size:48px;margin-bottom:16px">📋</div><div style="font-size:16px;font-weight:600">No tasks yet</div><div style="font-size:13px;margin-top:8px">Click "+ Add Task" to get started</div></div>';
+    container.innerHTML = '<div style="text-align:center;padding:60px 0;color:var(--muted)"><div style="font-size:48px;margin-bottom:16px">📋</div><div style="font-size:16px;font-weight:600">No tasks yet</div><div style="font-size:13px;margin-top:8px">Click "+ Add Task" or "+ Nova Meeting" to get started</div></div>';
     return;
   }
-  // Include weeks from DE_MEETINGS even if no tasks
-  DE_MEETINGS.forEach(m => { const wk = m.week||'unscheduled'; if(!weeks[wk]) weeks[wk]=[]; });
-
   container.innerHTML = filtered.map(wk => {
     const tasks    = weeks[wk];
     const ipList      = tasks.filter(t => t.status === 'inprogress');
