@@ -1186,10 +1186,8 @@ function scheduleSync(immediate=false){
 async function initSupabaseAndState(){
   const cfg=await waitForSupabaseConfig();
   if(!cfg.url||!cfg.anonKey){
-    console.warn('⚠ No Supabase config found');
     return;
   }
-  console.log('→ Supabase config loaded, creating client...');
 
   if(window.supabase&&window.supabase.createClient){
     sbClient=window.supabase.createClient(cfg.url,cfg.anonKey,{auth:{persistSession:false}});
@@ -1275,7 +1273,6 @@ async function initSupabaseAndState(){
       if(Array.isArray(state.msData)&&state.msData.length<currentMs.length){
         state.msData=currentMs;
       }
-      console.log('✓ State loaded from DB:', {deTasks: state.deTasks?.length, deMeetings: state.deMeetings?.length});
       const migrated=applyState(state);
       if(migrated||velocityRecovered||sprintsRecovered||milestonesRecovered){
         await saveLegacyStateToSupabase();
