@@ -326,7 +326,6 @@ tr.tr td{background:#f8fafc;font-weight:700;border-top:2px solid var(--border);}
     <button class="tab-btn active" onclick="switchTab('invoicing',this)">📄 Invoicing</button>
     <button class="tab-btn" onclick="switchTab('vel-rp',this)">⚡ Velocity</button>
     <button class="tab-btn" onclick="switchTab('data-explorer',this)">🗂 Data Explorer</button>
-    <button class="tab-btn" onclick="switchTab('rp-de',this)">👥 RP & DE Team</button>
     <button class="tab-btn" onclick="switchTab('milestones',this)">🏁 Milestones</button>
     <button class="tab-btn" onclick="switchTab('sprints',this)">🏃 Sprints</button>
   </nav>
@@ -459,34 +458,6 @@ tr.tr td{background:#f8fafc;font-weight:700;border-top:2px solid var(--border);}
 </section>
 
 </div>
-
-<!-- RP & DE TEAM -->
-<section id="rp-de" class="section">
-  <div class="sec-hdr">
-    <h2>RP & DE Team <span class="group-badge" style="background:#eef2ff;color:#4f46e5">Ticket Tracker</span></h2>
-    <p>Work in progress por team member — links Jira, estados e notas</p>
-  </div>
-  <div class="rpde-subtabs">
-    <button class="rpde-subtab active" onclick="switchRPDE('rp',this)">⚡ RP Team</button>
-    <button class="rpde-subtab" onclick="switchRPDE('de',this)">🔬 DE Team</button>
-  </div>
-  <div class="de-kpi-bar" id="rpde-kpis"></div>
-  <div class="toolbar" style="margin-bottom:20px">
-    <select class="fsel" id="rpde-status-filter" onchange="buildRPDE()">
-      <option value="all">All Statuses</option>
-      <option value="todo">📋 To Do</option>
-      <option value="inprogress">🔄 In Progress</option>
-      <option value="inreview">🔍 In Review</option>
-      <option value="testing">🧪 Testing</option>
-      <option value="blocked">🚫 Blocked</option>
-      <option value="onhold">⏸ On Hold</option>
-      <option value="done">✅ Done</option>
-      <option value="deployed">🚀 Deployed</option>
-    </select>
-    <span style="font-size:12px;color:var(--muted);font-weight:500" id="rpde-summary-txt"></span>
-  </div>
-  <div class="rpde-members-grid" id="rpde-grid"></div>
-</section>
 
 <!-- MILESTONES -->
 <section id="milestones" class="section">
@@ -685,63 +656,8 @@ tr.tr td{background:#f8fafc;font-weight:700;border-top:2px solid var(--border);}
   </div>
 </div>
 
-<!-- RPDE TICKET MODAL -->
-<div class="rpde-modal-overlay" id="rpde-modal" onclick="if(event.target===this)closeRPDEModal()">
-  <div class="rpde-modal">
-    <h3 id="rpde-modal-title" style="font-size:18px;font-weight:800;margin-bottom:20px">Add Ticket</h3>
-    <form id="rpde-form" onsubmit="event.preventDefault();saveRPDETicket()">
-      <div class="de-row2">
-        <div class="de-field">
-          <label>Ticket ID (Jira)</label>
-          <input class="de-inp" id="rpde-f-id" type="text" placeholder="ex: RP-123"/>
-        </div>
-        <div class="de-field">
-          <label>Assignee</label>
-          <select class="de-inp" id="rpde-f-assignee"></select>
-        </div>
-      </div>
-      <div class="de-field">
-        <label>Jira URL</label>
-        <input class="de-inp" id="rpde-f-url" type="text" placeholder="https://jira.../browse/RP-123"/>
-      </div>
-      <div class="de-field">
-        <label>Title *</label>
-        <input class="de-inp" id="rpde-f-title" type="text" placeholder="O que está a ser desenvolvido..." required/>
-      </div>
-      <div class="de-row2">
-        <div class="de-field">
-          <label>Status</label>
-          <select class="de-inp" id="rpde-f-status">
-            <option value="todo">📋 To Do</option>
-            <option value="inprogress" selected>🔄 In Progress</option>
-            <option value="inreview">🔍 In Review</option>
-            <option value="testing">🧪 Testing</option>
-            <option value="blocked">🚫 Blocked</option>
-            <option value="onhold">⏸ On Hold</option>
-            <option value="done">✅ Done</option>
-            <option value="deployed">🚀 Deployed</option>
-          </select>
-        </div>
-        <div class="de-field">
-          <label>Priority</label>
-          <select class="de-inp" id="rpde-f-priority">
-            <option value="Alta">🔴 Alta</option>
-            <option value="Média" selected>🟡 Média</option>
-            <option value="Baixa">🟢 Baixa</option>
-          </select>
-        </div>
-      </div>
-      <div class="de-field">
-        <label>Notes / Blockers</label>
-        <textarea class="de-inp" id="rpde-f-notes" rows="3" placeholder="Contexto, blockers, ou notas de progresso..." style="resize:vertical"></textarea>
-      </div>
-      <div class="de-modal-actions">
-        <button type="button" class="btn btn-outline" onclick="closeRPDEModal()">Cancel</button>
-        <button type="submit" class="btn btn-primary">Save Ticket</button>
-      </div>
-    </form>
-  </div>
-</div>
+<!-- RPDE TICKET MODAL removed -->
+<div style="display:none" id="rpde-modal"></div>
 
 <!-- ADD/EDIT TASK MODAL -->
 <div class="de-modal-overlay" id="de-meeting-modal" onclick="if(event.target===this)closeMeetingModal()">
@@ -2047,207 +1963,14 @@ const TICKET_STATUSES = {
   deployed:   {label:'Deployed',    color:'#0d9488', bg:'#f0fdfa', icon:'🚀'}
 };
 
-const RPDE_MEMBERS = {
-  rp: [
-    {name:'Pavol Soltés',         role:'DEV'},
-    {name:'Vadym Levkovych',      role:'DEV'},
-    {name:'Vitalii Tsimbolynets', role:'DEV'},
-    {name:'Yurii Rybak',          role:'DEV'}
-  ],
-  de: [
-    {name:'Francisco Garcia', role:'DEV'},
-    {name:'Yurii Rybak',      role:'DEV'}
-  ]
-};
-
+const RPDE_MEMBERS = { rp: [], de: [] };
 let RPDE_TICKETS  = [];
 let RPDE_EDIT_ID  = null;
 let RPDE_CUR_TEAM = 'rp';
+async function saveRPDE() { return scheduleSync(true); }
+function switchRPDE() {}
 
-async function saveRPDE() {
-  if(structuredBackendReady)return replaceRPDETicketsSnapshot(RPDE_TICKETS);
-  return scheduleSync(true);
-}
-
-function switchRPDE(team, btn) {
-  RPDE_CUR_TEAM = team;
-  document.querySelectorAll('.rpde-subtab').forEach(b => b.classList.remove('active'));
-  if (btn) btn.classList.add('active');
-  buildRPDE();
-}
-
-function buildRPDE() {
-  const members     = RPDE_MEMBERS[RPDE_CUR_TEAM];
-  const teamTickets = RPDE_TICKETS.filter(t => t.team === RPDE_CUR_TEAM);
-  const sf          = document.getElementById('rpde-status-filter').value;
-
-  // KPIs
-  const totalActive   = teamTickets.filter(t => !['done','deployed'].includes(t.status)).length;
-  const blockedCount  = teamTickets.filter(t => t.status === 'blocked').length;
-  const doneCount     = teamTickets.filter(t => ['done','deployed'].includes(t.status)).length;
-  const reviewCount   = teamTickets.filter(t => ['inreview','testing'].includes(t.status)).length;
-  document.getElementById('rpde-kpis').innerHTML = `
-    <div class="de-kpi" style="border-left-color:#4f46e5">
-      <span class="de-kpi-label">Total Tickets</span>
-      <div class="de-kpi-val" style="color:#4f46e5">${teamTickets.length}</div>
-      <span class="de-kpi-sub">Todos os tickets</span>
-    </div>
-    <div class="de-kpi" style="border-left-color:#2563eb">
-      <span class="de-kpi-label">Active</span>
-      <div class="de-kpi-val" style="color:#2563eb">${totalActive}</div>
-      <span class="de-kpi-sub">Em progresso</span>
-    </div>
-    <div class="de-kpi" style="border-left-color:#7c3aed">
-      <span class="de-kpi-label">In Review / QA</span>
-      <div class="de-kpi-val" style="color:#7c3aed">${reviewCount}</div>
-      <span class="de-kpi-sub">Review + Testing</span>
-    </div>
-    <div class="de-kpi" style="border-left-color:#dc2626">
-      <span class="de-kpi-label">Blocked</span>
-      <div class="de-kpi-val" style="color:#dc2626">${blockedCount}</div>
-      <span class="de-kpi-sub">Needs attention</span>
-    </div>
-    <div class="de-kpi" style="border-left-color:#16a34a">
-      <span class="de-kpi-label">Completed</span>
-      <div class="de-kpi-val" style="color:#16a34a">${doneCount}</div>
-      <span class="de-kpi-sub">Done + Deployed</span>
-    </div>
-    <div class="de-kpi" style="border-left-color:#64748b">
-      <span class="de-kpi-label">Members</span>
-      <div class="de-kpi-val" style="color:#64748b">${members.length}</div>
-      <span class="de-kpi-sub">Na equipa</span>
-    </div>`;
-
-  document.getElementById('rpde-summary-txt').textContent =
-    sf !== 'all' ? `A mostrar: ${TICKET_STATUSES[sf]?.label || sf}` : '';
-
-  document.getElementById('rpde-grid').innerHTML =
-    members.map(m => renderMemberCard(m)).join('');
-}
-
-function renderMemberCard(m) {
-  const sf            = document.getElementById('rpde-status-filter').value;
-  const memberTickets = RPDE_TICKETS.filter(t => t.team === RPDE_CUR_TEAM && t.assignee === m.name);
-  const displayed     = sf === 'all' ? memberTickets : memberTickets.filter(t => t.status === sf);
-
-  const activeKeys  = ['todo','inprogress','inreview','testing','blocked','onhold'];
-  const statsHtml   = activeKeys
-    .map(s => ({s, n: memberTickets.filter(t => t.status === s).length}))
-    .filter(x => x.n > 0)
-    .map(x => { const st = TICKET_STATUSES[x.s];
-      return `<span class="rpde-sstat" style="background:${st.bg};color:${st.color}">${st.icon} ${x.n}</span>`; })
-    .join('');
-
-  const roleColors = {DEV:['#eef2ff','#4f46e5'], QA:['#ecfeff','#0891b2'], DE:['#f5f3ff','#7c3aed']};
-  const [roleBg, roleCol] = roleColors[m.role] || ['#f1f5f9','#64748b'];
-  const safeN = m.name.replace(/'/g,"\\'");
-
-  const ticketsHtml = displayed.length
-    ? displayed.map(renderTicketItem).join('')
-    : `<div class="rpde-empty-tickets">${sf !== 'all' ? 'Sem tickets com este estado' : 'Sem tickets — clica em + Add Ticket'}</div>`;
-
-  return `<div class="rpde-member-card">
-    <div class="rpde-card-hdr">
-      <div class="rpde-card-avatar" style="background:${ac(m.name)}">${ini(m.name)}</div>
-      <div style="min-width:0">
-        <div class="rpde-card-name">${m.name}</div>
-        <span class="rpde-card-role" style="background:${roleBg};color:${roleCol}">${m.role}</span>
-      </div>
-      <span style="margin-left:auto;font-size:11px;color:var(--muted);font-weight:600;flex-shrink:0">${memberTickets.length} ticket${memberTickets.length!==1?'s':''}</span>
-    </div>
-    ${statsHtml ? `<div class="rpde-card-stats">${statsHtml}</div>` : ''}
-    <div class="rpde-tickets">${ticketsHtml}</div>
-    <div class="rpde-card-footer">
-      <button class="rpde-add-btn" onclick="openRPDEModal('${safeN}')">+ Add Ticket</button>
-    </div>
-  </div>`;
-}
-
-function renderTicketItem(t) {
-  const st      = TICKET_STATUSES[t.status] || TICKET_STATUSES.todo;
-  const priColor = t.priority==='Alta'?'#dc2626':t.priority==='Média'?'#d97706':'#16a34a';
-  const priBg    = t.priority==='Alta'?'#fee2e2':t.priority==='Média'?'#fef3c7':'#dcfce7';
-  const jiraEl   = t.jiraUrl
-    ? `<a class="rpde-jira-link" href="${t.jiraUrl}" target="_blank" onclick="event.stopPropagation()">${t.jiraId||'🔗 Jira'}</a>`
-    : (t.jiraId ? `<span class="rpde-jira-link" style="cursor:default">${t.jiraId}</span>` : '');
-  return `<div class="rpde-ticket">
-    <div class="rpde-ticket-top">
-      ${jiraEl}
-      <span class="rpde-ticket-title">${t.title}</span>
-      <span class="rpde-status-badge" style="background:${st.bg};color:${st.color}">${st.icon} ${st.label}</span>
-      <span class="rpde-pri-badge" style="background:${priBg};color:${priColor}">${t.priority}</span>
-    </div>
-    ${t.notes ? `<div class="rpde-ticket-notes">💬 ${t.notes}</div>` : ''}
-    <div class="rpde-ticket-actions">
-      <button class="rpde-btn-edit" onclick="editRPDETicket('${t.id}')">Edit</button>
-      <button class="rpde-btn-del" onclick="deleteRPDETicket('${t.id}')">✕</button>
-    </div>
-  </div>`;
-}
-
-function populateAssigneeDropdown(selected) {
-  const sel = document.getElementById('rpde-f-assignee');
-  sel.innerHTML = RPDE_MEMBERS[RPDE_CUR_TEAM]
-    .map(m => `<option value="${m.name}"${m.name===selected?' selected':''}>${m.name}</option>`)
-    .join('');
-}
-
-function openRPDEModal(assignee) {
-  RPDE_EDIT_ID = null;
-  document.getElementById('rpde-modal-title').textContent = 'Add Ticket';
-  document.getElementById('rpde-form').reset();
-  document.getElementById('rpde-f-status').value   = 'inprogress';
-  document.getElementById('rpde-f-priority').value = 'Média';
-  populateAssigneeDropdown(assignee || null);
-  document.getElementById('rpde-modal').style.display = 'flex';
-}
-
-function editRPDETicket(id) {
-  const t = RPDE_TICKETS.find(t => t.id === id);
-  if (!t) return;
-  RPDE_EDIT_ID = id;
-  document.getElementById('rpde-modal-title').textContent = 'Edit Ticket';
-  populateAssigneeDropdown(t.assignee);
-  document.getElementById('rpde-f-id').value       = t.jiraId  || '';
-  document.getElementById('rpde-f-url').value      = t.jiraUrl || '';
-  document.getElementById('rpde-f-title').value    = t.title;
-  document.getElementById('rpde-f-status').value   = t.status;
-  document.getElementById('rpde-f-priority').value = t.priority;
-  document.getElementById('rpde-f-notes').value    = t.notes   || '';
-  document.getElementById('rpde-modal').style.display = 'flex';
-}
-
-function closeRPDEModal() { document.getElementById('rpde-modal').style.display = 'none'; }
-
-async function saveRPDETicket() {
-  const title = document.getElementById('rpde-f-title').value.trim();
-  if (!title) { alert('O título é obrigatório.'); return; }
-  const ticket = {
-    id:        RPDE_EDIT_ID || Date.now().toString(),
-    team:      RPDE_CUR_TEAM,
-    assignee:  document.getElementById('rpde-f-assignee').value,
-    jiraId:    document.getElementById('rpde-f-id').value.trim(),
-    jiraUrl:   document.getElementById('rpde-f-url').value.trim(),
-    title,
-    status:    document.getElementById('rpde-f-status').value,
-    priority:  document.getElementById('rpde-f-priority').value,
-    notes:     document.getElementById('rpde-f-notes').value.trim(),
-    createdAt: RPDE_EDIT_ID
-      ? (RPDE_TICKETS.find(t=>t.id===RPDE_EDIT_ID)||{}).createdAt || new Date().toISOString()
-      : new Date().toISOString()
-  };
-  if (RPDE_EDIT_ID) {
-    const idx = RPDE_TICKETS.findIndex(t => t.id === RPDE_EDIT_ID);
-    if (idx !== -1) RPDE_TICKETS[idx] = ticket;
-  } else { RPDE_TICKETS.push(ticket); }
-  await saveRPDE(); closeRPDEModal(); buildRPDE(); showToast();
-}
-
-async function deleteRPDETicket(id) {
-  if (!confirm('Eliminar este ticket?')) return;
-  RPDE_TICKETS = RPDE_TICKETS.filter(t => t.id !== id);
-  await saveRPDE(); buildRPDE(); showToast();
-}
+function buildRPDE() { /* removed */ }
 
 // ═══ MILESTONES ═══
 const MS_STATUSES = {
