@@ -1726,6 +1726,8 @@ function switchTab(id,btn){
   if(id==='vel-ia')id='vel-rp';
   document.getElementById(id).classList.add('active');
   if(btn)btn.classList.add('active');
+  history.replaceState(null,'','#'+id);
+  try{window.parent.postMessage({type:'tabChange',tab:id},'*');}catch(_){}
   if(id==='vel-rp'&&!GS.rp.vr){setTimeout(()=>{GS.rp.vr=true;renderOverviewChart('rp');renderDrillChart('rp',getGroupTeams('rp')[GS.rp.ati]);},60);}
 }
 function dl(content,name,type){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([content],{type}));a.download=name;a.click();}

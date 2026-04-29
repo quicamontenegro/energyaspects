@@ -12,10 +12,20 @@
 <body>
 <iframe
   class="shell"
+  id="shell"
   src="/invoicing_dashboard.html#sprints"
   title="EA Dashboard"
   loading="eager"
   referrerpolicy="same-origin"
 ></iframe>
+<script>
+  (function(){
+    var h=(location.hash||'').replace('#','').trim();
+    if(h)document.getElementById('shell').src='/invoicing_dashboard.html#'+h;
+    window.addEventListener('message',function(e){
+      if(e.data&&e.data.type==='tabChange')history.replaceState(null,'','#'+e.data.tab);
+    });
+  })();
+</script>
 </body>
 </html>
