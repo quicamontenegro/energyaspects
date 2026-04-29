@@ -1129,10 +1129,11 @@ async function saveLegacyStateToSupabase(state){
   if(!sbClient)return;
   const stateToSave=state||serializeState();
   // Merge arrays: never lose records that are in the DB but not in memory
+  // Only protect msData and deMeetings (not deTasks, which can be deleted)
   try{
     const {data:existing}=await sbClient.from(SB_TABLE).select('state').eq('id',SB_ROW_ID).maybeSingle();
     const dbState=existing?.state||{};
-    ['msData','deTasks','deMeetings','rpdeTickets'].forEach(key=>{
+    ['msData','deMeetings'].forEach(key=>{
       const dbArr=dbState[key];
       if(Array.isArray(dbArr)&&dbArr.length>(stateToSave[key]||[]).length){
         const memById={};
