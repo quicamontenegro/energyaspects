@@ -2108,6 +2108,18 @@ const TICKET_STATUSES = {
 
 const RPDE_MEMBERS = { rp: [], de: [] };
 let RPDE_TICKETS  = [];
+
+function initRPDEMembers(){
+  // Populate RPDE_MEMBERS from TEAMS, grouping by group (rp, de, ia, etc.)
+  RPDE_MEMBERS.rp=[];
+  RPDE_MEMBERS.de=[];
+  (TEAMS||[]).forEach(team=>{
+    if(team.group==='rp'&&team.members){
+      RPDE_MEMBERS.rp.push(...(team.members||[]));
+    }
+  });
+  // For de team, use all members (or add a separate DE group if needed)
+}
 let RPDE_EDIT_ID  = null;
 let RPDE_CUR_TEAM = 'rp';
 async function saveRPDE() { return scheduleSync(true); }
@@ -2665,6 +2677,7 @@ function rebuildAll(){
 
 async function bootstrap(){
   await initSupabaseAndState();
+  initRPDEMembers();
   rebuildAll();
   const hashTab=(window.location.hash||'').replace('#','').trim();
   if(hashTab&&document.getElementById(hashTab)){
