@@ -325,7 +325,6 @@ tr.tr td{background:#f8fafc;font-weight:700;border-top:2px solid var(--border);}
   <nav class="tabs">
     <button class="tab-btn active" onclick="switchTab('invoicing',this)">📄 Invoicing</button>
     <button class="tab-btn" onclick="switchTab('vel-rp',this)">⚡ RP Team</button>
-    <button class="tab-btn" onclick="switchTab('vel-ia',this)">⚡ IA Team</button>
     <button class="tab-btn" onclick="switchTab('data-explorer',this)">🗂 Data Explorer</button>
     <button class="tab-btn" onclick="switchTab('rp-de',this)">👥 RP & DE Team</button>
     <button class="tab-btn" onclick="switchTab('milestones',this)">🏁 Milestones</button>
@@ -395,46 +394,6 @@ tr.tr td{background:#f8fafc;font-weight:700;border-top:2px solid var(--border);}
     <div class="card member-list-wrap">
       <div class="ml-header"><h3 id="mlTitle_rp">Member Contributions</h3><p style="font-size:12px;color:var(--muted);margin-top:2px">Share of total team points</p></div>
       <div class="ml-body" id="memberList_rp"></div>
-    </div>
-  </div>
-</section>
-
-<!-- VELOCITY IA TEAM (BE + FE) -->
-<section id="vel-ia" class="section">
-  <div class="sec-hdr">
-    <h2>Velocity Report <span class="group-badge" style="background:#f5f3ff;color:#7c3aed">IA Team</span></h2>
-    <p>BE + FE — Story points per sprint — editable, auto-calculated metrics</p>
-  </div>
-  <div class="vel-kpi-grid" id="velKPIs_ia"></div>
-  <div class="card chart-card" style="margin-bottom:24px">
-    <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:14px">
-      <span style="font-size:15px;font-weight:700">IA Team — Sprint Velocity Overview</span>
-      <span style="font-size:12px;color:var(--muted)">Click a bar to drill into that team ↓</span>
-      <span style="margin-left:auto;font-size:12px;color:var(--muted)" id="lastUpdate_ia"></span>
-    </div>
-    <div class="chart-wrap" style="height:260px"><canvas id="overviewChart_ia"></canvas></div>
-  </div>
-  <div class="divlabel">Team Breakdown</div>
-  <div class="team-tabs" id="teamTabs_ia"></div>
-  <div class="mini-stats" id="miniStats_ia"></div>
-  <div class="metrics-row" id="metricsRow_ia"></div>
-  <div class="card edit-section" style="padding:20px;margin-bottom:24px">
-    <div class="edit-header">
-      <span class="edit-title" id="editTitle_ia">Sprint Data</span>
-      <span style="font-size:12px;color:var(--muted)">Edit any cell — all charts and metrics update instantly</span>
-      <button class="btn btn-sm btn-green ml-auto" onclick="addSprint('ia')" id="addSprintBtn_ia">+ Add Sprint</button>
-      <button class="btn btn-sm btn-outline" onclick="exportVelCSV('ia')">⬇ Export</button>
-    </div>
-    <div class="tw"><table class="sprint-tbl" id="sprintTable_ia"></table></div>
-  </div>
-  <div class="drill-grid">
-    <div class="card chart-card">
-      <div class="chart-title" id="drillTitle_ia">Member Points per Sprint</div>
-      <div class="chart-wrap" style="height:290px"><canvas id="drillChart_ia"></canvas></div>
-    </div>
-    <div class="card member-list-wrap">
-      <div class="ml-header"><h3 id="mlTitle_ia">Member Contributions</h3><p style="font-size:12px;color:var(--muted);margin-top:2px">Share of total team points</p></div>
-      <div class="ml-body" id="memberList_ia"></div>
     </div>
   </div>
 </section>
@@ -889,14 +848,12 @@ let TEAMS=[
 
 // Group definitions
 const GROUPS={
-  rp:{name:'RP Team',teams:['dev','qa']},
-  ia:{name:'IA Team',teams:['be','fe']}
+  rp:{name:'RP Team',teams:['dev','qa']}
 };
 
 // Per-group state
 const GS={
-  rp:{ati:0,oc:null,dc:null,vr:false},
-  ia:{ati:0,oc:null,dc:null,vr:false}
+  rp:{ati:0,oc:null,dc:null,vr:false}
 };
 
 function getGroupTeams(gid){
@@ -1015,21 +972,6 @@ function mergeTeamsWithDefaults(currentTeams){
   return {data:out,changed};
 }
 
-function readLegacyArray(key){
-  try{
-    const parsed=JSON.parse(localStorage.getItem(key)||'[]');
-    return Array.isArray(parsed)?parsed:[];
-  }catch(_){
-    return [];
-  }
-}
-
-function clearLegacyLocalData(){
-  ['de_tasks','rpde_tickets','ms_data','sp_data'].forEach(key=>{
-    try{localStorage.removeItem(key);}catch(_){/* ignore storage cleanup errors */}
-  });
-}
-
 const EMBEDDED_SUPABASE_URL='%VITE_SUPABASE_URL%';
 const EMBEDDED_SUPABASE_ANON_KEY='%VITE_SUPABASE_ANON_KEY%';
 const HARD_FALLBACK_SUPABASE_URL='https://dhfgtvuwxpssoovrpemo.supabase.co';
@@ -1111,10 +1053,6 @@ function serializeState(){
 function applyState(state){
   const st=state&&typeof state==='object'?state:{};
   let migrated=false;
-  const legacyDe=Array.isArray(DE_TASKS)&&DE_TASKS.length?DE_TASKS:readLegacyArray('de_tasks');
-  const legacyRpde=Array.isArray(RPDE_TICKETS)&&RPDE_TICKETS.length?RPDE_TICKETS:readLegacyArray('rpde_tickets');
-  const legacyMs=Array.isArray(MS_DATA)&&MS_DATA.length?MS_DATA:readLegacyArray('ms_data');
-  const legacySp=Array.isArray(SP_DATA)&&SP_DATA.length?SP_DATA:readLegacyArray('sp_data');
 
   const mergedProjects=mergeProjectsWithDefaults(st.projects);
   const mergedTeams=mergeTeamsWithDefaults(st.teams);
@@ -1124,10 +1062,10 @@ function applyState(state){
 
   TEAMS.forEach(calcTeamMetrics);
 
-  if(Array.isArray(st.deTasks)){DE_TASKS=cloneData(st.deTasks);}else{DE_TASKS=cloneData(legacyDe);if(legacyDe.length)migrated=true;}
-  if(Array.isArray(st.rpdeTickets)){RPDE_TICKETS=cloneData(st.rpdeTickets);}else{RPDE_TICKETS=cloneData(legacyRpde);if(legacyRpde.length)migrated=true;}
-  if(Array.isArray(st.msData)){MS_DATA=cloneData(st.msData);}else{MS_DATA=cloneData(legacyMs);if(legacyMs.length)migrated=true;}
-  if(Array.isArray(st.spData)){SP_DATA=cloneData(st.spData);}else{SP_DATA=cloneData(legacySp);if(legacySp.length)migrated=true;}
+  DE_TASKS=Array.isArray(st.deTasks)?cloneData(st.deTasks):[];
+  RPDE_TICKETS=Array.isArray(st.rpdeTickets)?cloneData(st.rpdeTickets):[];
+  MS_DATA=Array.isArray(st.msData)?cloneData(st.msData):[];
+  SP_DATA=Array.isArray(st.spData)?cloneData(st.spData):[];
 
   const mh=Number.isFinite(Number(st.settings?.monthlyHours))?Math.max(1,parseInt(st.settings.monthlyHours,10)):176;
   const hpd=Number.isFinite(Number(st.settings?.hoursPerDay))?Math.max(1,parseInt(st.settings.hoursPerDay,10)):8;
@@ -1204,7 +1142,6 @@ async function initSupabaseAndState(){
       if(state){
         structuredBackendReady=true;
         applyState(state);
-        clearLegacyLocalData();
         return;
       }
     }
@@ -1230,11 +1167,11 @@ async function initSupabaseAndState(){
       if(migrated){
         await saveLegacyStateToSupabase(state);
       }
-      clearLegacyLocalData();
     } else {
       applyState(null);
-      await saveLegacyStateToSupabase();
-      clearLegacyLocalData();
+      if(sbClient){
+        await saveLegacyStateToSupabase();
+      }
     }
   }catch(err){
     console.error('Failed to initialize dashboard state from Supabase.', err);
@@ -1622,10 +1559,10 @@ function exportCSV(){
 function switchTab(id,btn){
   document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));
   document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+  if(id==='vel-ia')id='vel-rp';
   document.getElementById(id).classList.add('active');
   if(btn)btn.classList.add('active');
   if(id==='vel-rp'&&!GS.rp.vr){setTimeout(()=>{GS.rp.vr=true;renderOverviewChart('rp');renderDrillChart('rp',getGroupTeams('rp')[GS.rp.ati]);},60);}
-  if(id==='vel-ia'&&!GS.ia.vr){setTimeout(()=>{GS.ia.vr=true;renderOverviewChart('ia');renderDrillChart('ia',getGroupTeams('ia')[GS.ia.ati]);},60);}
 }
 function dl(content,name,type){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([content],{type}));a.download=name;a.click();}
 let tt;function showToast(){const el=document.getElementById('toast');el.classList.add('show');clearTimeout(tt);tt=setTimeout(()=>el.classList.remove('show'),2000);}
@@ -2094,6 +2031,7 @@ const MS_OPEN       = new Set();
 
 async function saveMS() {
   try{
+    if(!sbClient)throw new Error('Supabase indisponivel para gravar milestones');
     if(structuredBackendReady){
       await replaceMilestonesSnapshot(MS_DATA);
     }else{
@@ -2616,7 +2554,6 @@ async function deleteSPTicket(tid) {
 function rebuildAll(){
   buildInvoicing();
   buildVelocity('rp');
-  buildVelocity('ia');
   buildDE();
   buildRPDE();
   buildMilestones();
