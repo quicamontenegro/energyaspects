@@ -1649,6 +1649,7 @@ async function saveInvMember() {
   showToast();
 }
 async function deleteInvMember(pid, mname) {
+  if (!confirm(`Remove "${mname}" from this project?`)) return;
   syncInvoicingModelFromDom();
   PROJECTS[pid].members = PROJECTS[pid].members.filter(m => m.name !== mname);
   buildInvoicing();
