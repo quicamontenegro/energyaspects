@@ -1109,6 +1109,7 @@ function serializeState(){
     rpdeTickets:JSON.parse(JSON.stringify(RPDE_TICKETS||[])),
     msData:JSON.parse(JSON.stringify(MS_DATA||[])),
     spData:JSON.parse(JSON.stringify(SP_DATA||[])),
+    spTeamMembers:{rp:JSON.parse(JSON.stringify(SP_TEAM_MEMBERS.rp||[])),de:JSON.parse(JSON.stringify(SP_TEAM_MEMBERS.de||[]))},
     updatedAt:new Date().toISOString()
   };
 }
