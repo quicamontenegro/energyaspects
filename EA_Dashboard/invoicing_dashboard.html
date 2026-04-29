@@ -1128,13 +1128,11 @@ function buildStructuredSnapshot(){
 async function saveLegacyStateToSupabase(state){
   if(!sbClient)return;
   const stateToSave=state||serializeState();
-  console.log('→ saveLegacyStateToSupabase, deTasks in payload:', stateToSave.deTasks?.length);
   // Merge arrays: never lose records that are in the DB but not in memory
   // Only protect msData and deMeetings (not deTasks, which can be deleted)
   try{
     const {data:existing}=await sbClient.from(SB_TABLE).select('state').eq('id',SB_ROW_ID).maybeSingle();
     const dbState=existing?.state||{};
-    console.log('  DB state deTasks:', dbState.deTasks?.length);
     ['msData','deMeetings'].forEach(key=>{
       const dbArr=dbState[key];
       if(Array.isArray(dbArr)&&dbArr.length>(stateToSave[key]||[]).length){
@@ -1145,12 +1143,10 @@ async function saveLegacyStateToSupabase(state){
         stateToSave[key]=merged;
       }
     });
-    console.log('  final payload deTasks:', stateToSave.deTasks?.length);
   }catch(_){}
   const payload={id:SB_ROW_ID,state:stateToSave,updated_at:new Date().toISOString()};
   const {error}=await sbClient.from(SB_TABLE).upsert(payload,{onConflict:'id'});
   if(error)throw error;
-  console.log('  ✓ upserted to Supabase');
 }
 
 async function flushSync(){
@@ -1793,7 +1789,6 @@ let DE_EDIT_ID = null;
 let DE_MEETING_EDIT_ID = null;
 
 async function saveDE() {
-  console.log('→ saveDE() called, deTasks:', DE_TASKS.length);
   if(structuredBackendReady)return replaceDataExplorerSnapshot(DE_TASKS);
   return scheduleSync(true);
 }
@@ -2094,13 +2089,8 @@ async function saveTask() {
 
 async function deleteTask(id) {
   if (!confirm('Delete this task?')) return;
-  console.log('→ deleteTask:', id);
   DE_TASKS = DE_TASKS.filter(t => t.id !== id);
-  console.log('  filtered DE_TASKS:', DE_TASKS.length);
-  await saveDE();
-  console.log('  ✓ saved');
-  buildDE();
-  showToast();
+  await saveDE(); buildDE(); showToast();
 }
 
 // ═══ RP & DE TEAM TRACKER ═══
