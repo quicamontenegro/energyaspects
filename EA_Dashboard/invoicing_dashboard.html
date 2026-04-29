@@ -1642,7 +1642,7 @@ async function saveInvMember() {
   if (!name || INV_MEMBER_PID == null) return;
   syncInvoicingModelFromDom();
   const mh = getMH();
-  PROJECTS[INV_MEMBER_PID].members.push({name, pto:0, feriados:0, hoursOff:0, tl:mh});
+  PROJECTS[INV_MEMBER_PID].members.push({name, pto:0, feriados:0, hoursOff:0, tl:0});
   closeInvMemberModal();
   buildInvoicing();
   await scheduleSync(true);
