@@ -324,7 +324,7 @@ tr.tr td{background:#f8fafc;font-weight:700;border-top:2px solid var(--border);}
   <div class="logo">Buro<span>cracy</span></div>
   <nav class="tabs">
     <button class="tab-btn active" onclick="switchTab('invoicing',this)">📄 Invoicing</button>
-    <button class="tab-btn" onclick="switchTab('vel-rp',this)">⚡ RP Team</button>
+    <button class="tab-btn" onclick="switchTab('vel-rp',this)">⚡ Velocity</button>
     <button class="tab-btn" onclick="switchTab('data-explorer',this)">🗂 Data Explorer</button>
     <button class="tab-btn" onclick="switchTab('rp-de',this)">👥 RP & DE Team</button>
     <button class="tab-btn" onclick="switchTab('milestones',this)">🏁 Milestones</button>
@@ -337,9 +337,9 @@ tr.tr td{background:#f8fafc;font-weight:700;border-top:2px solid var(--border);}
 <section id="invoicing" class="section active">
   <div class="sec-hdr"><h2>Invoicing</h2><p>Monthly hours logged per project and team member — April 2026</p></div>
   <div class="stats-bar">
-    <div class="stat-card"><span class="stat-label">Monthly Hours</span><div class="stat-editable"><input type="number" id="mh" value="176" min="1" oninput="recalcInv();scheduleSync()"/><span style="font-size:14px;color:var(--muted)">h</span></div><span class="stat-sub">Total capacity per person</span></div>
-    <div class="stat-card"><span class="stat-label">Hours / Day</span><div class="stat-editable"><input type="number" id="hpd" value="8" min="1" oninput="recalcInv();scheduleSync()"/><span style="font-size:14px;color:var(--muted)">h</span></div><span class="stat-sub">Standard workday</span></div>
-    <div class="stat-card"><span class="stat-label">Working Days</span><div class="stat-value" id="wdays">22</div><span class="stat-sub">This month</span></div>
+    <div class="stat-card"><span class="stat-label">Monthly Hours</span><div class="stat-editable"><input type="number" id="mh" value="176" min="1" readonly/><span style="font-size:14px;color:var(--muted)">h</span></div><span class="stat-sub">Calculated from working days</span></div>
+    <div class="stat-card"><span class="stat-label">Hours / Day</span><div class="stat-editable"><input type="number" id="hpd" value="8" min="1" readonly/><span style="font-size:14px;color:var(--muted)">h</span></div><span class="stat-sub">Fixed standard workday</span></div>
+    <div class="stat-card"><span class="stat-label">Working Days</span><div class="stat-editable"><input type="number" id="wdays" value="22" min="1" oninput="onWorkingDaysChange(this)"/><span style="font-size:14px;color:var(--muted)">d</span></div><span class="stat-sub">Editable</span></div>
     <div class="stat-card"><span class="stat-label">Total Members</span><div class="stat-value" id="totmem">12</div><span class="stat-sub">Across all projects</span></div>
   </div>
   <div class="toolbar">
@@ -382,6 +382,7 @@ tr.tr td{background:#f8fafc;font-weight:700;border-top:2px solid var(--border);}
       <span class="edit-title" id="editTitle_rp">Sprint Data</span>
       <span style="font-size:12px;color:var(--muted)">Edit any cell — all charts and metrics update instantly</span>
       <button class="btn btn-sm btn-green ml-auto" onclick="addSprint('rp')" id="addSprintBtn_rp">+ Add Sprint</button>
+      <button class="btn btn-sm btn-outline" onclick="removeSprint('rp')">− Remove Sprint</button>
       <button class="btn btn-sm btn-outline" onclick="exportVelCSV('rp')">⬇ Export</button>
     </div>
     <div class="tw"><table class="sprint-tbl" id="sprintTable_rp"></table></div>
@@ -801,18 +802,14 @@ tr.tr td{background:#f8fafc;font-weight:700;border-top:2px solid var(--border);}
 // ═══ DATA ═══
 let PROJECTS=[
   {name:'Enterprise – Phase 1 – Initiation',tag:'Enterprise',color:'#4f46e5',members:[
-    {name:'Tetiana Rudenko',pto:6,feriados:2,hoursOff:16,tl:96},
     {name:'Yurii Androshchuk',pto:0,feriados:1,hoursOff:8,tl:168},
     {name:'Yurii Rybak',pto:1,feriados:1,hoursOff:16,tl:160}]},
   {name:'Energy Aspects – Data Initiative',tag:'Energy Aspects',color:'#0891b2',members:[
-    {name:'Alejandro Mosquera',pto:2,feriados:1,hoursOff:24,tl:152},
-    {name:'Cristina Montenegro',pto:0,feriados:0,hoursOff:0,tl:176},
     {name:'Nicolas Marqui',pto:1,feriados:0,hoursOff:8,tl:168},
-    {name:'Pedro Rocha',pto:8,feriados:0,hoursOff:64,tl:112},
     {name:'Viktor Lykov',pto:0,feriados:1,hoursOff:8,tl:168}]},
   {name:'Technical Support – 2025-ongoing',tag:'Tech Support',color:'#7c3aed',members:[
     {name:'Abdelaziz Omar',pto:1,feriados:2,hoursOff:24,tl:152},
-    {name:'Tetiana Rudenko',pto:6,feriados:1,hoursOff:42,tl:32},
+    {name:'Cristina Montenegro',pto:0,feriados:0,hoursOff:0,tl:176},
     {name:'Vadym Levkovych',pto:1,feriados:1,hoursOff:16,tl:160}]}
 ];
 
@@ -865,15 +862,36 @@ const PAL=['#4f46e5','#0891b2','#7c3aed','#d97706','#16a34a','#dc2626','#0d9488'
 const CM={};
 function ac(n){if(!CM[n]){CM[n]=PAL[Object.keys(CM).length%PAL.length];}return CM[n];}
 function ini(n){return n.split(' ').map(p=>p[0]).join('').toUpperCase().slice(0,2);}
-function getMH(){return parseInt(document.getElementById('mh').value)||176;}
+function getWD(){return Math.max(1,parseInt(document.getElementById('wdays').value,10)||22);}
+function getMH(){return getWD()*getHPD();}
 function getHPD(){return parseInt(document.getElementById('hpd').value)||8;}
+
+function onWorkingDaysChange(inp){
+  const safe=Math.max(1,parseInt(inp.value,10)||1);
+  inp.value=String(safe);
+  recalcInv();
+  scheduleSync();
+  showToast();
+}
 
 function calcTeamMetrics(t){
   const n=t.sprints.length;
+  if(!Array.isArray(t.sprintCompleted)){
+    t.sprintCompleted=t.sprints.map((_,si)=>{
+      const teamTotal=(t.members||[]).reduce((s,m)=>s+(Number(m?.sp?.[si])||0),0);
+      return teamTotal>0;
+    });
+  }
+  while(t.sprintCompleted.length<n)t.sprintCompleted.push(false);
+  if(t.sprintCompleted.length>n)t.sprintCompleted=t.sprintCompleted.slice(0,n);
+  const recentStart=Math.max(0,n-3);
   t.members.forEach(m=>{
     const vals=m.sp.slice(0,n);
-    const completed=vals.filter(v=>v>0);
-    m.avg=completed.length?completed.reduce((a,b)=>a+b,0)/completed.length:0;
+    const recentVals=vals.slice(recentStart);
+    // Always compute average over the last 3 sprints (including zero values).
+    while(recentVals.length<3)recentVals.unshift(0);
+    m.avg=recentVals.reduce((a,b)=>a+b,0)/3;
+    const completed=recentVals.filter(v=>v>0);
     if(completed.length>1){
       const mean=m.avg;
       const sd=Math.sqrt(completed.reduce((s,v)=>s+Math.pow(v-mean,2),0)/completed.length);
@@ -881,8 +899,9 @@ function calcTeamMetrics(t){
     } else { m.cv=0; }
   });
   t.totals=t.sprints.map((_,si)=>t.members.reduce((s,m)=>s+(m.sp[si]||0),0));
-  const completedTotals=t.totals.filter(v=>v>0);
-  t.avgTotal=completedTotals.length?completedTotals.reduce((a,b)=>a+b,0)/completedTotals.length:0;
+  const recentTotals=t.totals.slice(recentStart);
+  while(recentTotals.length<3)recentTotals.unshift(0);
+  t.avgTotal=recentTotals.reduce((a,b)=>a+b,0)/3;
   const lastIdx=t.totals.map((v,i)=>v>0?i:-1).filter(i=>i>=0);
   if(lastIdx.length>=2){
     const last=t.totals[lastIdx[lastIdx.length-1]];
@@ -890,13 +909,14 @@ function calcTeamMetrics(t){
     t.trend=prev>0?Math.round((last-prev)/prev*100):0;
     t.lastCompleted=last; t.prevCompleted=prev;
   } else { t.trend=0; t.lastCompleted=t.totals[0]||0; t.prevCompleted=0; }
-  if(completedTotals.length>1){
+  if(recentTotals.length>1){
     const mean=t.avgTotal;
-    const sd=Math.sqrt(completedTotals.reduce((s,v)=>s+Math.pow(v-mean,2),0)/completedTotals.length);
+    const sd=Math.sqrt(recentTotals.reduce((s,v)=>s+Math.pow(v-mean,2),0)/recentTotals.length);
     t.predictability=Math.round(Math.max(0,1-sd/mean)*100);
   } else { t.predictability=100; }
   t.momentum=t.avgTotal>0?Math.round((t.lastCompleted-t.avgTotal)/t.avgTotal*100):0;
-  t.ppm=t.members.length>0?parseFloat((t.avgTotal/t.members.length).toFixed(1)):0;
+  const sprintDays=10;
+  t.ppm=t.members.length>0?parseFloat(((t.avgTotal/t.members.length)/sprintDays).toFixed(1)):0;
   const bi=t.totals.indexOf(Math.max(...t.totals));
   t.bestSprint=t.sprints[bi]; t.bestTotal=t.totals[bi];
   t.top=[...t.members].sort((a,b)=>b.avg-a.avg)[0];
@@ -907,6 +927,8 @@ const INITIAL_PROJECTS=JSON.parse(JSON.stringify(PROJECTS));
 const INITIAL_TEAMS=JSON.parse(JSON.stringify(TEAMS));
 const SB_TABLE='dashboard_state';
 const SB_ROW_ID='invoicing_dashboard';
+const USE_STRUCTURED_BACKEND=false;
+const USE_STRUCTURED_VELOCITY_MIRROR=false;
 let sbClient=null;
 let syncTimer=null;
 let structuredBackendReady=false;
@@ -959,7 +981,7 @@ function mergeTeamsWithDefaults(currentTeams){
       return;
     }
     const idx=idxById.get(dt.id);
-    if(!Array.isArray(out[idx].sprints)){
+    if(!Array.isArray(out[idx].sprints)||out[idx].sprints.length===0){
       out[idx].sprints=cloneData(dt.sprints);
       changed=true;
     }
@@ -968,8 +990,50 @@ function mergeTeamsWithDefaults(currentTeams){
       out[idx].members=mm.members;
       changed=true;
     }
+
+    // Keep velocity table shape stable: one points value per visible sprint column.
+    const sprintCount=out[idx].sprints.length;
+    out[idx].members=out[idx].members.map(member=>{
+      const defaultMember=dt.members.find(dm=>dm.name===member.name);
+      const baseSp=Array.isArray(member.sp)?member.sp.slice(0,sprintCount):[];
+      const fallbackSp=Array.isArray(defaultMember?.sp)?defaultMember.sp:[];
+      while(baseSp.length<sprintCount){
+        baseSp.push(Number(fallbackSp[baseSp.length])||0);
+      }
+      if(!Array.isArray(member.sp)||member.sp.length!==sprintCount){
+        changed=true;
+      }
+      return {...member,sp:baseSp};
+    });
   });
   return {data:out,changed};
+}
+
+function mergeRecoveredTeamsWithLegacy(legacyTeams,recoveredTeams){
+  const legacyList=Array.isArray(legacyTeams)?cloneData(legacyTeams):[];
+  const recoveredList=Array.isArray(recoveredTeams)?cloneData(recoveredTeams):[];
+  if(!legacyList.length)return recoveredList;
+  const recoveredById=new Map(recoveredList.map(team=>[team?.id,team]));
+  const merged=legacyList.map(legacyTeam=>{
+    const recoveredTeam=recoveredById.get(legacyTeam?.id);
+    if(!recoveredTeam)return legacyTeam;
+    const sprintCount=Array.isArray(recoveredTeam.sprints)?recoveredTeam.sprints.length:0;
+    const legacyCompleted=Array.isArray(legacyTeam.sprintCompleted)?legacyTeam.sprintCompleted:[];
+    const recoveredCompleted=Array.isArray(recoveredTeam.sprintCompleted)?recoveredTeam.sprintCompleted:[];
+    const sprintCompleted=Array.from({length:sprintCount},(_,idx)=>{
+      if(typeof legacyCompleted[idx]==='boolean')return legacyCompleted[idx];
+      return !!recoveredCompleted[idx];
+    });
+    return {
+      ...recoveredTeam,
+      sprintCompleted
+    };
+  });
+  const mergedIds=new Set(merged.map(team=>team?.id));
+  recoveredList.forEach(team=>{
+    if(!mergedIds.has(team?.id))merged.push(team);
+  });
+  return merged;
 }
 
 const EMBEDDED_SUPABASE_URL='%VITE_SUPABASE_URL%';
@@ -1069,8 +1133,10 @@ function applyState(state){
 
   const mh=Number.isFinite(Number(st.settings?.monthlyHours))?Math.max(1,parseInt(st.settings.monthlyHours,10)):176;
   const hpd=Number.isFinite(Number(st.settings?.hoursPerDay))?Math.max(1,parseInt(st.settings.hoursPerDay,10)):8;
+  const wdays=Math.max(1,Math.round(mh/hpd));
   document.getElementById('mh').value=String(mh);
   document.getElementById('hpd').value=String(hpd);
+  document.getElementById('wdays').value=String(wdays);
   return migrated;
 }
 
@@ -1092,7 +1158,23 @@ function buildStructuredSnapshot(){
 
 async function saveLegacyStateToSupabase(state){
   if(!sbClient)return;
-  const payload={id:SB_ROW_ID,state:state||serializeState(),updated_at:new Date().toISOString()};
+  const stateToSave=state||serializeState();
+  // Merge arrays: never lose records that are in the DB but not in memory
+  try{
+    const {data:existing}=await sbClient.from(SB_TABLE).select('state').eq('id',SB_ROW_ID).maybeSingle();
+    const dbState=existing?.state||{};
+    ['msData','deTasks','rpdeTickets'].forEach(key=>{
+      const dbArr=dbState[key];
+      if(Array.isArray(dbArr)&&dbArr.length>(stateToSave[key]||[]).length){
+        const memById={};
+        (stateToSave[key]||[]).forEach(m=>memById[m.id]=m);
+        const merged=[...Object.values(memById)];
+        dbArr.forEach(m=>{if(!memById[m.id])merged.push(m);});
+        stateToSave[key]=merged;
+      }
+    });
+  }catch(_){}
+  const payload={id:SB_ROW_ID,state:stateToSave,updated_at:new Date().toISOString()};
   const {error}=await sbClient.from(SB_TABLE).upsert(payload,{onConflict:'id'});
   if(error)throw error;
 }
@@ -1106,6 +1188,14 @@ async function flushSync(){
       await saveCoreSnapshot(buildStructuredSnapshot());
     }else{
       await saveLegacyStateToSupabase();
+      // Optional mirror to structured velocity tables.
+      if(USE_STRUCTURED_VELOCITY_MIRROR&&typeof replaceVelocitySnapshot==='function'){
+        try{
+          await replaceVelocitySnapshot(cloneData(TEAMS));
+        }catch(err){
+          console.warn('Velocity mirror sync failed in legacy mode.', err);
+        }
+      }
     }
   }
   catch(_){/* keep UI responsive even if sync fails */}
@@ -1136,8 +1226,11 @@ async function initSupabaseAndState(){
 
   try{
     let state=null;
+    let velocityRecovered=false;
+    let sprintsRecovered=false;
+    let milestonesRecovered=false;
 
-    if(sbClient&&typeof loadAllData==='function'){
+    if(USE_STRUCTURED_BACKEND&&sbClient&&typeof loadAllData==='function'){
       state=await loadAllData();
       if(state){
         structuredBackendReady=true;
@@ -1162,10 +1255,58 @@ async function initSupabaseAndState(){
       state=await loadStateViaRest(cfg);
     }
 
+    // Recover velocity/sprint points from structured tables when legacy snapshot is stale.
+    // This path intentionally avoids enabling full structured persistence.
+    if(USE_STRUCTURED_VELOCITY_MIRROR&&sbClient&&typeof loadStructuredVelocity==='function'){
+      try{
+        const recoveredTeams=await loadStructuredVelocity();
+        if(Array.isArray(recoveredTeams)&&recoveredTeams.length){
+          state=(state&&typeof state==='object')?state:{};
+          state.teams=mergeRecoveredTeamsWithLegacy(state.teams,recoveredTeams);
+          velocityRecovered=true;
+        }
+      }catch(err){
+        console.warn('Velocity structured recovery failed; keeping legacy teams.', err);
+      }
+    }
+
+    if(sbClient&&typeof loadStructuredSprints==='function'){
+      try{
+        const recoveredSprints=await loadStructuredSprints();
+        const currentSprints=Array.isArray(state?.spData)?state.spData:[];
+        if(Array.isArray(recoveredSprints)&&recoveredSprints.length&&currentSprints.length===0){
+          state=(state&&typeof state==='object')?state:{};
+          state.spData=recoveredSprints;
+          sprintsRecovered=true;
+        }
+      }catch(err){
+        console.warn('Sprint structured recovery failed; keeping legacy sprints.', err);
+      }
+    }
+
+    if(sbClient&&typeof loadStructuredMilestones==='function'){
+      try{
+        const recoveredMilestones=await loadStructuredMilestones();
+        const currentMilestones=Array.isArray(state?.msData)?state.msData:[];
+        if(Array.isArray(recoveredMilestones)&&recoveredMilestones.length&&currentMilestones.length===0){
+          state=(state&&typeof state==='object')?state:{};
+          state.msData=recoveredMilestones;
+          milestonesRecovered=true;
+        }
+      }catch(err){
+        console.warn('Milestone structured recovery failed; keeping legacy milestones.', err);
+      }
+    }
+
     if(state){
+      // Protect msData: if DB has more milestones than in-memory, keep DB version
+      const currentMs=Array.isArray(MS_DATA)?MS_DATA:[];
+      if(Array.isArray(state.msData)&&state.msData.length<currentMs.length){
+        state.msData=currentMs;
+      }
       const migrated=applyState(state);
-      if(migrated){
-        await saveLegacyStateToSupabase(state);
+      if(migrated||velocityRecovered||sprintsRecovered||milestonesRecovered){
+        await saveLegacyStateToSupabase();
       }
     } else {
       applyState(null);
@@ -1228,13 +1369,14 @@ function renderTeam(gid,idx,withCharts){
 function switchTeam(gid,idx){renderTeam(gid,idx,GS[gid].vr);}
 
 function renderMiniStats(gid,t){
+  const completedCount=Array.isArray(t.sprintCompleted)?t.sprintCompleted.filter(Boolean).length:t.totals.filter(v=>v>0).length;
   document.getElementById('miniStats_'+gid).innerHTML=`
     <div class="ms"><div class="ms-label">Members</div><div class="ms-value" style="color:${t.color}">${t.members.length}</div><div class="ms-sub">in team</div></div>
     <div class="ms"><div class="ms-label">Avg Velocity</div><div class="ms-value" style="color:${t.color}">${t.avgTotal.toFixed(1)}</div><div class="ms-sub">pts / sprint</div></div>
     <div class="ms"><div class="ms-label">Best Sprint</div><div class="ms-value" style="font-size:16px;color:${t.color}">${t.bestSprint}</div><div class="ms-sub">${t.bestTotal} pts</div></div>
     <div class="ms"><div class="ms-label">Top Contributor</div><div class="ms-value" style="font-size:15px;color:${t.color}">${t.top?t.top.name.split(' ')[0]:'—'}</div><div class="ms-sub">${t.top?t.top.avg.toFixed(1)+' avg':'—'}</div></div>
     <div class="ms"><div class="ms-label">Pts / Member</div><div class="ms-value" style="color:${t.color}">${t.ppm}</div><div class="ms-sub">avg per sprint</div></div>
-    <div class="ms"><div class="ms-label">Sprints Tracked</div><div class="ms-value" style="color:${t.color}">${t.sprints.length}</div><div class="ms-sub">${t.totals.filter(v=>v>0).length} completed</div></div>`;
+    <div class="ms"><div class="ms-label">Sprints Tracked</div><div class="ms-value" style="color:${t.color}">${t.sprints.length}</div><div class="ms-sub">${completedCount} completed</div></div>`;
 }
 
 function renderMetrics(gid,t){
@@ -1286,40 +1428,33 @@ function renderEditTable(gid,t,tidx){
   const ns=t.sprints.length;
   let thead=`<thead><tr><th style="min-width:150px">Member</th>`;
   t.sprints.forEach((s,si)=>{
+    const isCompleted=!!t.sprintCompleted?.[si];
     thead+=`<th style="text-align:center;min-width:100px">
       <input class="sname-inp" value="${s}" oninput="renameS(${tidx},${si},this.value,'${gid}')" title="Click to rename sprint"/>
-      <br><span style="font-size:10px;font-weight:400;color:var(--muted)">${t.totals[si]>0?'completed':'in progress'}</span>
+      <br><button class="btn btn-sm ${isCompleted?'btn-green':'btn-outline'}" onclick="toggleSprintCompleted(${tidx},${si},'${gid}')" style="margin-top:4px">${isCompleted?'Completed':'Mark Completed'}</button>
     </th>`;
   });
-  thead+=`<th style="text-align:center;min-width:70px">AVG</th><th style="text-align:center">Trend</th><th style="text-align:center">Consistency</th></tr></thead>`;
+  thead+=`<th style="text-align:center;min-width:70px">AVG</th></tr></thead>`;
   let tbody='<tbody>';
   t.members.forEach((m,mi)=>{
     tbody+=`<tr>
       <td><div class="mc"><div class="av" style="background:${ac(m.name)};width:28px;height:28px;font-size:10px">${ini(m.name)}</div><span style="font-weight:500;font-size:13px">${m.name}</span></div></td>`;
     m.sp.forEach((v,si)=>{
-      const isCurrent=si===ns-1&&t.totals[si]===0;
+      const isCurrent=si===ns-1&&!t.sprintCompleted?.[si];
       tbody+=`<td style="text-align:center"><input class="sp-inp${isCurrent?' new-sprint':''}" type="number" value="${v}" min="0" step="0.5"
         oninput="onSpEdit(${tidx},${mi},${si},this.value,'${gid}')"
-        title="${isCurrent?'Current sprint (in progress)':'Completed sprint'}"/></td>`;
+        title="${isCurrent?'Current sprint (in progress)':'Sprint'}"/></td>`;
     });
-    const comp=m.sp.filter(v=>v>0);
-    const mtrend=comp.length>=2?Math.round((comp[comp.length-1]-comp[comp.length-2])/comp[comp.length-2]*100):null;
-    const trendHtml=mtrend!==null?`<span class="trend-arrow" style="background:${mtrend>=0?'#dcfce7':'#fee2e2'};color:${mtrend>=0?'#16a34a':'#dc2626'}">${mtrend>=0?'▲':'▼'}${Math.abs(mtrend)}%</span>`:'<span style="color:var(--muted);font-size:12px">—</span>';
-    const cLabel=m.cv<0.2?'High 🟢':m.cv<0.5?'Medium 🟡':'Low 🔴';
-    const cBg=m.cv<0.2?'#dcfce7':m.cv<0.5?'#fef3c7':'#fee2e2';
-    const cCol=m.cv<0.2?'#16a34a':m.cv<0.5?'#d97706':'#dc2626';
     tbody+=`
       <td style="text-align:center;font-weight:700;color:${t.color}">${m.avg.toFixed(1)}</td>
-      <td style="text-align:center">${trendHtml}</td>
-      <td style="text-align:center"><span class="consist-badge" style="background:${cBg};color:${cCol}">${cLabel}</span></td>
     </tr>`;
   });
   tbody+=`<tr class="tbl-total"><td><strong>TOTAL</strong></td>`;
   t.sprints.forEach((_,si)=>{tbody+=`<td style="text-align:center;font-weight:700">${t.totals[si]}</td>`;});
-  tbody+=`<td style="text-align:center;color:var(--primary)">${t.avgTotal.toFixed(1)}</td><td></td><td></td></tr>`;
+  tbody+=`<td style="text-align:center;color:var(--primary)">${t.avgTotal.toFixed(1)}</td></tr>`;
   tbody+=`<tr class="tbl-avg"><td><em>Avg / Member</em></td>`;
-  t.sprints.forEach((_,si)=>{tbody+=`<td style="text-align:center">${(t.totals[si]/t.members.length).toFixed(1)}</td>`;});
-  tbody+=`<td></td><td></td><td></td></tr>`;
+  t.sprints.forEach((_,si)=>{tbody+=`<td style="text-align:center">${(t.members.length>0?((t.totals[si]/t.members.length)/10):0).toFixed(1)}</td>`;});
+  tbody+=`<td></td></tr>`;
   tbody+='</tbody>';
   document.getElementById('sprintTable_'+gid).innerHTML=thead+tbody;
 }
@@ -1340,6 +1475,17 @@ function renameS(tidx,si,val,gid){
   if(gs.vr){renderOverviewChart(gid);renderDrillChart(gid,TEAMS[tidx]);}
 }
 
+function toggleSprintCompleted(tidx,si,gid){
+  const team=TEAMS[tidx];
+  if(!team)return;
+  if(!Array.isArray(team.sprintCompleted))team.sprintCompleted=team.sprints.map(()=>false);
+  team.sprintCompleted[si]=!team.sprintCompleted[si];
+  calcTeamMetrics(team);
+  renderTeam(gid,GS[gid].ati,GS[gid].vr);
+  scheduleSync();
+  showToast();
+}
+
 function refreshAll(gid,tidx){
   const teams=getGroupTeams(gid);
   const t=TEAMS[tidx];
@@ -1357,12 +1503,34 @@ function addSprint(gid){
   const t=teams[gs.ati];
   const tidx=TEAMS.indexOf(t);
   t.sprints.push(t.sprints[0].replace(/\d+/,m=>parseInt(m)+t.sprints.length));
+  if(!Array.isArray(t.sprintCompleted))t.sprintCompleted=t.sprints.map(()=>false);
+  t.sprintCompleted.push(false);
   t.members.forEach(m=>m.sp.push(0));
   calcTeamMetrics(t);
   renderTeam(gid,gs.ati,gs.vr);
   scheduleSync();
   showToast();
   setTimeout(()=>{const inp=document.querySelector('#sprintTable_'+gid+' .sp-inp.new-sprint');if(inp)inp.scrollIntoView({behavior:'smooth',block:'nearest'});},100);
+}
+
+function removeSprint(gid){
+  const teams=getGroupTeams(gid);
+  const gs=GS[gid];
+  const t=teams[gs.ati];
+  if(!t||!Array.isArray(t.sprints)||t.sprints.length<=1){
+    alert('At least one sprint is required.');
+    return;
+  }
+  if(!confirm('Delete the latest sprint for this team?'))return;
+  t.sprints.pop();
+  if(Array.isArray(t.sprintCompleted)&&t.sprintCompleted.length)t.sprintCompleted.pop();
+  t.members.forEach(m=>{
+    if(Array.isArray(m.sp)&&m.sp.length)m.sp.pop();
+  });
+  calcTeamMetrics(t);
+  renderTeam(gid,gs.ati,gs.vr);
+  scheduleSync();
+  showToast();
 }
 
 function renderMemberList(gid,t){
@@ -1398,9 +1566,9 @@ function renderOverviewChart(gid){
   gs.oc=new Chart(ctx,{type:'bar',data:{
     labels:teams.map(t=>t.name.replace(' Team','')),
     datasets:[
-      {label:'Sprint -2',data:teams.map(t=>t.totals[0]||0),backgroundColor:teams.map(t=>t.color+'cc'),borderColor:teams.map(t=>t.color),borderWidth:2,borderRadius:6},
-      {label:'Sprint -1',data:teams.map(t=>t.totals.length>1?t.totals[t.totals.length-2]||0:0),backgroundColor:teams.map(t=>t.color+'44'),borderColor:teams.map(t=>t.color+'88'),borderWidth:2,borderRadius:6},
-      {label:'Sprint Avg',data:teams.map(t=>parseFloat(t.avgTotal.toFixed(1))),type:'line',borderColor:'#f59e0b',backgroundColor:'transparent',borderWidth:2.5,pointBackgroundColor:'#f59e0b',pointRadius:7,tension:.35,order:0,segment:{borderDash:[6,3]}}
+      {label:'Sprint -2',data:teams.map(t=>t?.totals?.[0]||0),backgroundColor:teams.map(t=>t.color+'cc'),borderColor:teams.map(t=>t.color),borderWidth:2,borderRadius:6},
+      {label:'Sprint -1',data:teams.map(t=>t?.totals?.length>1?t.totals[t.totals.length-2]||0:0),backgroundColor:teams.map(t=>t.color+'44'),borderColor:teams.map(t=>t.color+'88'),borderWidth:2,borderRadius:6},
+      {label:'Sprint Avg',data:teams.map(t=>parseFloat((t?.avgTotal||0).toFixed(1))),type:'line',borderColor:'#f59e0b',backgroundColor:'transparent',borderWidth:2.5,pointBackgroundColor:'#f59e0b',pointRadius:7,tension:.35,order:0,segment:{borderDash:[6,3]}}
     ]},
     options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
       plugins:{legend:{position:'top',labels:{font:{size:12},boxWidth:12,padding:16}},tooltip:{callbacks:{label:c=>`${c.dataset.label}: ${c.parsed.y} pts`}}},
@@ -1449,30 +1617,29 @@ function exportVelCSV(gid){
 
 // ═══ INVOICING ═══
 function recalcInv(){
-  document.getElementById('wdays').textContent=Math.round(getMH()/getHPD());
+  const mh=getMH();
+  document.getElementById('mh').value=String(mh);
   document.querySelectorAll('.rd').forEach(tr=>{
     const ho=parseFloat(tr.querySelector('.hoff')?.value)||0;
-    const tl=Math.max(0,getMH()-ho);
+    const tl=Math.max(0,mh-ho);
     const tc=tr.querySelector('.ctl');
     if(tc){
-      if(tc.tagName==='INPUT'){tc.value=tl;}
+      if(tc.tagName==='INPUT'){tc.max=String(mh);tc.value=Math.min(tl,mh);}
       else{tc.textContent=tl;}
-      tc.style.color=tl<getMH()*.5?'var(--red)':tl===getMH()?'var(--green)':'var(--text)';
+      tc.style.color=tl<mh*.5?'var(--red)':tl===mh?'var(--green)':'var(--text)';
     }
-    const uc=tr.querySelector('.cut');if(uc)uc.textContent=Math.round(tl/getMH()*100)+'%';
   });
 }
 function buildInvoicing(){
   const ms=new Set();let html='';
   PROJECTS.forEach((p,pid)=>{
-    const mh=getMH(),th=p.members.reduce((s,m)=>s+m.tl,0),au=Math.round(th/(p.members.length*mh)*100);
+    const mh=getMH(),th=p.members.reduce((s,m)=>s+m.tl,0);
     html+=`<div class="proj-block card" id="proj-${pid}">
       <div class="proj-hdr" style="background:linear-gradient(135deg,${p.color},${p.color}bb)">
         <div><div class="proj-name">${p.name}</div><span class="proj-tag">${p.tag}</span></div>
         <div class="proj-sum">
           <div class="psi"><strong>${p.members.length}</strong><span>Members</span></div>
           <div class="psi"><strong>${th}h</strong><span>Logged</span></div>
-          <div class="psi"><strong>${au}%</strong><span>Avg Util.</span></div>
         </div>
       </div>
       <div class="tw"><table><thead><tr>
@@ -1481,17 +1648,15 @@ function buildInvoicing(){
         <th style="text-align:center">Holidays</th>
         <th style="text-align:center">Hours Off</th>
         <th style="text-align:center">Total Logged</th>
-        <th style="text-align:center">Utilization</th>
       </tr></thead><tbody>`;
     p.members.forEach(m=>{
-      ms.add(m.name);const u=Math.round(m.tl/mh*100),c=ac(m.name);
+      ms.add(m.name);const c=ac(m.name);
       html+=`<tr class="rd" data-pid="${pid}" data-m="${m.name}">
         <td><div class="mc"><div class="av" style="background:${c};width:32px;height:32px;font-size:12px">${ini(m.name)}</div><span style="font-weight:500">${m.name}</span></div></td>
         <td style="text-align:center"><input class="ec" style="width:60px" type="number" value="${m.pto}" min="0" oninput="onPTO(this)"/></td>
         <td style="text-align:center"><input class="ec" style="width:60px" type="number" value="${m.feriados}" min="0" oninput="onPTO(this)"/></td>
         <td style="text-align:center"><input class="ec hoff" style="width:70px" type="number" value="${m.hoursOff}" min="0" oninput="recalcInv();scheduleSync();showToast()"/></td>
         <td style="text-align:center"><input class="ec ctl" style="width:80px;color:${m.tl===mh?'var(--green)':m.tl<mh*.5?'var(--red)':'var(--text)'}" type="number" value="${m.tl}" min="0" max="${mh}" oninput="onTL(this)"/></td>
-        <td><div class="cc cut">${u}%</div></td>
       </tr>`;
     });
     html+=`<tr class="tr">
@@ -1500,7 +1665,6 @@ function buildInvoicing(){
       <td style="text-align:center">${p.members.reduce((s,m)=>s+m.feriados,0)}</td>
       <td style="text-align:center">${p.members.reduce((s,m)=>s+m.hoursOff,0)}</td>
       <td style="text-align:center"><strong>${th}h</strong></td>
-      <td style="text-align:center"><strong>${au}%</strong></td>
     </tr></tbody></table></div></div>`;
   });
   document.getElementById('invProj').innerHTML=html;
@@ -1546,11 +1710,11 @@ function clearAll(){
 }
 function exportCSV(){
   syncInvoicingModelFromDom();
-  let csv='Project,Member,PTO Days,Holidays,Hours Off,Total Logged,Utilization\n';
+  let csv='Project,Member,PTO Days,Holidays,Hours Off,Total Logged\n';
   const mh=getMH();
   PROJECTS.forEach(p=>p.members.forEach(m=>{
     const tl=Math.max(0,mh-m.hoursOff);
-    csv+=`"${p.name}","${m.name}",${m.pto},${m.feriados},${m.hoursOff},${tl},${Math.round(tl/mh*100)}%\n`;
+    csv+=`"${p.name}","${m.name}",${m.pto},${m.feriados},${m.hoursOff},${tl}\n`;
   }));
   dl(csv,'invoicing.csv','text/csv');
 }
