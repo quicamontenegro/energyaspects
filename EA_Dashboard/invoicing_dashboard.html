@@ -581,10 +581,42 @@ tr.tr td{background:#f8fafc;font-weight:700;border-top:2px solid var(--border);}
   <div class="de-kpi-bar" id="sp-kpis"></div>
   <div class="sp-header-row">
     <div class="sp-chips" id="sp-chips"></div>
-    <button class="btn btn-outline" onclick="openNewSprintModal()">+ New Sprint</button>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-outline" onclick="openSPMembersModal()">👥 Members</button>
+      <button class="btn btn-outline" onclick="openNewSprintModal()">+ New Sprint</button>
+    </div>
   </div>
   <div id="sp-board"></div>
 </section>
+
+<!-- MANAGE SPRINT MEMBERS MODAL -->
+<div class="sp-modal-overlay" id="sp-members-modal" onclick="if(event.target===this)closeSPMembersModal()">
+  <div class="sp-modal" style="width:420px">
+    <h3 id="sp-members-modal-title" style="font-size:18px;font-weight:800;margin-bottom:20px">Manage Members</h3>
+    <div id="sp-members-list" style="display:flex;flex-direction:column;gap:8px;margin-bottom:16px;max-height:320px;overflow-y:auto"></div>
+    <form onsubmit="event.preventDefault();addSPMember()">
+      <div style="display:flex;gap:8px;align-items:flex-end">
+        <div class="de-field" style="flex:1;margin:0">
+          <label>Name</label>
+          <input class="de-inp" id="sp-m-name" type="text" placeholder="Full name" required/>
+        </div>
+        <div class="de-field" style="width:90px;margin:0">
+          <label>Role</label>
+          <select class="de-inp" id="sp-m-role">
+            <option value="">—</option>
+            <option value="DEV">DEV</option>
+            <option value="QA">QA</option>
+            <option value="DE">DE</option>
+          </select>
+        </div>
+        <button type="submit" class="btn btn-primary" style="flex-shrink:0;margin-bottom:1px">+ Add</button>
+      </div>
+    </form>
+    <div class="de-modal-actions" style="margin-top:20px">
+      <button class="btn btn-outline" onclick="closeSPMembersModal()">Close</button>
+    </div>
+  </div>
+</div>
 
 <!-- NEW SPRINT MODAL -->
 <div class="sp-modal-overlay" id="sp-sprint-modal" onclick="if(event.target===this)closeSPSprintModal()">
@@ -1098,6 +1130,10 @@ function applyState(state){
   RPDE_TICKETS=Array.isArray(st.rpdeTickets)?cloneData(st.rpdeTickets):[];
   MS_DATA=Array.isArray(st.msData)?cloneData(st.msData):[];
   SP_DATA=Array.isArray(st.spData)?cloneData(st.spData):[];
+  if(st.spTeamMembers&&typeof st.spTeamMembers==='object'){
+    SP_TEAM_MEMBERS.rp=Array.isArray(st.spTeamMembers.rp)?cloneData(st.spTeamMembers.rp):SP_TEAM_MEMBERS.rp;
+    SP_TEAM_MEMBERS.de=Array.isArray(st.spTeamMembers.de)?cloneData(st.spTeamMembers.de):SP_TEAM_MEMBERS.de;
+  }
 
   const mh=Number.isFinite(Number(st.settings?.monthlyHours))?Math.max(1,parseInt(st.settings.monthlyHours,10)):176;
   const hpd=Number.isFinite(Number(st.settings?.hoursPerDay))?Math.max(1,parseInt(st.settings.hoursPerDay,10)):8;
@@ -1121,7 +1157,8 @@ function buildStructuredSnapshot(){
     deMeetings:cloneData(DE_MEETINGS||[]),
     rpdeTickets:cloneData(RPDE_TICKETS||[]),
     msData:cloneData(MS_DATA||[]),
-    spData:cloneData(SP_DATA||[])
+    spData:cloneData(SP_DATA||[]),
+    spTeamMembers:{rp:cloneData(SP_TEAM_MEMBERS.rp||[]),de:cloneData(SP_TEAM_MEMBERS.de||[])}
   };
 }
 
@@ -2108,17 +2145,25 @@ const TICKET_STATUSES = {
 
 const RPDE_MEMBERS = { rp: [], de: [] };
 let RPDE_TICKETS  = [];
+let SP_TEAM_MEMBERS = { rp: [], de: [] };
 
 function initRPDEMembers(){
-  // Populate RPDE_MEMBERS from TEAMS, grouping by group (rp, de, ia, etc.)
   RPDE_MEMBERS.rp=[];
   RPDE_MEMBERS.de=[];
-  (TEAMS||[]).forEach(team=>{
-    if(team.group==='rp'&&team.members){
-      RPDE_MEMBERS.rp.push(...(team.members||[]));
-    }
-  });
-  // For de team, use all members (or add a separate DE group if needed)
+  // Use dedicated SP_TEAM_MEMBERS if populated, otherwise fall back to TEAMS
+  if(SP_TEAM_MEMBERS.rp&&SP_TEAM_MEMBERS.rp.length){
+    RPDE_MEMBERS.rp=[...SP_TEAM_MEMBERS.rp];
+  } else {
+    (TEAMS||[]).forEach(team=>{
+      if(team.group==='rp'&&team.members){
+        RPDE_MEMBERS.rp.push(...(team.members||[]));
+      }
+    });
+    SP_TEAM_MEMBERS.rp=RPDE_MEMBERS.rp.map(m=>({name:m.name,role:m.role||''}));
+  }
+  if(SP_TEAM_MEMBERS.de&&SP_TEAM_MEMBERS.de.length){
+    RPDE_MEMBERS.de=[...SP_TEAM_MEMBERS.de];
+  }
 }
 let RPDE_EDIT_ID  = null;
 let RPDE_CUR_TEAM = 'rp';
@@ -2470,7 +2515,14 @@ function buildSprints() {
   const blocked  = tickets.filter(t => t.status === 'blocked').length;
   const done     = tickets.filter(t => ['done','deployed'].includes(t.status)).length;
   const todo     = tickets.filter(t => t.status === 'todo').length;
-  const members  = RPDE_MEMBERS[SP_CUR_TEAM] || [];
+  let members = RPDE_MEMBERS[SP_CUR_TEAM] || [];
+  if (!members.length && tickets.length) {
+    const seen = new Set();
+    tickets.forEach(t => { if (t.assignee && !seen.has(t.assignee)) { seen.add(t.assignee); members.push({name: t.assignee, role: ''}); } });
+    // Auto-persist these derived members so they appear next time
+    SP_TEAM_MEMBERS[SP_CUR_TEAM] = members.map(m => ({name:m.name,role:m.role||''}));
+    initRPDEMembers();
+  }
   document.getElementById('sp-kpis').innerHTML = `
     <div class="de-kpi" style="border-left-color:#4f46e5">
       <span class="de-kpi-label">Total Tickets</span>
@@ -2573,6 +2625,58 @@ function renderSPTicket(t) {
 
 function selectSprint(id) { SP_CUR_SPRINT = id; buildSprints(); }
 
+// — Sprint Members Modal —
+function openSPMembersModal() {
+  const teamLabel = SP_CUR_TEAM === 'rp' ? '⚡ RP Team' : '🔬 DE Team';
+  document.getElementById('sp-members-modal-title').textContent = `Members — ${teamLabel}`;
+  document.getElementById('sp-m-name').value = '';
+  document.getElementById('sp-m-role').value = '';
+  renderSPMembersList();
+  document.getElementById('sp-members-modal').style.display = 'flex';
+}
+function closeSPMembersModal() { document.getElementById('sp-members-modal').style.display = 'none'; }
+function renderSPMembersList() {
+  const members = SP_TEAM_MEMBERS[SP_CUR_TEAM] || [];
+  const roleColors = {DEV:['#eef2ff','#4f46e5'], QA:['#ecfeff','#0891b2'], DE:['#f5f3ff','#7c3aed']};
+  document.getElementById('sp-members-list').innerHTML = members.length
+    ? members.map((m, i) => {
+        const [roleBg, roleCol] = roleColors[m.role] || ['#f1f5f9','#64748b'];
+        const roleHtml = m.role ? `<span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:8px;background:${roleBg};color:${roleCol}">${m.role}</span>` : '';
+        return `<div style="display:flex;align-items:center;gap:10px;padding:8px 10px;border:1px solid var(--border);border-radius:8px;background:#fff">
+          <div style="width:32px;height:32px;border-radius:50%;background:${ac(m.name)};display:flex;align-items:center;justify-content:center;font-weight:700;color:#fff;font-size:11px;flex-shrink:0">${ini(m.name)}</div>
+          <span style="flex:1;font-size:13px;font-weight:600">${m.name}</span>
+          ${roleHtml}
+          <button onclick="removeSPMember(${i})" style="border:none;background:#fee2e2;color:#dc2626;font-size:11px;font-weight:700;padding:3px 8px;border-radius:6px;cursor:pointer">✕</button>
+        </div>`;
+      }).join('')
+    : `<div style="font-size:13px;color:var(--muted);text-align:center;padding:20px 0;font-style:italic">No members yet — add one below</div>`;
+}
+async function addSPMember() {
+  const name = document.getElementById('sp-m-name').value.trim();
+  if (!name) return;
+  if (!SP_TEAM_MEMBERS[SP_CUR_TEAM]) SP_TEAM_MEMBERS[SP_CUR_TEAM] = [];
+  if (SP_TEAM_MEMBERS[SP_CUR_TEAM].find(m => m.name.toLowerCase() === name.toLowerCase())) {
+    alert('This member is already in the team.'); return;
+  }
+  const role = document.getElementById('sp-m-role').value;
+  SP_TEAM_MEMBERS[SP_CUR_TEAM].push({ name, role });
+  initRPDEMembers();
+  document.getElementById('sp-m-name').value = '';
+  document.getElementById('sp-m-role').value = '';
+  renderSPMembersList();
+  buildSprints();
+  const persisted = await saveSP();
+  if (persisted) showToast();
+}
+async function removeSPMember(idx) {
+  SP_TEAM_MEMBERS[SP_CUR_TEAM].splice(idx, 1);
+  initRPDEMembers();
+  renderSPMembersList();
+  buildSprints();
+  const persisted = await saveSP();
+  if (persisted) showToast();
+}
+
 // — Sprint CRUD —
 function openNewSprintModal() {
   document.getElementById('sp-f-sprint-name').value = '';
@@ -2629,8 +2733,13 @@ function editSPTicket(tid) {
 }
 function populateSPAssignee(selected) {
   const sel = document.getElementById('sp-f-assignee');
-  sel.innerHTML = (RPDE_MEMBERS[SP_CUR_TEAM]||[])
-    .map(m => `<option value="${m.name}"${m.name===selected?' selected':''}>${m.name}</option>`).join('');
+  let opts = RPDE_MEMBERS[SP_CUR_TEAM] || [];
+  if (!opts.length) {
+    const sprint = SP_DATA.find(s => s.id === SP_CUR_SPRINT);
+    const seen = new Set();
+    (sprint?.tickets || []).forEach(t => { if (t.assignee && !seen.has(t.assignee)) { seen.add(t.assignee); opts.push({name: t.assignee}); } });
+  }
+  sel.innerHTML = opts.map(m => `<option value="${m.name}"${m.name===selected?' selected':''}>${m.name}</option>`).join('');
 }
 function closeSPTicketModal() { document.getElementById('sp-ticket-modal').style.display = 'none'; }
 async function saveSPTicket() {
