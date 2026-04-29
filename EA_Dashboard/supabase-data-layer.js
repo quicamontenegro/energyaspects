@@ -8,8 +8,17 @@ const STRUCTURED_STATUS = {
 
 const STRUCTURED_SCHEMA_FLAGS = {
   sprints:null,
-  milestones:null
+  milestones:null,
+  velocitySprintCompleted:null
 };
+
+let coreSnapshotWriteQueue=Promise.resolve();
+
+function queueCoreSnapshotWrite(task){
+  const next=coreSnapshotWriteQueue.then(task,task);
+  coreSnapshotWriteQueue=next.catch(()=>{});
+  return next;
+}
 
 function structuredSafeRows(rows){
   return Array.isArray(rows) ? rows : [];
@@ -18,10 +27,26 @@ function structuredSafeRows(rows){
 async function replaceTableRows(table, rows){
   if(!sbClient)return;
   const safeRows=structuredSafeRows(rows);
+  // Avoid duplicate ids in the same payload.
+  const dedupedRows=[];
+  const seen=new Map();
+  safeRows.forEach(row=>{
+    const key=String(row?.id ?? '');
+    if(!key)return;
+    if(seen.has(key)){
+      dedupedRows[seen.get(key)]={...dedupedRows[seen.get(key)],...row};
+      return;
+    }
+    seen.set(key,dedupedRows.length);
+    dedupedRows.push(row);
+  });
+
+  // Replace semantics: remove stale rows first, then insert current snapshot.
   const {error:deleteError}=await sbClient.from(table).delete().neq('id','__never__');
   if(deleteError)throw deleteError;
-  if(!safeRows.length)return;
-  const {error:insertError}=await sbClient.from(table).insert(safeRows);
+  if(!dedupedRows.length)return;
+
+  const {error:insertError}=await sbClient.from(table).insert(dedupedRows);
   if(insertError)throw insertError;
 }
 
@@ -61,13 +86,15 @@ async function replaceProjectsSnapshot(projects){
       updated_at:now
     }));
   });
-  await replaceTableRows('project_members', memberRows);
   await replaceTableRows('projects', projectRows);
+  await replaceTableRows('project_members', memberRows);
 }
 
 async function replaceVelocitySnapshot(teams){
   if(!sbClient)return;
   const now=new Date().toISOString();
+  const sprintFlags=STRUCTURED_SCHEMA_FLAGS.velocitySprintCompleted || {completed:true};
+  STRUCTURED_SCHEMA_FLAGS.velocitySprintCompleted=sprintFlags;
   const teamRows=structuredSafeRows(teams).map((team,index)=>({
     id:team.id,
     name:team.name,
@@ -76,13 +103,6 @@ async function replaceVelocitySnapshot(teams){
     sort_order:index,
     updated_at:now
   }));
-  const sprintRows=teamRows.flatMap((team,index)=>structuredSafeRows(teams[index]?.sprints).map((label,position)=>({
-    id:`vs_${team.id}_${position}`,
-    team_id:team.id,
-    position,
-    label,
-    updated_at:now
-  })));
   const memberRows=[];
   const pointRows=[];
   structuredSafeRows(teams).forEach(team=>{
@@ -106,10 +126,34 @@ async function replaceVelocitySnapshot(teams){
       });
     });
   });
-  await replaceTableRows('velocity_points', pointRows);
-  await replaceTableRows('velocity_members', memberRows);
-  await replaceTableRows('velocity_sprints', sprintRows);
+
+  const buildSprintRows=(includeCompleted)=>teamRows.flatMap((team,index)=>structuredSafeRows(teams[index]?.sprints).map((label,position)=>{
+    const row={
+      id:`vs_${team.id}_${position}`,
+      team_id:team.id,
+      position,
+      label,
+      updated_at:now
+    };
+    if(includeCompleted){
+      row.completed=!!teams[index]?.sprintCompleted?.[position];
+    }
+    return row;
+  }));
+
   await replaceTableRows('velocity_teams', teamRows);
+  try{
+    await replaceTableRows('velocity_sprints', buildSprintRows(!!sprintFlags.completed));
+  }catch(error){
+    const message=String(error?.message || '');
+    const details=String(error?.details || '');
+    const missingCompleted=message.includes('completed') || details.includes('completed') || String(error?.code || '')==='PGRST204';
+    if(!sprintFlags.completed || !missingCompleted)throw error;
+    STRUCTURED_SCHEMA_FLAGS.velocitySprintCompleted={completed:false};
+    await replaceTableRows('velocity_sprints', buildSprintRows(false));
+  }
+  await replaceTableRows('velocity_members', memberRows);
+  await replaceTableRows('velocity_points', pointRows);
 }
 
 async function replaceDataExplorerSnapshot(tasks){
@@ -219,9 +263,11 @@ async function replaceSprintsSnapshot(sprints){
 }
 
 async function saveCoreSnapshot(snapshot){
-  await saveSettingsSnapshot(snapshot.settings || {});
-  await replaceProjectsSnapshot(snapshot.projects || []);
-  await replaceVelocitySnapshot(snapshot.teams || []);
+  return queueCoreSnapshotWrite(async()=>{
+    await saveSettingsSnapshot(snapshot.settings || {});
+    await replaceProjectsSnapshot(snapshot.projects || []);
+    await replaceVelocitySnapshot(snapshot.teams || []);
+  });
 }
 
 async function loadStructuredSettings(){
@@ -263,26 +309,54 @@ async function loadStructuredProjects(){
 
 async function loadStructuredVelocity(){
   const [{data:teams,error:teamError},{data:sprints,error:sprintError},{data:members,error:memberError},{data:points,error:pointError}] = await Promise.all([
-    sbClient.from('velocity_teams').select('*').order('sort_order'),
-    sbClient.from('velocity_sprints').select('*').order('position'),
-    sbClient.from('velocity_members').select('*').order('sort_order'),
-    sbClient.from('velocity_points').select('*').order('sprint_position')
+    selectRowsWithOptionalOrder('velocity_teams','sort_order'),
+    selectRowsWithOptionalOrder('velocity_sprints','position'),
+    selectRowsWithOptionalOrder('velocity_members','sort_order'),
+    selectRowsWithOptionalOrder('velocity_points','sprint_position')
   ]);
   if(teamError)throw teamError;
-  if(sprintError)throw sprintError;
+  if(sprintError)console.warn('Structured velocity_sprints load failed; using positional fallback labels.', sprintError);
   if(memberError)throw memberError;
   if(pointError)throw pointError;
-  return (teams || []).map(team=>({
-    id:team.id,
-    name:team.name,
-    color:team.color,
-    group:team.group_id,
-    sprints:(sprints || []).filter(sprint=>sprint.team_id===team.id).map(sprint=>sprint.label),
-    members:(members || []).filter(member=>member.team_id===team.id).map(member=>({
-      name:member.name,
-      sp:(points || []).filter(point=>point.member_id===member.id).sort((a,b)=>a.sprint_position-b.sprint_position).map(point=>Number(point.points) || 0)
-    }))
-  }));
+
+  const sortedTeams=sortStructuredRows(teams);
+  const safeSprints=Array.isArray(sprints) ? sprints : [];
+  const sortedMembers=sortStructuredRows(members);
+  const sortedPoints=sortStructuredRows(points);
+
+  return (sortedTeams || []).map(team=>{
+    const teamMembers=(sortedMembers || []).filter(member=>member.team_id===team.id);
+    const memberPoints=teamMembers.map(member=>
+      (sortedPoints || [])
+        .filter(point=>point.member_id===member.id)
+        .sort((a,b)=>(a.sprint_position||0)-(b.sprint_position||0))
+    );
+    const sprintCount=memberPoints.reduce((maxCount,row)=>Math.max(maxCount,row.length),0);
+    const teamSprintRows=safeSprints
+      .filter(sprint=>sprint.team_id===team.id)
+      .sort((a,b)=>(a.position||0)-(b.position||0));
+    const sprintLabels=Array.from({length:sprintCount},(_,idx)=>{
+      const structuredLabel=teamSprintRows.find(row=>(row.position||0)===idx)?.label;
+      return structuredLabel || `Sprint ${idx+1}`;
+    });
+    const sprintCompleted=sprintLabels.map((_,idx)=>!!teamSprintRows.find(row=>(row.position||0)===idx)?.completed);
+
+    return {
+      id:team.id,
+      name:team.name,
+      color:team.color,
+      group:team.group_id,
+      sprints:sprintLabels,
+      sprintCompleted,
+      members:teamMembers.map(member=>({
+        name:member.name,
+        sp:(sortedPoints || [])
+          .filter(point=>point.member_id===member.id)
+          .sort((a,b)=>(a.sprint_position||0)-(b.sprint_position||0))
+          .map(point=>Number(point.points) || 0)
+      }))
+    };
+  });
 }
 
 async function loadStructuredDataExplorer(){
@@ -319,8 +393,8 @@ async function loadStructuredRPDETickets(){
 }
 
 async function selectRowsWithOptionalOrder(table, orderColumn){
-  const ordered=await sbClient.from(table).select('*').order(orderColumn);
-  if(!ordered.error)return ordered;
+  // Some deployments don't have all expected sort columns yet.
+  // Query without server-side order to avoid noisy 400 responses in the console.
   return sbClient.from(table).select('*');
 }
 
