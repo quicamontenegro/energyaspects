@@ -2516,13 +2516,10 @@ function buildSprints() {
   const blocked  = tickets.filter(t => t.status === 'blocked').length;
   const done     = tickets.filter(t => ['done','deployed'].includes(t.status)).length;
   const todo     = tickets.filter(t => t.status === 'todo').length;
-  let members = RPDE_MEMBERS[SP_CUR_TEAM] || [];
+  let members = (RPDE_MEMBERS[SP_CUR_TEAM] || []).slice();
   if (!members.length && tickets.length) {
     const seen = new Set();
     tickets.forEach(t => { if (t.assignee && !seen.has(t.assignee)) { seen.add(t.assignee); members.push({name: t.assignee, role: ''}); } });
-    // Auto-persist these derived members so they appear next time
-    SP_TEAM_MEMBERS[SP_CUR_TEAM] = members.map(m => ({name:m.name,role:m.role||''}));
-    initRPDEMembers();
   }
   document.getElementById('sp-kpis').innerHTML = `
     <div class="de-kpi" style="border-left-color:#4f46e5">
@@ -2666,16 +2663,14 @@ async function addSPMember() {
   document.getElementById('sp-m-role').value = '';
   renderSPMembersList();
   buildSprints();
-  const persisted = await saveSP();
-  if (persisted) showToast();
+  try { await scheduleSync(true); showToast(); } catch(_) {}
 }
 async function removeSPMember(idx) {
   SP_TEAM_MEMBERS[SP_CUR_TEAM].splice(idx, 1);
   initRPDEMembers();
   renderSPMembersList();
   buildSprints();
-  const persisted = await saveSP();
-  if (persisted) showToast();
+  try { await scheduleSync(true); showToast(); } catch(_) {}
 }
 
 // — Sprint CRUD —
