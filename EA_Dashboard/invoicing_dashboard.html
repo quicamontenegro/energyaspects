@@ -52,7 +52,13 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
 .proj-hdr{display:flex;align-items:center;gap:12px;padding:16px 24px;border-radius:var(--r) var(--r) 0 0;}
 .proj-name{font-size:15px;font-weight:700;color:#fff;}
 .proj-tag{background:rgba(255,255,255,.2);color:#fff;font-size:11px;font-weight:600;padding:3px 10px;border-radius:12px;}
-.proj-sum{margin-left:auto;display:flex;gap:20px;}
+.proj-sum{margin-left:auto;display:flex;gap:20px;align-items:center;}
+.proj-ctrl-btn{background:rgba(255,255,255,.2);border:none;color:#fff;padding:4px 10px;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;transition:background .15s;}
+.proj-ctrl-btn:hover{background:rgba(255,255,255,.4);}
+.inv-add-member-btn{width:100%;padding:7px;border-radius:7px;border:1px dashed var(--border);background:transparent;font-size:12px;font-weight:600;color:var(--muted);cursor:pointer;margin-top:4px;transition:all .15s;}
+.inv-add-member-btn:hover{border-color:var(--primary);color:var(--primary);background:var(--pl);}
+.inv-del-member{display:none;background:none;border:none;color:#dc2626;cursor:pointer;font-size:14px;padding:0 4px;line-height:1;}
+.rd:hover .inv-del-member{display:inline;}
 .psi{text-align:right;color:rgba(255,255,255,.85);}
 .psi strong{display:block;color:#fff;font-size:18px;font-weight:700;}
 .psi span{font-size:11px;}
@@ -343,15 +349,11 @@ tr.tr td{background:#f8fafc;font-weight:700;border-top:2px solid var(--border);}
   </div>
   <div class="toolbar">
     <span class="toolbar-title">Projects</span>
-    <select class="fsel" id="pf" onchange="applyIF()">
-      <option value="all">All Projects</option>
-      <option value="0">Enterprise – Phase 1</option>
-      <option value="1">Energy Aspects – Data Initiative</option>
-      <option value="2">Technical Support</option>
-    </select>
+    <select class="fsel" id="pf" onchange="applyIF()"></select>
     <select class="fsel" id="mf" onchange="applyIF()"></select>
     <button class="btn btn-outline" onclick="resetIF()">Reset Filters</button>
     <button class="btn btn-outline" onclick="clearAll()" style="color:var(--red);border-color:var(--red)">🗑 Clear All</button>
+    <button class="btn btn-primary" onclick="openInvProjModal()">+ Add Project</button>
     <button class="btn btn-primary ml-auto" onclick="exportCSV()">⬇ Export CSV</button>
   </div>
   <div id="invProj"></div>
@@ -656,6 +658,46 @@ tr.tr td{background:#f8fafc;font-weight:700;border-top:2px solid var(--border);}
   </div>
 </div>
 
+<!-- PROJECT MODAL -->
+<div class="de-modal-overlay" id="inv-proj-modal" onclick="if(event.target===this)closeInvProjModal()">
+  <div class="de-modal">
+    <h3 id="inv-proj-modal-title">Add Project</h3>
+    <form id="inv-proj-form" onsubmit="event.preventDefault();saveInvProj()">
+      <div class="de-field"><label>Project Name *</label><input class="de-inp" id="inv-pf-name" type="text" required placeholder="e.g. Enterprise – Phase 2"/></div>
+      <div class="de-field"><label>Tag *</label><input class="de-inp" id="inv-pf-tag" type="text" required placeholder="e.g. Enterprise"/></div>
+      <div class="de-field"><label>Colour</label>
+        <select class="de-inp" id="inv-pf-color">
+          <option value="#4f46e5">🟣 Indigo</option>
+          <option value="#0891b2">🔵 Cyan</option>
+          <option value="#7c3aed">🟣 Violet</option>
+          <option value="#d97706">🟡 Amber</option>
+          <option value="#16a34a">🟢 Green</option>
+          <option value="#dc2626">🔴 Red</option>
+          <option value="#0d9488">🟢 Teal</option>
+          <option value="#db2777">🟣 Pink</option>
+        </select>
+      </div>
+      <div class="de-modal-actions">
+        <button type="button" class="btn btn-outline" onclick="closeInvProjModal()">Cancel</button>
+        <button type="submit" class="btn btn-primary">Save</button>
+      </div>
+    </form>
+  </div>
+</div>
+<!-- MEMBER MODAL -->
+<div class="de-modal-overlay" id="inv-member-modal" onclick="if(event.target===this)closeInvMemberModal()">
+  <div class="de-modal" style="width:360px">
+    <h3>Add Member</h3>
+    <form id="inv-member-form" onsubmit="event.preventDefault();saveInvMember()">
+      <div class="de-field"><label>Member Name *</label><input class="de-inp" id="inv-mf-name" type="text" required placeholder="Full name"/></div>
+      <div class="de-modal-actions">
+        <button type="button" class="btn btn-outline" onclick="closeInvMemberModal()">Cancel</button>
+        <button type="submit" class="btn btn-primary">Add</button>
+      </div>
+    </form>
+  </div>
+</div>
+
 <!-- RPDE TICKET MODAL removed -->
 <div style="display:none" id="rpde-modal"></div>
 
@@ -892,23 +934,12 @@ function mergeMembers(defaultMembers,currentMembers){
 }
 
 function mergeProjectsWithDefaults(currentProjects){
-  const out=Array.isArray(currentProjects)?cloneData(currentProjects):[];
-  let changed=!Array.isArray(currentProjects);
-  const idxByName=new Map(out.map((p,i)=>[p?.name,i]));
-  INITIAL_PROJECTS.forEach(dp=>{
-    if(!idxByName.has(dp.name)){
-      out.push(cloneData(dp));
-      changed=true;
-      return;
-    }
-    const idx=idxByName.get(dp.name);
-    const mm=mergeMembers(dp.members,out[idx]?.members);
-    if(mm.changed){
-      out[idx].members=mm.members;
-      changed=true;
-    }
-  });
-  return {data:out,changed};
+  // If DB already has projects, trust them — don't re-inject hardcoded defaults
+  if(Array.isArray(currentProjects)&&currentProjects.length>0){
+    return {data:cloneData(currentProjects),changed:false};
+  }
+  // First load: seed from INITIAL_PROJECTS
+  return {data:cloneData(INITIAL_PROJECTS),changed:true};
 }
 
 function mergeTeamsWithDefaults(currentTeams){
@@ -1560,6 +1591,71 @@ function exportVelCSV(gid){
 }
 
 // ═══ INVOICING ═══
+// ═══ INVOICING CRUD ═══
+let INV_PROJ_EDIT_ID = null;
+let INV_MEMBER_PID = null;
+function openInvProjModal(pid) {
+  INV_PROJ_EDIT_ID = pid != null ? pid : null;
+  const p = pid != null ? PROJECTS[pid] : null;
+  document.getElementById('inv-proj-modal-title').textContent = p ? 'Edit Project' : 'Add Project';
+  document.getElementById('inv-pf-name').value  = p ? p.name  : '';
+  document.getElementById('inv-pf-tag').value   = p ? p.tag   : '';
+  document.getElementById('inv-pf-color').value = p ? p.color : '#4f46e5';
+  document.getElementById('inv-proj-modal').style.display = 'flex';
+}
+function closeInvProjModal() { document.getElementById('inv-proj-modal').style.display = 'none'; }
+async function saveInvProj() {
+  syncInvoicingModelFromDom();
+  const name  = document.getElementById('inv-pf-name').value.trim();
+  const tag   = document.getElementById('inv-pf-tag').value.trim();
+  const color = document.getElementById('inv-pf-color').value;
+  if (!name || !tag) return;
+  if (INV_PROJ_EDIT_ID != null) {
+    PROJECTS[INV_PROJ_EDIT_ID].name  = name;
+    PROJECTS[INV_PROJ_EDIT_ID].tag   = tag;
+    PROJECTS[INV_PROJ_EDIT_ID].color = color;
+  } else {
+    PROJECTS.push({name, tag, color, members:[]});
+  }
+  closeInvProjModal();
+  buildInvoicing();
+  await scheduleSync(true);
+  showToast();
+}
+async function deleteInvProj(pid) {
+  if (!confirm(`Delete project "${PROJECTS[pid].name}" and all its members?`)) return;
+  syncInvoicingModelFromDom();
+  PROJECTS.splice(pid, 1);
+  buildInvoicing();
+  await scheduleSync(true);
+  showToast();
+}
+function openInvMemberModal(pid) {
+  INV_MEMBER_PID = pid;
+  document.getElementById('inv-mf-name').value = '';
+  document.getElementById('inv-member-modal').style.display = 'flex';
+  document.getElementById('inv-mf-name').focus();
+}
+function closeInvMemberModal() { document.getElementById('inv-member-modal').style.display = 'none'; }
+async function saveInvMember() {
+  const name = document.getElementById('inv-mf-name').value.trim();
+  if (!name || INV_MEMBER_PID == null) return;
+  syncInvoicingModelFromDom();
+  const mh = getMH();
+  PROJECTS[INV_MEMBER_PID].members.push({name, pto:0, feriados:0, hoursOff:0, tl:mh});
+  closeInvMemberModal();
+  buildInvoicing();
+  await scheduleSync(true);
+  showToast();
+}
+async function deleteInvMember(pid, mname) {
+  syncInvoicingModelFromDom();
+  PROJECTS[pid].members = PROJECTS[pid].members.filter(m => m.name !== mname);
+  buildInvoicing();
+  await scheduleSync(true);
+  showToast();
+}
+
 function recalcInv(){
   const mh=getMH();
   document.getElementById('mh').value=String(mh);
@@ -1584,6 +1680,8 @@ function buildInvoicing(){
         <div class="proj-sum">
           <div class="psi"><strong>${p.members.length}</strong><span>Members</span></div>
           <div class="psi"><strong>${th}h</strong><span>Logged</span></div>
+          <button class="proj-ctrl-btn" onclick="openInvProjModal(${pid})">✏️ Edit</button>
+          <button class="proj-ctrl-btn" onclick="deleteInvProj(${pid})">✕</button>
         </div>
       </div>
       <div class="tw"><table><thead><tr>
@@ -1592,6 +1690,7 @@ function buildInvoicing(){
         <th style="text-align:center">Holidays</th>
         <th style="text-align:center">Hours Off</th>
         <th style="text-align:center">Total Logged</th>
+        <th style="width:32px"></th>
       </tr></thead><tbody>`;
     p.members.forEach(m=>{
       ms.add(m.name);const c=ac(m.name);
@@ -1601,6 +1700,7 @@ function buildInvoicing(){
         <td style="text-align:center"><input class="ec" style="width:60px" type="number" value="${m.feriados}" min="0" oninput="onPTO(this)"/></td>
         <td style="text-align:center"><input class="ec hoff" style="width:70px" type="number" value="${m.hoursOff}" min="0" oninput="recalcInv();scheduleSync();showToast()"/></td>
         <td style="text-align:center"><input class="ec ctl" style="width:80px;color:${m.tl===mh?'var(--green)':m.tl<mh*.5?'var(--red)':'var(--text)'}" type="number" value="${m.tl}" min="0" max="${mh}" oninput="onTL(this)"/></td>
+        <td><button class="inv-del-member" onclick="deleteInvMember(${pid},'${m.name.replace(/'/g,"\\'")}')">✕</button></td>
       </tr>`;
     });
     html+=`<tr class="tr">
@@ -1609,9 +1709,18 @@ function buildInvoicing(){
       <td style="text-align:center">${p.members.reduce((s,m)=>s+m.feriados,0)}</td>
       <td style="text-align:center">${p.members.reduce((s,m)=>s+m.hoursOff,0)}</td>
       <td style="text-align:center"><strong>${th}h</strong></td>
-    </tr></tbody></table></div></div>`;
+      <td></td>
+    </tr></tbody></table></div>
+    <div style="padding:8px 16px 14px"><button class="inv-add-member-btn" onclick="openInvMemberModal(${pid})">+ Add Member</button></div>
+    </div>`;
   });
   document.getElementById('invProj').innerHTML=html;
+  // Rebuild project filter
+  const psel=document.getElementById('pf');
+  const prevP=psel.value;
+  psel.innerHTML='<option value="all">All Projects</option>'+PROJECTS.map((p,i)=>`<option value="${i}">${p.name}</option>`).join('');
+  if([...psel.options].some(o=>o.value===prevP))psel.value=prevP;
+  // Rebuild member filter
   const sel=document.getElementById('mf');sel.innerHTML='<option value="all">All Members</option>';
   [...ms].sort().forEach(n=>{const o=document.createElement('option');o.value=n;o.textContent=n;sel.appendChild(o);});
   document.getElementById('totmem').textContent=ms.size;
