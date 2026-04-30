@@ -187,13 +187,6 @@ tr.tr td{background:#f8fafc;font-weight:700;border-top:2px solid var(--border);}
 .de-inp:focus{border-color:var(--primary);background:var(--pl);}
 .de-row2{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
 .de-modal-actions{display:flex;gap:10px;margin-top:24px;justify-content:flex-end;}
-.sos-panel{background:linear-gradient(135deg,#1e293b,#0f172a);border-radius:var(--r);padding:20px 24px;margin-bottom:24px;color:#fff;}
-.sos-title{font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:#94a3b8;margin-bottom:16px;}
-.sos-row{display:flex;gap:16px;flex-wrap:wrap;}
-.sos-block{flex:1;min-width:140px;background:rgba(255,255,255,.06);border-radius:10px;padding:14px 16px;}
-.sos-block-label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:#94a3b8;margin-bottom:8px;}
-.sos-block-val{font-size:28px;font-weight:800;}
-.sos-block-list{margin-top:8px;font-size:12px;color:#cbd5e1;line-height:1.6;}
 @media(max-width:1200px){.de-cols{grid-template-columns:1fr 1fr 1fr;}}
 @media(max-width:700px){.de-kpi-bar{grid-template-columns:1fr 1fr 1fr;}.de-cols{grid-template-columns:1fr;}.de-col+.de-col{border-left:none;border-top:1px solid var(--border);}}
 
@@ -399,9 +392,6 @@ tr.tr td{background:#f8fafc;font-weight:700;border-top:2px solid var(--border);}
     <h2>Data Explorer <span class="group-badge" style="background:#f0fdf4;color:#16a34a">Task Tracker</span></h2>
     <p>Weekly task progress — In Progress · Completed · Roadmap · Blocked · On Hold</p>
   </div>
-
-  <!-- SoS Summary Panel -->
-  <div class="sos-panel" id="sos-panel"></div>
 
   <!-- KPI bar -->
   <div class="de-kpi-bar">
@@ -1890,11 +1880,6 @@ function buildDE() {
   const filterWk = sel.value;
   const filtered = filterWk === 'all' ? sortedWeeks : sortedWeeks.filter(w => w === filterWk);
 
-  // SoS Panel — uses latest week (or filtered)
-  const sosWk = filtered[0];
-  const sosTasks = sosWk ? (weeks[sosWk] || []) : [];
-  buildSoS(sosWk, sosTasks);
-
   // Render panels
   const container = document.getElementById('de-panels');
   if (filtered.length === 0) {
@@ -1957,46 +1942,6 @@ function buildDE() {
       </div>
     </div>`;
   }).join('');
-}
-
-function buildSoS(wk, tasks) {
-  const el = document.getElementById('sos-panel');
-  if (!tasks.length) { el.innerHTML = ''; return; }
-  const ip      = tasks.filter(t => t.status === 'inprogress');
-  const done    = tasks.filter(t => t.status === 'completed');
-  const road    = tasks.filter(t => t.status === 'roadmap');
-  const blocked = tasks.filter(t => t.status === 'blocked');
-  const onhold  = tasks.filter(t => t.status === 'onhold');
-  const notesBl = tasks.filter(t => t.notes && t.notes.trim());
-  el.innerHTML = `
-    <div class="sos-title">🤝 Scrum of Scrum — ${getWeekLabel(wk)}</div>
-    <div class="sos-row">
-      <div class="sos-block">
-        <div class="sos-block-label">🔄 In Progress</div>
-        <div class="sos-block-val" style="color:#a5b4fc">${ip.length}</div>
-        <div class="sos-block-list">${ip.slice(0,4).map(t=>`• ${t.name}`).join('<br>') || '<span style="color:#475569">—</span>'}</div>
-      </div>
-      <div class="sos-block">
-        <div class="sos-block-label">✅ Completed</div>
-        <div class="sos-block-val" style="color:#86efac">${done.length}</div>
-        <div class="sos-block-list">${done.slice(0,4).map(t=>`• ${t.name}`).join('<br>') || '<span style="color:#475569">None this week</span>'}</div>
-      </div>
-      <div class="sos-block">
-        <div class="sos-block-label">🗺 Roadmap</div>
-        <div class="sos-block-val" style="color:#c4b5fd">${road.length}</div>
-        <div class="sos-block-list">${road.slice(0,4).map(t=>`• ${t.name}`).join('<br>') || '<span style="color:#475569">Nothing planned</span>'}</div>
-      </div>
-      <div class="sos-block">
-        <div class="sos-block-label">🚫 Blocked</div>
-        <div class="sos-block-val" style="color:#fca5a5">${blocked.length}</div>
-        <div class="sos-block-list">${blocked.slice(0,3).map(t=>`• ${t.name}`).join('<br>') || '<span style="color:#475569">No blockers 🎉</span>'}</div>
-      </div>
-      <div class="sos-block">
-        <div class="sos-block-label">⏸ On Hold</div>
-        <div class="sos-block-val" style="color:#fcd34d">${onhold.length}</div>
-        <div class="sos-block-list">${onhold.slice(0,3).map(t=>`• ${t.name}`).join('<br>') || '<span style="color:#475569">Nothing on hold</span>'}</div>
-      </div>
-    </div>`;
 }
 
 function renderTaskCard(t) {
