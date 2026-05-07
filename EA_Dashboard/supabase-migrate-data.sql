@@ -6,7 +6,9 @@ with src as (
 insert into public.settings (key, value, updated_at)
 values
   ('monthlyHours', (select coalesce((state->'settings'->>'monthlyHours')::jsonb, '176'::jsonb) from src), timezone('utc', now())),
-  ('hoursPerDay', (select coalesce((state->'settings'->>'hoursPerDay')::jsonb, '8'::jsonb) from src), timezone('utc', now()))
+  ('hoursPerDay', (select coalesce((state->'settings'->>'hoursPerDay')::jsonb, '8'::jsonb) from src), timezone('utc', now())),
+  ('deMeetings', (select coalesce(state->'deMeetings', '[]'::jsonb) from src), timezone('utc', now())),
+  ('spTeamMembers', (select coalesce(state->'spTeamMembers', '{"rp":[],"de":[]}'::jsonb) from src), timezone('utc', now()))
 on conflict (key) do update
 set value = excluded.value,
     updated_at = excluded.updated_at;

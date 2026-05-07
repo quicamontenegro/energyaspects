@@ -15,7 +15,9 @@ Atualmente sincroniza para a BD:
 - Milestones
 - Sprints
 
-Os dados ficam guardados na tabela `dashboard_state`, dentro de uma coluna `state` do tipo `jsonb`.
+Os dados ficam guardados em tabelas estruturadas do Supabase.
+
+O snapshot legado `dashboard_state` deixou de ser o source of truth da app e serve apenas como origem para migrações antigas, quando necessario.
 
 ## 1) First step: o que instalar no outro Mac
 

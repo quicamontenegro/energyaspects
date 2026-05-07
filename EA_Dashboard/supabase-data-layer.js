@@ -7,6 +7,7 @@ const STRUCTURED_STATUS = {
 };
 
 const STRUCTURED_SCHEMA_FLAGS = {
+  dataExplorerTasks:null,
   sprints:null,
   milestones:null,
   velocitySprintCompleted:null
@@ -157,19 +158,26 @@ async function replaceVelocitySnapshot(teams){
 }
 
 async function replaceDataExplorerSnapshot(tasks){
+  if(!sbClient)return;
   const now=new Date().toISOString();
-  await replaceTableRows('data_explorer_tasks', structuredSafeRows(tasks).map(task=>({
-    id:task.id,
-    name:task.name || '',
-    week:task.week || null,
-    status:STRUCTURED_STATUS.deTask.includes(task.status) ? task.status : 'inprogress',
-    assignee:task.assignee || '',
-    priority:task.priority || 'Média',
-    due_date:task.dueDate || null,
-    notes:task.notes || '',
-    created_at:task.createdAt || now,
-    updated_at:now
-  })));
+  const flags=STRUCTURED_SCHEMA_FLAGS.dataExplorerTasks || await detectTableColumns('data_explorer_tasks',['title']);
+  STRUCTURED_SCHEMA_FLAGS.dataExplorerTasks=flags;
+  await replaceTableRows('data_explorer_tasks', structuredSafeRows(tasks).map(task=>{
+    const row={
+      id:task.id,
+      name:task.name || '',
+      week:task.week || null,
+      status:STRUCTURED_STATUS.deTask.includes(task.status) ? task.status : 'inprogress',
+      assignee:task.assignee || '',
+      priority:task.priority || 'Média',
+      due_date:task.dueDate || null,
+      notes:task.notes || '',
+      created_at:task.createdAt || now,
+      updated_at:now
+    };
+    if(flags.title)row.title=task.name || '';
+    return row;
+  }));
 }
 
 async function replaceRPDETicketsSnapshot(tickets){
@@ -187,6 +195,40 @@ async function replaceRPDETicketsSnapshot(tickets){
     created_at:ticket.createdAt || now,
     updated_at:now
   })));
+}
+
+async function saveStructuredMetadata(snapshot){
+  if(!sbClient)return;
+  const now=new Date().toISOString();
+  const rows=[
+    {
+      key:'deMeetings',
+      value:structuredSafeRows(snapshot.deMeetings).map(meeting=>({
+        id:meeting?.id || '',
+        week:meeting?.week || '',
+        name:meeting?.name || '',
+        notes:meeting?.notes || '',
+        createdAt:meeting?.createdAt || ''
+      })),
+      updated_at:now
+    },
+    {
+      key:'spTeamMembers',
+      value:{
+        rp:structuredSafeRows(snapshot.spTeamMembers?.rp).map(member=>({
+          name:member?.name || '',
+          role:member?.role || ''
+        })),
+        de:structuredSafeRows(snapshot.spTeamMembers?.de).map(member=>({
+          name:member?.name || '',
+          role:member?.role || ''
+        }))
+      },
+      updated_at:now
+    }
+  ];
+  const {error}=await sbClient.from('settings').upsert(rows,{onConflict:'key'});
+  if(error)throw error;
 }
 
 async function detectTableColumns(table, columns){
@@ -267,6 +309,11 @@ async function saveCoreSnapshot(snapshot){
     await saveSettingsSnapshot(snapshot.settings || {});
     await replaceProjectsSnapshot(snapshot.projects || []);
     await replaceVelocitySnapshot(snapshot.teams || []);
+    await replaceDataExplorerSnapshot(snapshot.deTasks || []);
+    await saveStructuredMetadata(snapshot);
+    await replaceRPDETicketsSnapshot(snapshot.rpdeTickets || []);
+    await replaceMilestonesSnapshot(snapshot.msData || []);
+    await replaceSprintsSnapshot(snapshot.spData || []);
   });
 }
 
@@ -277,6 +324,40 @@ async function loadStructuredSettings(){
   (data || []).forEach(row=>{
     if(row.key==='monthlyHours')result.monthlyHours=Number(row.value) || 176;
     if(row.key==='hoursPerDay')result.hoursPerDay=Number(row.value) || 8;
+  });
+  return result;
+}
+
+async function loadStructuredMetadata(){
+  const result={
+    deMeetings:[],
+    spTeamMembers:{rp:[],de:[]}
+  };
+  const {data,error}=await sbClient.from('settings').select('key,value').in('key',['deMeetings','spTeamMembers']);
+  if(error)throw error;
+  (data || []).forEach(row=>{
+    if(row.key==='deMeetings'){
+      result.deMeetings=structuredSafeRows(row.value).map(meeting=>({
+        id:meeting?.id || '',
+        week:meeting?.week || '',
+        name:meeting?.name || '',
+        notes:meeting?.notes || '',
+        createdAt:meeting?.createdAt || ''
+      }));
+    }
+    if(row.key==='spTeamMembers'){
+      const members=row.value && typeof row.value==='object' ? row.value : {};
+      result.spTeamMembers={
+        rp:structuredSafeRows(members.rp).map(member=>({
+          name:member?.name || '',
+          role:member?.role || ''
+        })),
+        de:structuredSafeRows(members.de).map(member=>({
+          name:member?.name || '',
+          role:member?.role || ''
+        }))
+      };
+    }
   });
   return result;
 }
@@ -362,9 +443,12 @@ async function loadStructuredVelocity(){
 async function loadStructuredDataExplorer(){
   const {data,error}=await sbClient.from('data_explorer_tasks').select('*').order('created_at');
   if(error)throw error;
+  STRUCTURED_SCHEMA_FLAGS.dataExplorerTasks={
+    title:(data || []).some(task=>Object.prototype.hasOwnProperty.call(task,'title'))
+  };
   return (data || []).map(task=>({
     id:task.id,
-    name:task.name,
+    name:task.name || task.title || '',
     week:task.week || '',
     status:task.status,
     assignee:task.assignee || '',
@@ -487,14 +571,15 @@ async function loadStructuredSprints(){
 async function loadAllData(){
   if(!sbClient)return null;
   try{
-    const [settings,projects,teams,deTasks,rpdeTickets,msData,spData]=await Promise.allSettled([
+    const [settings,projects,teams,deTasks,rpdeTickets,msData,spData,metadata]=await Promise.allSettled([
       loadStructuredSettings(),
       loadStructuredProjects(),
       loadStructuredVelocity(),
       loadStructuredDataExplorer(),
       loadStructuredRPDETickets(),
       loadStructuredMilestones(),
-      loadStructuredSprints()
+      loadStructuredSprints(),
+      loadStructuredMetadata()
     ]);
     if(settings.status==='rejected')console.error('Structured settings load failed:', settings.reason);
     if(projects.status==='rejected')console.error('Structured projects load failed:', projects.reason);
@@ -503,14 +588,17 @@ async function loadAllData(){
     if(rpdeTickets.status==='rejected')console.error('Structured RPDE load failed:', rpdeTickets.reason);
     if(msData.status==='rejected')console.error('Structured milestones load failed:', msData.reason);
     if(spData.status==='rejected')console.error('Structured sprints load failed:', spData.reason);
+    if(metadata.status==='rejected')console.error('Structured metadata load failed:', metadata.reason);
     return {
       settings:settings.status==='fulfilled' ? settings.value : {monthlyHours:176,hoursPerDay:8},
       projects:projects.status==='fulfilled' ? projects.value : [],
       teams:teams.status==='fulfilled' ? teams.value : [],
       deTasks:deTasks.status==='fulfilled' ? deTasks.value : [],
+      deMeetings:metadata.status==='fulfilled' ? metadata.value.deMeetings : [],
       rpdeTickets:rpdeTickets.status==='fulfilled' ? rpdeTickets.value : [],
       msData:msData.status==='fulfilled' ? msData.value : [],
-      spData:spData.status==='fulfilled' ? spData.value : []
+      spData:spData.status==='fulfilled' ? spData.value : [],
+      spTeamMembers:metadata.status==='fulfilled' ? metadata.value.spTeamMembers : {rp:[],de:[]}
     };
   }catch(err){
     console.error('Structured load failed:', err);

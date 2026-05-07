@@ -924,13 +924,8 @@ TEAMS.forEach(calcTeamMetrics);
 
 const INITIAL_PROJECTS=JSON.parse(JSON.stringify(PROJECTS));
 const INITIAL_TEAMS=JSON.parse(JSON.stringify(TEAMS));
-const SB_TABLE='dashboard_state';
-const SB_ROW_ID='invoicing_dashboard';
-const USE_STRUCTURED_BACKEND=true;
-const USE_STRUCTURED_VELOCITY_MIRROR=false;
 let sbClient=null;
 let syncTimer=null;
-let structuredBackendReady=false;
 
 function cloneData(v){
   return JSON.parse(JSON.stringify(v));
@@ -997,33 +992,6 @@ function mergeTeamsWithDefaults(currentTeams){
   return {data:out,changed};
 }
 
-function mergeRecoveredTeamsWithLegacy(legacyTeams,recoveredTeams){
-  const legacyList=Array.isArray(legacyTeams)?cloneData(legacyTeams):[];
-  const recoveredList=Array.isArray(recoveredTeams)?cloneData(recoveredTeams):[];
-  if(!legacyList.length)return recoveredList;
-  const recoveredById=new Map(recoveredList.map(team=>[team?.id,team]));
-  const merged=legacyList.map(legacyTeam=>{
-    const recoveredTeam=recoveredById.get(legacyTeam?.id);
-    if(!recoveredTeam)return legacyTeam;
-    const sprintCount=Array.isArray(recoveredTeam.sprints)?recoveredTeam.sprints.length:0;
-    const legacyCompleted=Array.isArray(legacyTeam.sprintCompleted)?legacyTeam.sprintCompleted:[];
-    const recoveredCompleted=Array.isArray(recoveredTeam.sprintCompleted)?recoveredTeam.sprintCompleted:[];
-    const sprintCompleted=Array.from({length:sprintCount},(_,idx)=>{
-      if(typeof legacyCompleted[idx]==='boolean')return legacyCompleted[idx];
-      return !!recoveredCompleted[idx];
-    });
-    return {
-      ...recoveredTeam,
-      sprintCompleted
-    };
-  });
-  const mergedIds=new Set(merged.map(team=>team?.id));
-  recoveredList.forEach(team=>{
-    if(!mergedIds.has(team?.id))merged.push(team);
-  });
-  return merged;
-}
-
 const EMBEDDED_SUPABASE_URL='%VITE_SUPABASE_URL%';
 const EMBEDDED_SUPABASE_ANON_KEY='%VITE_SUPABASE_ANON_KEY%';
 const HARD_FALLBACK_SUPABASE_URL='https://dhfgtvuwxpssoovrpemo.supabase.co';
@@ -1058,16 +1026,6 @@ async function waitForSupabaseConfig(maxAttempts=20,delayMs=50){
   return cfg;
 }
 
-async function loadStateViaRest(cfg){
-  if(!cfg?.url||!cfg?.anonKey)return null;
-  const res=await fetch(`${cfg.url}/rest/v1/${SB_TABLE}?select=state&id=eq.${SB_ROW_ID}`,{
-    headers:{apikey:cfg.anonKey,Authorization:`Bearer ${cfg.anonKey}`}
-  });
-  if(!res.ok)throw new Error(`REST load failed: ${res.status}`);
-  const rows=await res.json();
-  return Array.isArray(rows)&&rows[0]?.state?rows[0].state:null;
-}
-
 function syncInvoicingModelFromDom(){
   document.querySelectorAll('.rd').forEach(row=>{
     const pid=parseInt(row.dataset.pid,10);
@@ -1083,25 +1041,6 @@ function syncInvoicingModelFromDom(){
     member.hoursOff=hoursOff;
     member.tl=Math.max(0,getMH()-hoursOff);
   });
-}
-
-function serializeState(){
-  syncInvoicingModelFromDom();
-  return {
-    settings:{
-      monthlyHours:getMH(),
-      hoursPerDay:getHPD()
-    },
-    projects:JSON.parse(JSON.stringify(PROJECTS)),
-    teams:JSON.parse(JSON.stringify(TEAMS)),
-    deTasks:JSON.parse(JSON.stringify(DE_TASKS||[])),
-    deMeetings:JSON.parse(JSON.stringify(DE_MEETINGS||[])),
-    rpdeTickets:JSON.parse(JSON.stringify(RPDE_TICKETS||[])),
-    msData:JSON.parse(JSON.stringify(MS_DATA||[])),
-    spData:JSON.parse(JSON.stringify(SP_DATA||[])),
-    spTeamMembers:{rp:JSON.parse(JSON.stringify(SP_TEAM_MEMBERS.rp||[])),de:JSON.parse(JSON.stringify(SP_TEAM_MEMBERS.de||[]))},
-    updatedAt:new Date().toISOString()
-  };
 }
 
 function applyState(state){
@@ -1153,50 +1092,13 @@ function buildStructuredSnapshot(){
   };
 }
 
-async function saveLegacyStateToSupabase(state){
-  if(!sbClient)return;
-  const stateToSave=state||serializeState();
-  // Merge arrays: never lose records that are in the DB but not in memory
-  // Only protect msData and deMeetings (not deTasks, which can be deleted)
-  try{
-    const {data:existing}=await sbClient.from(SB_TABLE).select('state').eq('id',SB_ROW_ID).maybeSingle();
-    const dbState=existing?.state||{};
-    ['msData','deMeetings'].forEach(key=>{
-      const dbArr=dbState[key];
-      if(Array.isArray(dbArr)&&dbArr.length>(stateToSave[key]||[]).length){
-        const memById={};
-        (stateToSave[key]||[]).forEach(m=>memById[m.id]=m);
-        const merged=[...Object.values(memById)];
-        dbArr.forEach(m=>{if(!memById[m.id])merged.push(m);});
-        stateToSave[key]=merged;
-      }
-    });
-  }catch(_){}
-  const payload={id:SB_ROW_ID,state:stateToSave,updated_at:new Date().toISOString()};
-  const {error}=await sbClient.from(SB_TABLE).upsert(payload,{onConflict:'id'});
-  if(error)throw error;
-}
-
 async function flushSync(){
   if(!sbClient)return;
   clearTimeout(syncTimer);
   syncTimer=null;
   try{
-    if(structuredBackendReady){
-      await saveCoreSnapshot(buildStructuredSnapshot());
-    }else{
-      await saveLegacyStateToSupabase();
-      // Optional mirror to structured velocity tables.
-      if(USE_STRUCTURED_VELOCITY_MIRROR&&typeof replaceVelocitySnapshot==='function'){
-        try{
-          await replaceVelocitySnapshot(cloneData(TEAMS));
-        }catch(err){
-          console.warn('Velocity mirror sync failed in legacy mode.', err);
-        }
-      }
-    }
-  }
-  catch(_){/* keep UI responsive even if sync fails */}
+    await saveCoreSnapshot(buildStructuredSnapshot());
+  }catch(_){/* keep UI responsive even if sync fails */}
 }
 
 function scheduleSync(immediate=false){
@@ -1215,6 +1117,7 @@ function scheduleSync(immediate=false){
 async function initSupabaseAndState(){
   const cfg=await waitForSupabaseConfig();
   if(!cfg.url||!cfg.anonKey){
+    applyState(null);
     return;
   }
 
@@ -1223,98 +1126,15 @@ async function initSupabaseAndState(){
   }
 
   try{
-    let state=null;
-    let velocityRecovered=false;
-    let sprintsRecovered=false;
-    let milestonesRecovered=false;
-
-    if(USE_STRUCTURED_BACKEND&&sbClient&&typeof loadAllData==='function'){
-      state=await loadAllData();
-      if(state){
-        structuredBackendReady=true;
-        applyState(state);
-        return;
-      }
-    }
-
-    structuredBackendReady=false;
-
-    if(sbClient){
-      try{
-        const {data,error}=await sbClient.from(SB_TABLE).select('state').eq('id',SB_ROW_ID).maybeSingle();
-        if(error)throw error;
-        state=data?.state||null;
-      }catch(err){
-        console.warn('Supabase client read failed, trying REST fallback.', err);
-      }
-    }
-
-    if(!state){
-      state=await loadStateViaRest(cfg);
-    }
-
-    // Recover velocity/sprint points from structured tables when legacy snapshot is stale.
-    // This path intentionally avoids enabling full structured persistence.
-    if(USE_STRUCTURED_VELOCITY_MIRROR&&sbClient&&typeof loadStructuredVelocity==='function'){
-      try{
-        const recoveredTeams=await loadStructuredVelocity();
-        if(Array.isArray(recoveredTeams)&&recoveredTeams.length){
-          state=(state&&typeof state==='object')?state:{};
-          state.teams=mergeRecoveredTeamsWithLegacy(state.teams,recoveredTeams);
-          velocityRecovered=true;
-        }
-      }catch(err){
-        console.warn('Velocity structured recovery failed; keeping legacy teams.', err);
-      }
-    }
-
-    if(sbClient&&typeof loadStructuredSprints==='function'){
-      try{
-        const recoveredSprints=await loadStructuredSprints();
-        const currentSprints=Array.isArray(state?.spData)?state.spData:[];
-        if(Array.isArray(recoveredSprints)&&recoveredSprints.length&&currentSprints.length===0){
-          state=(state&&typeof state==='object')?state:{};
-          state.spData=recoveredSprints;
-          sprintsRecovered=true;
-        }
-      }catch(err){
-        console.warn('Sprint structured recovery failed; keeping legacy sprints.', err);
-      }
-    }
-
-    if(sbClient&&typeof loadStructuredMilestones==='function'){
-      try{
-        const recoveredMilestones=await loadStructuredMilestones();
-        const currentMilestones=Array.isArray(state?.msData)?state.msData:[];
-        if(Array.isArray(recoveredMilestones)&&recoveredMilestones.length&&currentMilestones.length===0){
-          state=(state&&typeof state==='object')?state:{};
-          state.msData=recoveredMilestones;
-          milestonesRecovered=true;
-        }
-      }catch(err){
-        console.warn('Milestone structured recovery failed; keeping legacy milestones.', err);
-      }
-    }
-
-    if(state){
-      // Protect msData: if DB has more milestones than in-memory, keep DB version
-      const currentMs=Array.isArray(MS_DATA)?MS_DATA:[];
-      if(Array.isArray(state.msData)&&state.msData.length<currentMs.length){
-        state.msData=currentMs;
-      }
-      const migrated=applyState(state);
-      if(migrated||velocityRecovered||sprintsRecovered||milestonesRecovered){
-        await saveLegacyStateToSupabase();
-      }
-    } else {
-      applyState(null);
-      if(sbClient){
-        await saveLegacyStateToSupabase();
-      }
+    const state=sbClient&&typeof loadAllData==='function' ? await loadAllData() : null;
+    const migrated=applyState(state);
+    if(sbClient&&migrated){
+      await flushSync();
     }
   }catch(err){
     console.error('Failed to initialize dashboard state from Supabase.', err);
     sbClient=null;
+    applyState(null);
   }
 }
 
@@ -1818,8 +1638,15 @@ let DE_EDIT_ID = null;
 let DE_MEETING_EDIT_ID = null;
 
 async function saveDE() {
-  if(structuredBackendReady)return replaceDataExplorerSnapshot(DE_TASKS);
-  return scheduleSync(true);
+  try{
+    if(!sbClient)throw new Error('Supabase indisponivel para gravar data explorer');
+    await saveCoreSnapshot(buildStructuredSnapshot());
+    return true;
+  }catch(err){
+    console.error('DE save failed:', err);
+    alert(`Erro ao guardar data explorer na BD: ${err?.message || err}`);
+    return false;
+  }
 }
 
 function getWeekLabel(dateStr) {
@@ -2093,6 +1920,40 @@ const RPDE_MEMBERS = { rp: [], de: [] };
 let RPDE_TICKETS  = [];
 let SP_TEAM_MEMBERS = { rp: [], de: [] };
 
+function getFallbackSprintMembers(teamKey){
+  const fallback=[];
+  const seen=new Set();
+  (TEAMS||[]).forEach(team=>{
+    if(team.group===teamKey&&team.members){
+      (team.members||[]).forEach(member=>{
+        const name=String(member?.name || '').trim();
+        if(!name||seen.has(name))return;
+        seen.add(name);
+        fallback.push({name,role:member?.role || ''});
+      });
+    }
+  });
+  (SP_DATA||[])
+    .filter(sprint=>sprint.team===teamKey)
+    .forEach(sprint=>{
+      (sprint.tickets||[]).forEach(ticket=>{
+        const name=String(ticket?.assignee || '').trim();
+        if(!name||seen.has(name))return;
+        seen.add(name);
+        fallback.push({name,role:''});
+      });
+    });
+  return fallback;
+}
+
+function ensureSPTeamMembersSeeded(teamKey){
+  if(Array.isArray(SP_TEAM_MEMBERS[teamKey])&&SP_TEAM_MEMBERS[teamKey].length){
+    return SP_TEAM_MEMBERS[teamKey];
+  }
+  SP_TEAM_MEMBERS[teamKey]=getFallbackSprintMembers(teamKey);
+  return SP_TEAM_MEMBERS[teamKey];
+}
+
 function initRPDEMembers(){
   RPDE_MEMBERS.rp=[];
   RPDE_MEMBERS.de=[];
@@ -2109,6 +1970,9 @@ function initRPDEMembers(){
   }
   if(SP_TEAM_MEMBERS.de&&SP_TEAM_MEMBERS.de.length){
     RPDE_MEMBERS.de=[...SP_TEAM_MEMBERS.de];
+  } else {
+    RPDE_MEMBERS.de=getFallbackSprintMembers('de');
+    SP_TEAM_MEMBERS.de=RPDE_MEMBERS.de.map(m=>({name:m.name,role:m.role||''}));
   }
 }
 let RPDE_EDIT_ID  = null;
@@ -2138,11 +2002,7 @@ const MS_OPEN       = new Set();
 async function saveMS() {
   try{
     if(!sbClient)throw new Error('Supabase indisponivel para gravar milestones');
-    if(structuredBackendReady){
-      await replaceMilestonesSnapshot(MS_DATA);
-    }else{
-      await scheduleSync(true);
-    }
+    await replaceMilestonesSnapshot(MS_DATA);
     return true;
   }catch(err){
     console.error('MS save failed:', err);
@@ -2413,11 +2273,8 @@ let SP_ADD_ASSIGNEE = null;
 
 async function saveSP() {
   try{
-    if(structuredBackendReady){
-      await replaceSprintsSnapshot(SP_DATA);
-    }else{
-      await scheduleSync(true);
-    }
+    if(!sbClient)throw new Error('Supabase indisponivel para gravar sprints');
+    await replaceSprintsSnapshot(SP_DATA);
     return true;
   }catch(err){
     console.error('SP save failed:', err);
@@ -2462,9 +2319,19 @@ function buildSprints() {
   const done     = tickets.filter(t => ['done','deployed'].includes(t.status)).length;
   const todo     = tickets.filter(t => t.status === 'todo').length;
   let members = (RPDE_MEMBERS[SP_CUR_TEAM] || []).slice();
-  if (!members.length && tickets.length) {
-    const seen = new Set();
-    tickets.forEach(t => { if (t.assignee && !seen.has(t.assignee)) { seen.add(t.assignee); members.push({name: t.assignee, role: ''}); } });
+  const byName = new Set(members.map(m => m.name));
+  const hasUnassigned = tickets.some(t => !t.assignee);
+
+  // Keep ticket visibility even when assignee is missing or not in the current team list.
+  tickets.forEach(t => {
+    if (t.assignee && !byName.has(t.assignee)) {
+      members.push({name: t.assignee, role: ''});
+      byName.add(t.assignee);
+    }
+  });
+
+  if (hasUnassigned) {
+    members.push({name: '(Unassigned)', role: '', __unassigned: true});
   }
   document.getElementById('sp-kpis').innerHTML = `
     <div class="de-kpi" style="border-left-color:#4f46e5">
@@ -2512,7 +2379,9 @@ function buildSprints() {
 }
 
 function renderSPMemberCard(m, allTickets) {
-  const myTickets = allTickets.filter(t => t.assignee === m.name);
+  const myTickets = m.__unassigned
+    ? allTickets.filter(t => !t.assignee)
+    : allTickets.filter(t => t.assignee === m.name);
   const roleColors = {DEV:['#eef2ff','#4f46e5'], QA:['#ecfeff','#0891b2'], DE:['#f5f3ff','#7c3aed']};
   const [roleBg, roleCol] = roleColors[m.role] || ['#f1f5f9','#64748b'];
   const safeN = m.name.replace(/'/g,"\\'");
@@ -2530,12 +2399,16 @@ function renderSPMemberCard(m, allTickets) {
     ? myTickets.map(t => renderSPTicket(t)).join('')
     : `<div class="sp-no-tickets">No tickets planned — click "+ Add Ticket"</div>`;
 
+  const roleHtml = m.role
+    ? `<span class="sp-card-role" style="background:${roleBg};color:${roleCol}">${m.role}</span>`
+    : '';
+
   return `<div class="sp-member-card">
     <div class="sp-card-hdr">
       <div class="sp-card-avatar" style="background:${ac(m.name)}">${ini(m.name)}</div>
       <div style="min-width:0">
         <div class="sp-card-name">${m.name}</div>
-        <span class="sp-card-role" style="background:${roleBg};color:${roleCol}">${m.role}</span>
+        ${roleHtml}
       </div>
       <span style="margin-left:auto;font-size:11px;color:var(--muted);font-weight:600;flex-shrink:0">${myTickets.length} ticket${myTickets.length!==1?'s':''}</span>
     </div>
@@ -2597,7 +2470,7 @@ function renderSPMembersList() {
 async function addSPMember() {
   const name = document.getElementById('sp-m-name').value.trim();
   if (!name) return;
-  if (!SP_TEAM_MEMBERS[SP_CUR_TEAM]) SP_TEAM_MEMBERS[SP_CUR_TEAM] = [];
+  ensureSPTeamMembersSeeded(SP_CUR_TEAM);
   if (SP_TEAM_MEMBERS[SP_CUR_TEAM].find(m => m.name.toLowerCase() === name.toLowerCase())) {
     alert('This member is already in the team.'); return;
   }
@@ -2680,7 +2553,10 @@ function populateSPAssignee(selected) {
     const seen = new Set();
     (sprint?.tickets || []).forEach(t => { if (t.assignee && !seen.has(t.assignee)) { seen.add(t.assignee); opts.push({name: t.assignee}); } });
   }
-  sel.innerHTML = opts.map(m => `<option value="${m.name}"${m.name===selected?' selected':''}>${m.name}</option>`).join('');
+  const selectedValue = (selected ?? '');
+  const unassignedOption = `<option value=""${selectedValue===''?' selected':''}>Unassigned</option>`;
+  const memberOptions = opts.map(m => `<option value="${m.name}"${m.name===selectedValue?' selected':''}>${m.name}</option>`).join('');
+  sel.innerHTML = unassignedOption + memberOptions;
 }
 function closeSPTicketModal() { document.getElementById('sp-ticket-modal').style.display = 'none'; }
 async function saveSPTicket() {
