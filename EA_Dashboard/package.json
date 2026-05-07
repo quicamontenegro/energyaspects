@@ -1,6 +1,7 @@
 {
   "name": "ea_dashboard",
   "version": "1.0.0",
+  "type": "module",
   "description": "Este dashboard agora suporta sincronizacao de estado com Supabase.",
   "scripts": {
     "dev": "vite --port 5173 --strictPort",
@@ -12,5 +13,8 @@
   "license": "ISC",
   "devDependencies": {
     "vite": "^7.1.11"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.105.3"
   }
 }

@@ -8,7 +8,7 @@
 <meta name="supabase-anon-key" content="%VITE_SUPABASE_ANON_KEY%">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="/supabase-data-layer.js"></script>
+<script src="./supabase-data-layer.js"></script>
 <style>
 :root{--bg:#f4f6fb;--card:#fff;--border:#e2e8f0;--primary:#4f46e5;--pl:#eef2ff;--pd:#3730a3;--text:#1e293b;--muted:#64748b;--green:#16a34a;--amber:#d97706;--red:#dc2626;--tag:#f1f5f9;--r:12px;--sh:0 1px 4px rgba(0,0,0,.07),0 4px 16px rgba(0,0,0,.06);}
 *{box-sizing:border-box;margin:0;padding:0;}
@@ -926,7 +926,7 @@ const INITIAL_PROJECTS=JSON.parse(JSON.stringify(PROJECTS));
 const INITIAL_TEAMS=JSON.parse(JSON.stringify(TEAMS));
 const SB_TABLE='dashboard_state';
 const SB_ROW_ID='invoicing_dashboard';
-const USE_STRUCTURED_BACKEND=false;
+const USE_STRUCTURED_BACKEND=true;
 const USE_STRUCTURED_VELOCITY_MIRROR=false;
 let sbClient=null;
 let syncTimer=null;
