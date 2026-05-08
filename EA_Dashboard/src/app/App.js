@@ -512,10 +512,14 @@ function handleClickAction(trigger, updateState, root, uiState, render) {
     const [normalizedStartDate, normalizedEndDate] = startDate <= endDate
       ? [startDate, endDate]
       : [endDate, startDate];
+    
+    // Format dates as DD/MM for the sprint name
+    const formattedName = formatSprintNameWithDates(name, normalizedStartDate, normalizedEndDate);
+    
     updateState((state) => {
       state.spData.push({
         id: createId('sprint'),
-        name,
+        name: formattedName,
         startDate: normalizedStartDate,
         endDate: normalizedEndDate,
         createdAt: new Date().toISOString(),
@@ -802,4 +806,20 @@ function normalizeSprintMembers(rawMembers) {
     seen.add(key);
     return true;
   });
+}
+
+function formatSprintNameWithDates(baseName, startDate, endDate) {
+  const parseDate = (dateStr) => {
+    const d = new Date(dateStr);
+    if (Number.isNaN(d.getTime())) return '';
+    const day = String(d.getDate()).padStart(2, '0');
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    return `${day}/${month}`;
+  };
+
+  const start = parseDate(startDate);
+  const end = parseDate(endDate);
+  const dateRange = start && end ? `${start} - ${end}` : '';
+  
+  return dateRange ? `${baseName} [${dateRange}]` : baseName;
 }
