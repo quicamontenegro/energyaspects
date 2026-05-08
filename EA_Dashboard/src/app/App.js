@@ -345,14 +345,37 @@ function handleClickAction(trigger, updateState, root, uiState, render) {
 
   if (trigger.dataset.action === 'add-meeting') {
     const form = readForm(root, '[data-form="meeting-create"]');
-    const week = String(form?.get('week') || '').trim();
+    const date = String(form?.get('date') || '').trim();
     const name = String(form?.get('name') || '').trim();
-    if (!week || !name) return;
+    if (!date || !name) return;
     const notes = String(form?.get('notes') || '').trim();
     updateState((state) => {
-      state.deMeetings.push({ id: createId('meeting'), week, name, notes, createdAt: new Date().toISOString() });
+      state.deMeetings.push({ id: createId('meeting'), date, name, notes, createdAt: new Date().toISOString() });
     });
     resetForm(root, '[data-form="meeting-create"]');
+    return;
+  }
+
+  if (trigger.dataset.action === 'update-meeting-date') {
+    const meetingId = trigger.dataset.meetingId;
+    const newDate = String(trigger.value || '').trim();
+    updateState((state) => {
+      const meeting = state.deMeetings.find((m) => m.id === meetingId);
+      if (meeting) {
+        meeting.date = newDate;
+      }
+    });
+    return;
+  }
+
+  if (trigger.dataset.action === 'remove-meeting') {
+    const meetingId = trigger.dataset.meetingId;
+    updateState((state) => {
+      const index = state.deMeetings.findIndex((m) => m.id === meetingId);
+      if (index !== -1) {
+        state.deMeetings.splice(index, 1);
+      }
+    });
     return;
   }
 

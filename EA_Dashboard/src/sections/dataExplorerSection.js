@@ -27,6 +27,13 @@ export function renderDataExplorerSection(state, uiState) {
     : state.deTasks.filter((task) => (task.week || 'Backlog') === activeWeek);
   const grouped = groupTasksByWeek(filteredTasks);
 
+  // Sort meetings by date (most recent first)
+  const sortedMeetings = [...(state.deMeetings || [])].sort((a, b) => {
+    const dateA = new Date(a.date || '9999-12-31').getTime();
+    const dateB = new Date(b.date || '9999-12-31').getTime();
+    return dateB - dateA;
+  });
+
   return `
     <section class="panel-stack">
       <section class="board-card">
@@ -42,9 +49,10 @@ export function renderDataExplorerSection(state, uiState) {
             </select>
           </div>
         </div>
+        ${sortedMeetings.length ? `<div class="meetings-panel">${sortedMeetings.map((meeting, index) => renderMeetingItem(meeting, index)).join('')}</div>` : ''}
         <div class="de-forms-bar">
           <form class="de-form de-form--meeting" data-form="meeting-create">
-            <input name="week" class="field-input field-input--sm" type="text" placeholder="Week" />
+            <input name="date" class="field-input field-input--sm" type="date" placeholder="Date" />
             <input name="name" class="field-input field-input--sm" type="text" placeholder="Meeting name" />
             <textarea name="notes" class="field-input field-input--sm" rows="1" placeholder="Notes"></textarea>
             <button class="button button--secondary button--sm" type="button" data-action="add-meeting">Add Meeting</button>
@@ -60,7 +68,7 @@ export function renderDataExplorerSection(state, uiState) {
           </form>
         </div>
         <div class="stack-list">
-          ${Object.keys(grouped).length ? Object.entries(grouped).map(([week, tasks]) => renderWeekBoard(week, tasks, state.deMeetings)).join('') : renderEmptyBoard()}
+          ${Object.keys(grouped).length ? Object.entries(grouped).map(([week, tasks]) => renderWeekBoard(week, tasks)).join('') : renderEmptyBoard()}
         </div>
       </section>
     </section>
@@ -78,14 +86,12 @@ function groupTasksByWeek(tasks) {
   }, {});
 }
 
-function renderWeekBoard(week, tasks, meetings) {
-  const relatedMeeting = meetings.find((meeting) => (meeting.week || meeting.name) === week);
+function renderWeekBoard(week, tasks) {
   return `
     <article class="week-board">
       <header class="week-board__header">
         <div>
           <h3>${escapeHtml(week)}</h3>
-          <p>${escapeHtml(relatedMeeting?.name || 'No meeting title')} · ${escapeHtml(relatedMeeting?.notes || 'No meeting notes yet')}</p>
         </div>
         <span class="badge">${tasks.length} tasks</span>
       </header>
@@ -93,6 +99,22 @@ function renderWeekBoard(week, tasks, meetings) {
         ${STATUS_OPTIONS.map((status) => renderStatusColumn(status, tasks.filter((task) => task.status === status))).join('')}
       </div>
     </article>
+  `;
+}
+
+function renderMeetingItem(meeting, index) {
+  const hasDate = meeting.date && meeting.date.trim();
+  return `
+    <div class="meeting-item">
+      <div class="meeting-content">
+        <strong>${escapeHtml(meeting.name || 'Untitled')}</strong>
+        ${meeting.notes ? `<span class="meeting-notes"> · ${escapeHtml(meeting.notes)}</span>` : ''}
+      </div>
+      <div class="meeting-date-edit" data-meeting-index="${index}">
+        <input class="meeting-date-input" type="date" value="${hasDate ? escapeHtml(meeting.date) : ''}" data-action="update-meeting-date" data-meeting-id="${escapeHtml(meeting.id)}" />
+        <button class="btn-icon btn-icon--danger" type="button" data-action="remove-meeting" data-meeting-id="${escapeHtml(meeting.id)}" title="Delete" style="font-size: 0.85em;">✕</button>
+      </div>
+    </div>
   `;
 }
 
