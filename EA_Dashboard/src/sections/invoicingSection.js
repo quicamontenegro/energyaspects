@@ -86,7 +86,12 @@ function renderProject(project, projectIndex, monthlyHours) {
             </tr>
           </thead>
           <tbody>
-            ${(project.members || []).map((member, memberIndex) => `
+            ${(project.members || []).map((member, memberIndex) => {
+              const pto = Number(member.pto) || 0;
+              const holidays = Number(member.feriados) || 0;
+              const hoursOff = (pto + holidays) * 8;
+              const logged = Math.max(0, monthlyHours - hoursOff);
+              return `
               <tr>
                 <td>
                   <div class="cell-name">
@@ -94,13 +99,13 @@ function renderProject(project, projectIndex, monthlyHours) {
                     ${escapeHtml(member.name || '')}
                   </div>
                 </td>
-                <td class="col-num"><input class="num-cell" data-action="update-project-member-number" data-project-index="${projectIndex}" data-member-index="${memberIndex}" data-field="pto" type="number" min="0" value="${Number(member.pto) || 0}" /></td>
-                <td class="col-num"><input class="num-cell" data-action="update-project-member-number" data-project-index="${projectIndex}" data-member-index="${memberIndex}" data-field="feriados" type="number" min="0" value="${Number(member.feriados) || 0}" /></td>
-                <td class="col-num"><input class="num-cell" data-action="update-project-member-number" data-project-index="${projectIndex}" data-member-index="${memberIndex}" data-field="hoursOff" type="number" min="0" value="${Number(member.hoursOff) || 0}" /></td>
-                <td class="col-num col-total">${formatNumber(Number(member.tl) || Math.max(0, monthlyHours - (Number(member.hoursOff) || 0)))}</td>
+                <td class="col-num"><input class="num-cell" data-action="update-project-member-number" data-project-index="${projectIndex}" data-member-index="${memberIndex}" data-field="pto" type="number" min="0" value="${pto}" /></td>
+                <td class="col-num"><input class="num-cell" data-action="update-project-member-number" data-project-index="${projectIndex}" data-member-index="${memberIndex}" data-field="feriados" type="number" min="0" value="${holidays}" /></td>
+                <td class="col-num">${formatNumber(hoursOff)}</td>
+                <td class="col-num col-total">${formatNumber(logged)}</td>
                 <td><button class="button button--ghost-danger btn-xs" type="button" data-action="remove-project-member" data-project-index="${projectIndex}" data-member-index="${memberIndex}">✕</button></td>
               </tr>
-            `).join('')}
+            `}).join('')}
             <tr class="row-add">
               <td colspan="6">
                 <div class="inline-form inline-form--member" data-form="member-create" data-project-index="${projectIndex}">
