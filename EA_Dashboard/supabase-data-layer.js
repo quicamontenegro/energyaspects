@@ -126,7 +126,7 @@ async function replaceProjectsSnapshot(projects){
       updated_at:now
     }));
   });
-  await replaceTableRows('projects', projectRows);
+  if (projectRows.length) await replaceTableRows('projects', projectRows);
   if (memberRows.length) await replaceTableRows('project_members', memberRows);
 }
 
@@ -181,7 +181,7 @@ async function replaceVelocitySnapshot(teams){
     return row;
   }));
 
-  await replaceTableRows('velocity_teams', teamRows);
+  if (teamRows.length) await replaceTableRows('velocity_teams', teamRows);
   const sprintRows = buildSprintRows(!!sprintFlags.completed);
   if (sprintRows.length) {
     try{

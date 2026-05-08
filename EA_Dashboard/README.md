@@ -176,14 +176,14 @@ URL principal:
 http://localhost:5173/
 ```
 
-A raiz redireciona automaticamente para:
+Para abrir diretamente o separador de sprints:
 
 ```text
-/invoicing_dashboard.html#sprints
+/#sprints
 ```
 
-Outras paginas disponiveis:
-- `http://localhost:5173/invoicing_dashboard.html`
+Outras rotas uteis:
+- `http://localhost:5173/#sprints`
 
 ## 8) Confirmar se a BD esta a receber dados
 
@@ -248,7 +248,7 @@ npm run preview
 ## Estrutura importante
 
 Ficheiros principais:
-- [invoicing_dashboard.html](invoicing_dashboard.html)
+- [index.html](index.html)
 - [.env.example](.env.example)
 - [supabase-schema.sql](supabase-schema.sql)
 - [package.json](package.json)
