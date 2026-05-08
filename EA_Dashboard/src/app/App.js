@@ -296,26 +296,6 @@ function handleClickAction(trigger, updateState, root, uiState, render) {
     return;
   }
 
-  if (trigger.dataset.action === 'add-team') {
-    const form = readForm(root, '[data-form="team-create"]');
-    const name = String(form?.get('name') || '').trim();
-    if (!name) return;
-    const color = String(form?.get('color') || '#4338ca');
-    updateState((state) => {
-      state.teams.push({
-        id: createId(`team-${slugify(name)}`),
-        name,
-        color,
-        group: trigger.dataset.group || 'rp',
-        sprints: ['Sprint 1', 'Sprint 2', 'Sprint 3'],
-        sprintCompleted: [true, true, false],
-        members: [],
-      });
-    });
-    resetForm(root, '[data-form="team-create"]');
-    return;
-  }
-
   if (trigger.dataset.action === 'remove-team' && Number.isInteger(teamIndex)) {
     updateState((state) => {
       state.teams.splice(teamIndex, 1);

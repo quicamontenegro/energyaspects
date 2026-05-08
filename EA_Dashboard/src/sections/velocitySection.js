@@ -3,7 +3,6 @@ import { escapeHtml, formatNumber } from '../utils/format.js';
 
 const GROUP_LABELS = {
   rp: 'RP Team',
-  de: 'DE Team',
 };
 
 export function renderVelocitySection(state, uiState) {
@@ -15,13 +14,8 @@ export function renderVelocitySection(state, uiState) {
       <section class="board-card">
         <div class="section-header-inline">
           <div class="segment-switch">
-            ${['rp', 'de'].map((group) => `<button class="segment-switch__button ${group === activeGroup ? 'is-active' : ''}" type="button" data-action="switch-velocity-group" data-group="${group}">${GROUP_LABELS[group]}</button>`).join('')}
+            ${['rp'].map((group) => `<button class="segment-switch__button ${group === activeGroup ? 'is-active' : ''}" type="button" data-action="switch-velocity-group" data-group="${group}">${GROUP_LABELS[group]}</button>`).join('')}
           </div>
-          <form class="inline-form" data-form="team-create">
-            <input name="name" class="field-input" type="text" placeholder="New team" />
-            <input name="color" class="field-input field-input--color" type="color" value="#4338ca" />
-            <button class="button button--primary" type="button" data-action="add-team" data-group="${activeGroup}">Add team</button>
-          </form>
         </div>
         <div class="stack-list">
           ${teams.length ? teams.map((team) => renderTeam(team, state.teams.indexOf(team))).join('') : renderEmptyTeamGroup(activeGroup)}
