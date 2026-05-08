@@ -105,7 +105,6 @@ export function renderSprintsSection(state, uiState) {
 function renderSprintCard(sprintIndex, sprint, sprintMembers, uiState) {
   const grouped = groupSprintTicketsByAssignee(sprint.tickets || [], sprintMembers);
   const visibleAssignees = Object.keys(grouped).filter((assignee) => grouped[assignee].length > 0);
-  const dateRange = formatSprintDateRange(sprint.startDate, sprint.endDate);
   const isEditingSprint = uiState.editingSprintIndex === sprintIndex;
 
   return `
@@ -123,7 +122,6 @@ function renderSprintCard(sprintIndex, sprint, sprintMembers, uiState) {
           </div>
         </div>
         <div class="sprint-card__meta">
-          ${dateRange ? `<span class="sprint-date-range">${escapeHtml(dateRange)}</span>` : ''}
           <span class="sprint-badge">${(sprint.tickets || []).length} tickets</span>
         </div>
       </div>
@@ -283,19 +281,6 @@ function parseSprintDate(value) {
   if (!raw) return null;
   const date = new Date(raw);
   return Number.isNaN(date.getTime()) ? null : date;
-}
-
-function formatSprintDateRange(startDate, endDate) {
-  const start = formatSprintDate(startDate);
-  const end = formatSprintDate(endDate);
-  if (start && end) return `${start} - ${end}`;
-  return start || end || '';
-}
-
-function formatSprintDate(value) {
-  const date = parseSprintDate(value);
-  if (!date) return '';
-  return date.toLocaleDateString('pt-PT', { day: '2-digit', month: 'short' });
 }
 
 function groupSprintTicketsByStatus(tickets) {
