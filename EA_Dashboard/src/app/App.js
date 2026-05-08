@@ -1,4 +1,4 @@
-import { renderDataExplorerSection } from '../sections/dataExplorerSection.js';
+import { renderDataExplorerSection, renderDataExplorerTaskEditModal } from '../sections/dataExplorerSection.js';
 import { renderInvoicingSection } from '../sections/invoicingSection.js';
 import { renderMilestonesSection } from '../sections/milestonesSection.js';
 import { renderSprintsSection, renderGlobalTicketEditModal, getSprintMembers } from '../sections/sprintsSection.js';
@@ -19,6 +19,7 @@ export function createDashboardApp(root, initialSnapshot, persistence) {
     velocityGroup: 'rp',
     deWeekFilter: 'all',
     editingMeetingId: null,
+    editingDeTaskId: null,
     milestoneTeam: 'rp',
     milestoneStatus: 'all',
     editingTicket: null,
@@ -41,6 +42,14 @@ export function createDashboardApp(root, initialSnapshot, persistence) {
       if (ticket) {
         const members = getSprintMembers(state.spTeamMembers);
         modal = renderGlobalTicketEditModal(sprintIndex, ticketIndex, ticket, members);
+      }
+    }
+
+    if (!modal && uiState.editingDeTaskId) {
+      const task = (state.deTasks || []).find((item) => String(item?.id || '') === String(uiState.editingDeTaskId || ''));
+      if (task) {
+        const members = getSprintMembers(state.spTeamMembers);
+        modal = renderDataExplorerTaskEditModal(task, members);
       }
     }
     
@@ -451,6 +460,49 @@ function handleClickAction(trigger, updateState, root, uiState, render) {
     updateState((state) => {
       state.deTasks = state.deTasks.filter((task) => task.id !== taskId);
     });
+    if (uiState.editingDeTaskId === String(taskId || '')) {
+      uiState.editingDeTaskId = null;
+      render();
+    }
+    return;
+  }
+
+  if (trigger.dataset.action === 'edit-de-task') {
+    const taskId = String(trigger.dataset.taskId || '').trim();
+    if (!taskId) return;
+    uiState.editingDeTaskId = taskId;
+    render();
+    return;
+  }
+
+  if (trigger.dataset.action === 'cancel-edit-de-task') {
+    uiState.editingDeTaskId = null;
+    render();
+    return;
+  }
+
+  if (trigger.dataset.action === 'save-edit-de-task') {
+    const taskId = String(trigger.dataset.taskId || '').trim();
+    if (!taskId) return;
+    const modal = root.querySelector(`[data-form="de-task-edit-modal"][data-task-id="${taskId}"]`);
+    if (!modal) return;
+    const formElement = modal.querySelector('.ticket-edit-form');
+    const formData = formElement ? new FormData(formElement) : null;
+    const form = formData || readForm(root, `[data-form="de-task-edit-modal"][data-task-id="${taskId}"] .ticket-edit-form`);
+    const name = String(form?.get('name') || '').trim();
+    if (!name) return;
+    updateState((state) => {
+      const task = state.deTasks.find((item) => String(item?.id || '') === taskId);
+      if (!task) return;
+      task.name = name;
+      task.assignee = String(form?.get('assignee') || '').trim();
+      task.jiraId = String(form?.get('jiraId') || '').trim();
+      task.status = String(form?.get('status') || 'inprogress').trim() || 'inprogress';
+      task.priority = String(form?.get('priority') || 'Medium').trim() || 'Medium';
+      task.notes = String(form?.get('notes') || '').trim();
+    });
+    uiState.editingDeTaskId = null;
+    render();
     return;
   }
 

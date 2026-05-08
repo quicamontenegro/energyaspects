@@ -121,6 +121,13 @@ function renderMeetingBoard(meeting, tasks, uiState, teamMembers) {
           ${(teamMembers || []).map((member) => `<option value="${escapeHtml(member.name)}">${escapeHtml(member.name)}</option>`).join('')}
         </select>
         <input name="jiraId" class="field-input field-input--sm" type="text" placeholder="JIRA ID" />
+        <select name="status" class="field-input field-input--sm">
+          <option value="inprogress" selected>In Progress</option>
+          <option value="completed">Completed</option>
+          <option value="roadmap">Roadmap</option>
+          <option value="blocked">Blocked</option>
+          <option value="onhold">On Hold</option>
+        </select>
         <select name="priority" class="field-input field-input--sm"><option value="High">High</option><option value="Medium" selected>Medium</option><option value="Low">Low</option></select>
         <input name="notes" class="field-input field-input--sm" type="text" placeholder="Notes" />
         <button class="button button--primary button--sm" type="button" data-action="add-task" data-meeting-id="${meetingId}">Add Task</button>
@@ -152,21 +159,121 @@ function renderTaskCard(task) {
   const taskNotes = String(task.notes || task.desc || task.description || '').trim();
   const hasNotes = taskNotes.length > 0;
   const jiraId = String(task.jiraId || '').trim();
+  const jiraHref = resolveTaskJiraHref(task);
+  const jiraLabel = resolveTaskJiraLabel(jiraId);
   return `
     <article class="task-card">
       <div class="task-card__top">
         <strong class="task-card__title">${escapeHtml(task.name)}</strong>
-        <button class="btn-icon btn-icon--danger" type="button" data-action="remove-task" data-task-id="${escapeHtml(task.id)}" title="Delete">✕</button>
+        <div class="task-card__actions">
+          <button class="btn-icon btn-icon--edit" type="button" data-action="edit-de-task" data-task-id="${escapeHtml(task.id)}" title="Edit task">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+          </button>
+          <button class="btn-icon btn-icon--danger" type="button" data-action="remove-task" data-task-id="${escapeHtml(task.id)}" title="Delete">✕</button>
+        </div>
       </div>
       <div class="task-card__row">
         <span class="priority-badge" style="background:${pColor.bg};color:${pColor.text}">${escapeHtml(priority)}</span>
         ${task.assignee ? `<span class="assignee-chip"><span class="av-xs">${initials(task.assignee)}</span>${escapeHtml(task.assignee)}</span>` : ''}
       </div>
-      ${jiraId ? `<div class="task-jira-id">Jira: ${escapeHtml(jiraId)}</div>` : ''}
+      ${jiraId ? `<div class="sprint-ticket-ids">${jiraHref ? `<a class="sprint-ticket-id" href="${escapeHtml(jiraHref)}" target="_blank" rel="noopener noreferrer">${escapeHtml(jiraLabel)}</a>` : `<span class="sprint-ticket-id">${escapeHtml(jiraLabel)}</span>`}</div>` : ''}
       ${hasNotes ? `<p class="task-notes">${escapeHtml(taskNotes)}</p>` : ''}
       <select class="status-select" data-action="update-de-status" data-task-id="${escapeHtml(task.id)}">
         ${STATUS_OPTIONS.map((option) => `<option value="${option}" ${task.status === option ? 'selected' : ''}>${formatStatus(option)}</option>`).join('')}
       </select>
+    </article>
+  `;
+}
+
+function resolveTaskJiraHref(task) {
+  const value = String(task?.jiraId || '').trim();
+  if (/^https?:\/\//i.test(value)) {
+    return value;
+  }
+  return '';
+}
+
+function resolveTaskJiraLabel(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+  if (!/^https?:\/\//i.test(raw)) return raw;
+
+  const browseMatch = raw.match(/\/browse\/([^/?#]+)/i);
+  if (browseMatch && browseMatch[1]) return browseMatch[1];
+
+  const lastSegmentMatch = raw.match(/\/([^/?#]+)(?:[?#].*)?$/);
+  if (lastSegmentMatch && lastSegmentMatch[1]) return lastSegmentMatch[1];
+
+  return raw;
+}
+
+export function renderDataExplorerTaskEditModal(task, teamMembers) {
+  if (!task) return '';
+
+  const taskId = escapeHtml(task.id || '');
+  const taskName = escapeHtml(task.name || '');
+  const taskAssignee = String(task.assignee || '').trim();
+  const taskStatus = STATUS_OPTIONS.includes(task.status) ? task.status : 'inprogress';
+  const taskPriority = normalizePriority(task.priority);
+  const taskJiraId = escapeHtml(task.jiraId || '');
+  const taskNotes = escapeHtml(String(task.notes || task.desc || task.description || '').trim());
+
+  return `
+    <article class="sprint-ticket-edit-modal" data-form="de-task-edit-modal" data-task-id="${taskId}">
+      <div class="modal-overlay"></div>
+      <div class="modal-card">
+        <div class="modal-header">
+          <h2>Edit Ticket</h2>
+          <button class="btn-icon" type="button" data-action="cancel-edit-de-task" data-task-id="${taskId}" title="Close">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+          </button>
+        </div>
+        <div class="modal-body">
+          <form class="ticket-edit-form">
+            <div class="form-group">
+              <label>Title</label>
+              <input class="field-input" name="name" type="text" value="${taskName}" placeholder="Ticket title" />
+            </div>
+            <div class="form-group">
+              <label>Assignee</label>
+              <select class="field-input" name="assignee">
+                <option value="">Unassigned</option>
+                ${(teamMembers || []).map((member) => {
+                  const memberName = String(member?.name || '').trim();
+                  const selected = memberName === taskAssignee ? 'selected' : '';
+                  return `<option value="${escapeHtml(memberName)}" ${selected}>${escapeHtml(memberName)}</option>`;
+                }).join('')}
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Status</label>
+              <select class="field-input" name="status">
+                ${STATUS_OPTIONS.map((status) => `<option value="${status}" ${taskStatus === status ? 'selected' : ''}>${formatStatus(status)}</option>`).join('')}
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Priority</label>
+              <select class="field-input" name="priority">
+                <option value="High" ${taskPriority === 'High' ? 'selected' : ''}>High</option>
+                <option value="Medium" ${taskPriority === 'Medium' ? 'selected' : ''}>Medium</option>
+                <option value="Low" ${taskPriority === 'Low' ? 'selected' : ''}>Low</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Ticket ID</label>
+              <input class="field-input" name="jiraId" type="text" value="${taskJiraId}" placeholder="Ticket ID or URL" />
+            </div>
+            <div class="form-group">
+              <label>Notes</label>
+              <textarea class="field-input" name="notes" rows="3" placeholder="Add notes...">${taskNotes}</textarea>
+            </div>
+          </form>
+        </div>
+        <div class="modal-footer">
+          <button class="button button--secondary" type="button" data-action="cancel-edit-de-task" data-task-id="${taskId}">Cancel</button>
+          <button class="button button--primary" type="button" data-action="save-edit-de-task" data-task-id="${taskId}">Save</button>
+        </div>
+      </div>
     </article>
   `;
 }

@@ -1462,7 +1462,13 @@ a.sprint-ticket-id:hover {
 }
 
 .de-form--task {
-  grid-template-columns: 280px 120px 110px 110px 100px 120px auto;
+  grid-template-columns: 250px 120px 105px 120px 105px 100px 120px auto;
+  align-items: end;
+}
+
+.de-form--task-edit {
+  margin-top: 10px;
+  grid-template-columns: 250px 120px 105px 120px 105px 100px auto auto;
   align-items: end;
 }
 
@@ -1487,6 +1493,10 @@ a.sprint-ticket-id:hover {
   }
 
   .de-form--task {
+    grid-template-columns: 1fr 1fr 1fr 1fr;
+  }
+
+  .de-form--task-edit {
     grid-template-columns: 1fr 1fr 1fr 1fr;
   }
 
@@ -1944,6 +1954,22 @@ a.sprint-ticket-id:hover {
   font-size: 11px;
   color: var(--muted);
   font-weight: 500;
+}
+
+.task-jira-link {
+  color: var(--indigo);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.task-jira-link:hover {
+  color: var(--teal);
+}
+
+.task-card__actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .task-notes {
