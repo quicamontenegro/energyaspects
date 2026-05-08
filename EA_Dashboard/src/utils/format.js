@@ -31,6 +31,7 @@ export function formatNumber(value, digits = 0) {
 }
 
 const STATUS_LABELS = {
+  todo: 'To Do',
   inprogress: 'In Progress',
   notstarted: 'Not Started',
   inreview: 'In Review',

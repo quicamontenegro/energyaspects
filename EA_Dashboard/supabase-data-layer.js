@@ -15,6 +15,7 @@ const STRUCTURED_STATUS = {
 const STRUCTURED_SCHEMA_FLAGS = {
   dataExplorerTasks:null,
   sprints:null,
+  sprintTickets:null,
   milestones:null,
   milestoneTasks:null,
   velocitySprintCompleted:null
@@ -356,7 +357,9 @@ async function replaceSprintsSnapshot(sprints){
   if(!sbClient)return;
   const now=new Date().toISOString();
   const flags=STRUCTURED_SCHEMA_FLAGS.sprints || await detectTableColumns('sprints',['team','team_id','sort_order','start_date','end_date']);
+  const ticketFlags=STRUCTURED_SCHEMA_FLAGS.sprintTickets || await detectTableColumns('sprint_tickets',['priority']);
   STRUCTURED_SCHEMA_FLAGS.sprints=flags;
+  STRUCTURED_SCHEMA_FLAGS.sprintTickets=ticketFlags;
   const sprintRows=structuredSafeRows(sprints).map((sprint,index)=>{
     const row={
       id:sprint.id,
@@ -370,18 +373,25 @@ async function replaceSprintsSnapshot(sprints){
     if(flags.end_date)row.end_date=sprint.endDate || null;
     return row;
   });
-  const ticketRows=sprintRows.flatMap((sprint,index)=>structuredSafeRows(sprints[index]?.tickets).map((ticket,ticketIndex)=>({
-    id:ticket.id,
-    sprint_id:sprint.id,
-    assignee:ticket.assignee || '',
-    jira_id:ticket.jiraId || '',
-    jira_url:ticket.jiraUrl || '',
-    title:ticket.title || '',
-    description:ticket.notes || ticket.desc || '',
-    status:STRUCTURED_STATUS.sprintTicket.includes(ticket.status) ? ticket.status : 'todo',
-    sort_order:ticketIndex,
-    updated_at:now
-  })));
+  const ticketRows=sprintRows.flatMap((sprint,index)=>structuredSafeRows(sprints[index]?.tickets).map((ticket,ticketIndex)=>{
+    const row={
+      id:ticket.id,
+      sprint_id:sprint.id,
+      assignee:ticket.assignee || '',
+      jira_id:ticket.jiraId || '',
+      jira_url:ticket.jiraUrl || '',
+      title:ticket.title || '',
+      description:ticket.notes || ticket.desc || '',
+      status:STRUCTURED_STATUS.sprintTicket.includes(ticket.status) ? ticket.status : 'todo',
+      sort_order:ticketIndex,
+      updated_at:now
+    };
+    if(ticketFlags.priority){
+      const normalizedPriority=String(ticket.priority || '').trim().toLowerCase();
+      row.priority=normalizedPriority==='high' ? 'High' : normalizedPriority==='low' ? 'Low' : 'Medium';
+    }
+    return row;
+  }));
   if (sprintRows.length) await replaceTableRows('sprints', sprintRows);
   if (ticketRows.length) await replaceTableRows('sprint_tickets', ticketRows);
 }
@@ -642,8 +652,12 @@ async function loadStructuredSprints(){
     start_date:(sprints || []).some(sprint=>Object.prototype.hasOwnProperty.call(sprint,'start_date')),
     end_date:(sprints || []).some(sprint=>Object.prototype.hasOwnProperty.call(sprint,'end_date'))
   };
+  STRUCTURED_SCHEMA_FLAGS.sprintTickets={
+    priority:(tickets || []).some(ticket=>Object.prototype.hasOwnProperty.call(ticket,'priority'))
+  };
   const groupedTickets=sortStructuredRows(tickets).reduce((acc,ticket)=>{
     if(!acc[ticket.sprint_id])acc[ticket.sprint_id]=[];
+    const normalizedPriority=String(ticket.priority || '').trim().toLowerCase();
     acc[ticket.sprint_id].push({
       id:ticket.id,
       assignee:ticket.assignee || '',
@@ -652,6 +666,7 @@ async function loadStructuredSprints(){
       title:ticket.title,
       desc:ticket.description || '',
       notes:ticket.description || '',
+      priority:normalizedPriority==='high' ? 'High' : normalizedPriority==='low' ? 'Low' : 'Medium',
       status:ticket.status
     });
     return acc;

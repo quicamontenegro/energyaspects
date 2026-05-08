@@ -228,6 +228,7 @@ create table if not exists public.sprint_tickets (
   title text not null,
   description text not null default '',
   status text not null check (status in ('todo','inprogress','inreview','testing','done','blocked','onhold','deployed')),
+  priority text not null default 'Medium',
   sort_order integer not null default 0,
   updated_at timestamptz not null default timezone('utc', now())
 );
@@ -239,6 +240,7 @@ alter table public.sprint_tickets add column if not exists jira_url text not nul
 alter table public.sprint_tickets add column if not exists title text not null default '';
 alter table public.sprint_tickets add column if not exists description text not null default '';
 alter table public.sprint_tickets add column if not exists status text not null default 'todo';
+alter table public.sprint_tickets add column if not exists priority text not null default 'Medium';
 alter table public.sprint_tickets add column if not exists sort_order integer not null default 0;
 alter table public.sprint_tickets add column if not exists updated_at timestamptz default timezone('utc', now());
 alter table public.sprint_tickets drop constraint if exists sprint_tickets_status_check;

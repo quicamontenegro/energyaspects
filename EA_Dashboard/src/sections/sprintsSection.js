@@ -1,6 +1,13 @@
 import { escapeHtml, formatStatus, initials } from '../utils/format.js';
 
 const TICKET_STATUSES = ['todo', 'inprogress', 'inreview', 'testing', 'done', 'blocked', 'onhold', 'deployed'];
+const PRIORITY_OPTIONS = ['High', 'Medium', 'Low'];
+
+const PRIORITY_COLOR = {
+  High: { bg: '#fee2e2', text: '#b91c1c' },
+  Medium: { bg: '#fef3c7', text: '#92400e' },
+  Low: { bg: '#dcfce7', text: '#166534' },
+};
 
 const STATUS_COLOR = {
   todo: '#9ca3af',
@@ -140,6 +147,7 @@ function renderSprintCard(sprintIndex, sprint, sprintMembers, uiState) {
           <input name="jiraId" class="field-input field-input--sm" type="text" placeholder="Jira ID" />
           <input name="jiraUrl" class="field-input field-input--sm" type="url" placeholder="Jira URL" />
           <select name="status" class="field-input field-input--sm">${TICKET_STATUSES.map((status) => `<option value="${status}">${formatStatus(status)}</option>`).join('')}</select>
+          <select name="priority" class="field-input field-input--sm">${PRIORITY_OPTIONS.map((priority) => `<option value="${priority}" ${priority === 'Medium' ? 'selected' : ''}>${priority}</option>`).join('')}</select>
           <textarea name="notes" class="field-input field-input--sm sprint-ticket-notes-input" placeholder="Notes"></textarea>
           <button class="button button--secondary button--sm" type="button" data-action="add-sprint-ticket" data-sprint-index="${sprintIndex}">
             Add
@@ -188,6 +196,10 @@ function renderSprintColumn(sprintIndex, status, items, sprintMembers, uiState) 
 function renderSprintTicket(sprintIndex, ticketIndex, ticket, sprintMembers, uiState) {
   const jiraHref = resolveJiraHref(ticket);
   const statusColor = STATUS_COLOR[ticket.status] || '#64748b';
+  const priority = normalizePriority(ticket.priority);
+  const priorityColor = PRIORITY_COLOR[priority] || PRIORITY_COLOR.Medium;
+  const ticketNotes = String(ticket.notes || ticket.desc || ticket.description || '').trim();
+  const hasNotes = ticketNotes.length > 0;
 
   return `
     <article class="sprint-ticket-card" style="--ticket-status-color:${statusColor};">
@@ -205,7 +217,9 @@ function renderSprintTicket(sprintIndex, ticketIndex, ticket, sprintMembers, uiS
         </div>
       </div>
       <p class="sprint-ticket-title">${escapeHtml(ticket.title || 'Untitled')}</p>
+      ${hasNotes ? `<p class="sprint-ticket-note-preview">${escapeHtml(ticketNotes)}</p>` : ''}
       <div class="sprint-ticket-card__meta">
+        <span class="priority-badge" style="background:${priorityColor.bg};color:${priorityColor.text}">${escapeHtml(priority)}</span>
         <select class="status-select" name="status" data-action="update-sprint-ticket-status" data-sprint-index="${sprintIndex}" data-ticket-index="${ticketIndex}">
           ${TICKET_STATUSES.map((status) => `<option value="${status}" ${ticket.status === status ? 'selected' : ''}>${formatStatus(status)}</option>`).join('')}
         </select>
@@ -226,6 +240,14 @@ function resolveJiraHref(ticket) {
   }
 
   return '';
+}
+
+function normalizePriority(value) {
+  const normalized = String(value || '').trim().toLowerCase();
+  if (normalized === 'high') return 'High';
+  if (normalized === 'low') return 'Low';
+  if (normalized === 'média' || normalized === 'media' || normalized === 'medium') return 'Medium';
+  return 'Medium';
 }
 
 function groupSprintTicketsByAssignee(tickets, sprintMembers) {
@@ -343,6 +365,13 @@ export function renderGlobalTicketEditModal(sprintIndex, ticketIndex, ticket, sp
               <label>Status</label>
               <select class="field-input" name="status">
                 ${TICKET_STATUSES.map((status) => `<option value="${status}" ${ticket.status === status ? 'selected' : ''}>${formatStatus(status)}</option>`).join('')}
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label>Priority</label>
+              <select class="field-input" name="priority">
+                ${PRIORITY_OPTIONS.map((priority) => `<option value="${priority}" ${normalizePriority(ticket.priority) === priority ? 'selected' : ''}>${priority}</option>`).join('')}
               </select>
             </div>
 

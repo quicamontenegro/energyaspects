@@ -13,6 +13,7 @@ const STATUS_COLOR = {
 const PRIORITY_COLOR = {
   High:  { bg: '#fee2e2', text: '#b91c1c' },
   Alta:  { bg: '#fee2e2', text: '#b91c1c' },
+  Medium:{ bg: '#fef3c7', text: '#92400e' },
   Média: { bg: '#fef3c7', text: '#92400e' },
   Low:   { bg: '#dcfce7', text: '#166534' },
   Baixa: { bg: '#dcfce7', text: '#166534' },
@@ -103,8 +104,9 @@ function renderMeetingBoard(meeting, tasks, uiState) {
       <form class="de-form de-form--task" data-form="task-create" data-meeting-id="${meetingId}">
         <input name="name" class="field-input field-input--sm" type="text" placeholder="Task title" />
         <input name="assignee" class="field-input field-input--sm" type="text" placeholder="Assignee" />
-        <select name="priority" class="field-input field-input--sm"><option value="High">High</option><option value="Média" selected>Média</option><option value="Low">Low</option></select>
+        <select name="priority" class="field-input field-input--sm"><option value="High">High</option><option value="Medium" selected>Medium</option><option value="Low">Low</option></select>
         <input name="dueDate" class="field-input field-input--sm" type="date" />
+        <input name="notes" class="field-input field-input--sm" type="text" placeholder="Notes" />
         <button class="button button--primary button--sm" type="button" data-action="add-task" data-meeting-id="${meetingId}">Add Task</button>
       </form>
       <div class="week-board__columns">
@@ -129,8 +131,10 @@ function renderStatusColumn(status, tasks) {
 }
 
 function renderTaskCard(task) {
-  const pColor = PRIORITY_COLOR[task.priority] || PRIORITY_COLOR['Média'];
-  const hasNotes = task.notes && task.notes.trim();
+  const priority = normalizePriority(task.priority);
+  const pColor = PRIORITY_COLOR[priority] || PRIORITY_COLOR.Medium;
+  const taskNotes = String(task.notes || task.desc || task.description || '').trim();
+  const hasNotes = taskNotes.length > 0;
   const hasDue = task.dueDate && task.dueDate.trim();
   return `
     <article class="task-card">
@@ -139,16 +143,24 @@ function renderTaskCard(task) {
         <button class="btn-icon btn-icon--danger" type="button" data-action="remove-task" data-task-id="${escapeHtml(task.id)}" title="Delete">✕</button>
       </div>
       <div class="task-card__row">
-        <span class="priority-badge" style="background:${pColor.bg};color:${pColor.text}">${escapeHtml(task.priority || 'Média')}</span>
+        <span class="priority-badge" style="background:${pColor.bg};color:${pColor.text}">${escapeHtml(priority)}</span>
         ${task.assignee ? `<span class="assignee-chip"><span class="av-xs">${initials(task.assignee)}</span>${escapeHtml(task.assignee)}</span>` : ''}
       </div>
       ${hasDue ? `<div class="task-due">📅 ${escapeHtml(task.dueDate)}</div>` : ''}
-      ${hasNotes ? `<p class="task-notes">${escapeHtml(task.notes)}</p>` : ''}
+      ${hasNotes ? `<p class="task-notes">${escapeHtml(taskNotes)}</p>` : ''}
       <select class="status-select" data-action="update-de-status" data-task-id="${escapeHtml(task.id)}">
         ${STATUS_OPTIONS.map((option) => `<option value="${option}" ${task.status === option ? 'selected' : ''}>${formatStatus(option)}</option>`).join('')}
       </select>
     </article>
   `;
+}
+
+function normalizePriority(value) {
+  const normalized = String(value || '').trim().toLowerCase();
+  if (normalized === 'high' || normalized === 'alta') return 'High';
+  if (normalized === 'low' || normalized === 'baixa') return 'Low';
+  if (normalized === 'média' || normalized === 'media' || normalized === 'medium') return 'Medium';
+  return 'Medium';
 }
 
 function renderEmptyBoard() {

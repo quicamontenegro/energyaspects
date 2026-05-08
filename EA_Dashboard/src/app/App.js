@@ -434,7 +434,7 @@ function handleClickAction(trigger, updateState, root, uiState, render) {
         meetingId,
         assignee: String(form?.get('assignee') || '').trim(),
         status: String(form?.get('status') || 'inprogress'),
-        priority: String(form?.get('priority') || 'Média'),
+        priority: String(form?.get('priority') || 'Medium'),
         dueDate: String(form?.get('dueDate') || ''),
         notes: String(form?.get('notes') || '').trim(),
         createdAt: new Date().toISOString(),
@@ -627,6 +627,7 @@ function handleClickAction(trigger, updateState, root, uiState, render) {
     const form = readForm(root, `[data-form="sprint-ticket-create"][data-sprint-index="${sprintIndex}"]`);
     const title = String(form?.get('title') || '').trim();
     const status = String(form?.get('status') || 'todo').trim() || 'todo';
+    const priority = String(form?.get('priority') || 'Medium').trim() || 'Medium';
     const notes = String(form?.get('notes') || '').trim();
     if (!title) return;
     updateState((state) => {
@@ -638,6 +639,7 @@ function handleClickAction(trigger, updateState, root, uiState, render) {
         desc: notes,
         notes,
         assignee: '',
+        priority,
         status,
       });
     });
@@ -671,6 +673,7 @@ function handleClickAction(trigger, updateState, root, uiState, render) {
       ticket.title = String(formData.get('title') || '').trim();
       ticket.assignee = String(formData.get('assignee') || '').trim();
       ticket.status = String(formData.get('status') || 'todo').trim();
+      ticket.priority = String(formData.get('priority') || 'Medium').trim() || 'Medium';
       ticket.jiraId = String(formData.get('jiraId') || '').trim();
       ticket.jiraUrl = String(formData.get('jiraUrl') || '').trim();
       const notes = String(formData.get('notes') || '').trim();
