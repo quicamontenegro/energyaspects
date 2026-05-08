@@ -286,6 +286,7 @@ async function saveStructuredMetadata(snapshot){
       key:'deMeetings',
       value:structuredSafeRows(snapshot.deMeetings).map(meeting=>({
         id:meeting?.id || '',
+        date:meeting?.date || '',
         week:meeting?.week || '',
         name:meeting?.name || '',
         notes:meeting?.notes || '',
@@ -420,6 +421,7 @@ async function loadStructuredMetadata(){
     if(row.key==='deMeetings'){
       result.deMeetings=structuredSafeRows(row.value).map(meeting=>({
         id:meeting?.id || '',
+        date:meeting?.date || meeting?.week || '',
         week:meeting?.week || '',
         name:meeting?.name || '',
         notes:meeting?.notes || '',

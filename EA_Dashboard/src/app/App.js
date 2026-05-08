@@ -12,10 +12,13 @@ const TAB_ORDER = ['invoicing', 'velocity', 'data-explorer', 'milestones', 'spri
 
 export function createDashboardApp(root, initialSnapshot, persistence) {
   const store = createStore(initialSnapshot || createDefaultSnapshot());
+  // Keep persistence aligned with the loaded snapshot to avoid flushing defaults on refresh.
+  persistence.setSnapshot(store.getState());
   const uiState = {
     tab: resolveTabFromHash(),
     velocityGroup: 'rp',
     deWeekFilter: 'all',
+    editingMeetingId: null,
     milestoneTeam: 'rp',
     milestoneStatus: 'all',
     editingTicket: null,
@@ -356,38 +359,79 @@ function handleClickAction(trigger, updateState, root, uiState, render) {
     return;
   }
 
-  if (trigger.dataset.action === 'update-meeting-date') {
-    const meetingId = trigger.dataset.meetingId;
-    const newDate = String(trigger.value || '').trim();
+  if (trigger.dataset.action === 'edit-meeting') {
+    uiState.editingMeetingId = String(trigger.dataset.meetingId || '').trim() || null;
+    render();
+    return;
+  }
+
+  if (trigger.dataset.action === 'cancel-edit-meeting') {
+    uiState.editingMeetingId = null;
+    render();
+    return;
+  }
+
+  if (trigger.dataset.action === 'save-edit-meeting') {
+    const meetingId = String(trigger.dataset.meetingId || '').trim();
+    if (!meetingId) return;
+    const form = readForm(root, `[data-form="meeting-edit"][data-meeting-id="${meetingId}"]`);
+    const date = String(form?.get('date') || '').trim();
+    const name = String(form?.get('name') || '').trim();
+    const notes = String(form?.get('notes') || '').trim();
+    if (!date || !name) return;
+
     updateState((state) => {
       const meeting = state.deMeetings.find((m) => m.id === meetingId);
-      if (meeting) {
-        meeting.date = newDate;
-      }
+      if (!meeting) return;
+      meeting.date = date;
+      meeting.name = name;
+      meeting.notes = notes;
     });
+
+    uiState.editingMeetingId = null;
+    render();
     return;
   }
 
   if (trigger.dataset.action === 'remove-meeting') {
     const meetingId = trigger.dataset.meetingId;
     updateState((state) => {
+      const meeting = state.deMeetings.find((m) => m.id === meetingId);
       const index = state.deMeetings.findIndex((m) => m.id === meetingId);
       if (index !== -1) {
         state.deMeetings.splice(index, 1);
       }
+
+      // Keep tasks linked to meetings and remove the ones that belonged to the deleted meeting.
+      state.deTasks = state.deTasks.filter((task) => {
+        const taskWeek = String(task?.week || '').trim();
+        const taskMeetingId = String(task?.meetingId || '').trim();
+        if (taskMeetingId === String(meetingId || '').trim()) return false;
+        if (taskWeek === String(meetingId || '').trim()) return false;
+        if (meeting && meeting.date && taskWeek === String(meeting.date).trim()) return false;
+        if (meeting && meeting.name && taskWeek === String(meeting.name).trim()) return false;
+        return true;
+      });
     });
+    if (uiState.editingMeetingId === String(meetingId || '')) {
+      uiState.editingMeetingId = null;
+      render();
+    }
     return;
   }
 
   if (trigger.dataset.action === 'add-task') {
-    const form = readForm(root, '[data-form="task-create"]');
+    const meetingId = String(trigger.dataset.meetingId || '').trim();
+    if (!meetingId) return;
+    const form = readForm(root, `[data-form="task-create"][data-meeting-id="${meetingId}"]`);
     const name = String(form?.get('name') || '').trim();
     if (!name) return;
     updateState((state) => {
       state.deTasks.push({
         id: createId('de-task'),
         name,
-        week: String(form?.get('week') || '').trim() || 'Backlog',
+        week: meetingId,
+        meetingId,
         assignee: String(form?.get('assignee') || '').trim(),
         status: String(form?.get('status') || 'inprogress'),
         priority: String(form?.get('priority') || 'Média'),
@@ -396,7 +440,7 @@ function handleClickAction(trigger, updateState, root, uiState, render) {
         createdAt: new Date().toISOString(),
       });
     });
-    resetForm(root, '[data-form="task-create"]');
+    resetForm(root, `[data-form="task-create"][data-meeting-id="${meetingId}"]`);
     return;
   }
 
@@ -707,12 +751,6 @@ function handleChangeAction(field, updateState, uiState, render) {
       state.teams[teamIndex].members[memberIndex].sp[sprintIndex] = Number(field.value) || 0;
       state.teams[teamIndex].sprintCompleted[sprintIndex] = (Number(field.value) || 0) > 0 || state.teams[teamIndex].sprintCompleted[sprintIndex];
     });
-    return;
-  }
-
-  if (action === 'filter-de-week') {
-    uiState.deWeekFilter = String(field.value || 'all');
-    render();
     return;
   }
 

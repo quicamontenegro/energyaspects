@@ -1,4 +1,3 @@
-import { getWeekOptions } from '../utils/dashboard.js';
 import { escapeHtml, formatStatus, initials } from '../utils/format.js';
 
 const STATUS_OPTIONS = ['inprogress', 'completed', 'roadmap', 'blocked', 'onhold'];
@@ -20,17 +19,10 @@ const PRIORITY_COLOR = {
 };
 
 export function renderDataExplorerSection(state, uiState) {
-  const weekOptions = getWeekOptions(state.deTasks, state.deMeetings);
-  const activeWeek = uiState.deWeekFilter;
-  const filteredTasks = activeWeek === 'all'
-    ? state.deTasks
-    : state.deTasks.filter((task) => (task.week || 'Backlog') === activeWeek);
-  const grouped = groupTasksByWeek(filteredTasks);
-
   // Sort meetings by date (most recent first)
   const sortedMeetings = [...(state.deMeetings || [])].sort((a, b) => {
-    const dateA = new Date(a.date || '9999-12-31').getTime();
-    const dateB = new Date(b.date || '9999-12-31').getTime();
+    const dateA = new Date(a.date || a.createdAt || '1970-01-01').getTime();
+    const dateB = new Date(b.date || b.createdAt || '1970-01-01').getTime();
     return dateB - dateA;
   });
 
@@ -40,16 +32,9 @@ export function renderDataExplorerSection(state, uiState) {
         <div class="section-header-inline">
           <div>
             <p class="section-kicker">Meetings & Tasks</p>
-            <h2>Weekly explorer board</h2>
-          </div>
-          <div class="inline-form inline-form--filter">
-            <select class="field-input" data-action="filter-de-week">
-              <option value="all" ${activeWeek === 'all' ? 'selected' : ''}>All weeks</option>
-              ${weekOptions.map((week) => `<option value="${escapeHtml(week)}" ${week === activeWeek ? 'selected' : ''}>${escapeHtml(week)}</option>`).join('')}
-            </select>
+            <h2>Meeting boards</h2>
           </div>
         </div>
-        ${sortedMeetings.length ? `<div class="meetings-panel">${sortedMeetings.map((meeting, index) => renderMeetingItem(meeting, index)).join('')}</div>` : ''}
         <div class="de-forms-bar">
           <form class="de-form de-form--meeting" data-form="meeting-create">
             <input name="date" class="field-input field-input--sm" type="date" placeholder="Date" />
@@ -57,64 +42,75 @@ export function renderDataExplorerSection(state, uiState) {
             <textarea name="notes" class="field-input field-input--sm" rows="1" placeholder="Notes"></textarea>
             <button class="button button--secondary button--sm" type="button" data-action="add-meeting">Add Meeting</button>
           </form>
-          <form class="de-form de-form--task" data-form="task-create">
-            <input name="name" class="field-input field-input--sm" type="text" placeholder="Task title" />
-            <input name="week" class="field-input field-input--sm" type="text" placeholder="Week" />
-            <input name="assignee" class="field-input field-input--sm" type="text" placeholder="Assignee" />
-            <select name="status" class="field-input field-input--sm">${STATUS_OPTIONS.map((status) => `<option value="${status}">${formatStatus(status)}</option>`).join('')}</select>
-            <select name="priority" class="field-input field-input--sm"><option value="High">High</option><option value="Média" selected>Média</option><option value="Low">Low</option></select>
-            <input name="dueDate" class="field-input field-input--sm" type="date" />
-            <button class="button button--primary button--sm" type="button" data-action="add-task">Add Task</button>
-          </form>
         </div>
         <div class="stack-list">
-          ${Object.keys(grouped).length ? Object.entries(grouped).map(([week, tasks]) => renderWeekBoard(week, tasks)).join('') : renderEmptyBoard()}
+          ${sortedMeetings.length ? sortedMeetings.map((meeting) => renderMeetingBoard(meeting, getTasksForMeeting(state.deTasks || [], meeting), uiState)).join('') : renderEmptyBoard()}
         </div>
       </section>
     </section>
   `;
 }
 
-function groupTasksByWeek(tasks) {
-  return tasks.reduce((accumulator, task) => {
-    const key = task.week || 'Backlog';
-    if (!accumulator[key]) {
-      accumulator[key] = [];
-    }
-    accumulator[key].push(task);
-    return accumulator;
-  }, {});
+function getTasksForMeeting(tasks, meeting) {
+  const meetingId = String(meeting?.id || '').trim();
+  const meetingDate = String(meeting?.date || '').trim();
+  const meetingName = String(meeting?.name || '').trim();
+  return tasks.filter((task) => {
+    const taskWeek = String(task?.week || '').trim();
+    const taskMeetingId = String(task?.meetingId || '').trim();
+    return taskMeetingId === meetingId || taskWeek === meetingId || taskWeek === meetingDate || taskWeek === meetingName;
+  });
 }
 
-function renderWeekBoard(week, tasks) {
+function renderMeetingBoard(meeting, tasks, uiState) {
+  const meetingId = escapeHtml(meeting.id || '');
+  const dateValue = escapeHtml(meeting.date || '');
+  const nameValue = escapeHtml(meeting.name || '');
+  const notesValue = escapeHtml(meeting.notes || '');
+  const isEditing = uiState?.editingMeetingId === (meeting.id || '');
+
   return `
     <article class="week-board">
-      <header class="week-board__header">
-        <div>
-          <h3>${escapeHtml(week)}</h3>
+      <header class="week-board__header de-meeting-head">
+        <div class="de-meeting-head__main">
+          ${isEditing ? `
+            <form class="de-form de-form--meeting de-form--meeting-edit" data-form="meeting-edit" data-meeting-id="${meetingId}">
+              <input name="date" class="field-input field-input--sm" type="date" value="${dateValue}" />
+              <input name="name" class="field-input field-input--sm" type="text" value="${nameValue}" placeholder="Meeting name" />
+              <input name="notes" class="field-input field-input--sm" type="text" value="${notesValue}" placeholder="Notes" />
+            </form>
+          ` : `
+            <div class="de-meeting-summary">
+              <p class="de-meeting-summary__kicker">Meeting</p>
+              <h3>${nameValue || 'Untitled meeting'}${dateValue ? ` · ${dateValue}` : ''}</h3>
+              ${notesValue ? `<p class="de-meeting-summary__notes">${notesValue}</p>` : ''}
+            </div>
+          `}
         </div>
-        <span class="badge">${tasks.length} tasks</span>
+        <div class="de-meeting-actions">
+          <span class="badge">${tasks.length} tasks</span>
+          ${isEditing
+            ? `<button class="button button--primary btn-xs" type="button" data-action="save-edit-meeting" data-meeting-id="${meetingId}">Save</button>
+               <button class="button btn-xs" type="button" data-action="cancel-edit-meeting" data-meeting-id="${meetingId}">Cancel</button>`
+            : `<button class="btn-icon btn-icon--edit" type="button" data-action="edit-meeting" data-meeting-id="${meetingId}" title="Edit meeting">
+                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+               </button>`}
+          <button class="btn-icon btn-icon--danger" type="button" data-action="remove-meeting" data-meeting-id="${meetingId}" title="Delete meeting">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 6l-1.4 14H6.4L5 6M10 11v6M14 11v6M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/></svg>
+          </button>
+        </div>
       </header>
+      <form class="de-form de-form--task" data-form="task-create" data-meeting-id="${meetingId}">
+        <input name="name" class="field-input field-input--sm" type="text" placeholder="Task title" />
+        <input name="assignee" class="field-input field-input--sm" type="text" placeholder="Assignee" />
+        <select name="priority" class="field-input field-input--sm"><option value="High">High</option><option value="Média" selected>Média</option><option value="Low">Low</option></select>
+        <input name="dueDate" class="field-input field-input--sm" type="date" />
+        <button class="button button--primary button--sm" type="button" data-action="add-task" data-meeting-id="${meetingId}">Add Task</button>
+      </form>
       <div class="week-board__columns">
         ${STATUS_OPTIONS.map((status) => renderStatusColumn(status, tasks.filter((task) => task.status === status))).join('')}
       </div>
     </article>
-  `;
-}
-
-function renderMeetingItem(meeting, index) {
-  const hasDate = meeting.date && meeting.date.trim();
-  return `
-    <div class="meeting-item">
-      <div class="meeting-content">
-        <strong>${escapeHtml(meeting.name || 'Untitled')}</strong>
-        ${meeting.notes ? `<span class="meeting-notes"> · ${escapeHtml(meeting.notes)}</span>` : ''}
-      </div>
-      <div class="meeting-date-edit" data-meeting-index="${index}">
-        <input class="meeting-date-input" type="date" value="${hasDate ? escapeHtml(meeting.date) : ''}" data-action="update-meeting-date" data-meeting-id="${escapeHtml(meeting.id)}" />
-        <button class="btn-icon btn-icon--danger" type="button" data-action="remove-meeting" data-meeting-id="${escapeHtml(meeting.id)}" title="Delete" style="font-size: 0.85em;">✕</button>
-      </div>
-    </div>
   `;
 }
 
@@ -158,8 +154,8 @@ function renderTaskCard(task) {
 function renderEmptyBoard() {
   return `
     <article class="empty-card">
-      <h3>No tasks yet</h3>
-      <p>Add a meeting or a task inline and the weekly board will populate automatically.</p>
+      <h3>No meetings yet</h3>
+      <p>Create a meeting first, then add tasks inside that meeting board.</p>
     </article>
   `;
 }
