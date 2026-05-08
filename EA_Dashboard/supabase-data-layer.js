@@ -209,8 +209,10 @@ async function replaceDataExplorerSnapshot(tasks){
       id:task.id,
       name:task.name || '',
       week:task.week || null,
+      meeting_id:task.meetingId || '',
       status:STRUCTURED_STATUS.deTask.includes(task.status) ? task.status : 'inprogress',
       assignee:task.assignee || '',
+      jira_id:task.jiraId || '',
       priority:task.priority || 'Média',
       due_date:task.dueDate || null,
       notes:task.notes || '',
@@ -299,6 +301,16 @@ async function saveStructuredMetadata(snapshot){
       key:'spTeamMembers',
       value:sprintMembers,
       updated_at:now
+    },
+    {
+      key:'spNotes',
+      value:structuredSafeRows(snapshot.spNotes).map(note=>({
+        id:note?.id || '',
+        text:note?.text || '',
+        link:note?.link || '',
+        createdAt:note?.createdAt || ''
+      })),
+      updated_at:now
     }
   ];
   const {error}=await sbClient.from('settings').upsert(rows,{onConflict:'key'});
@@ -357,7 +369,7 @@ async function replaceSprintsSnapshot(sprints){
   if(!sbClient)return;
   const now=new Date().toISOString();
   const flags=STRUCTURED_SCHEMA_FLAGS.sprints || await detectTableColumns('sprints',['team','team_id','sort_order','start_date','end_date']);
-  const ticketFlags=STRUCTURED_SCHEMA_FLAGS.sprintTickets || await detectTableColumns('sprint_tickets',['priority']);
+  const ticketFlags=STRUCTURED_SCHEMA_FLAGS.sprintTickets || await detectTableColumns('sprint_tickets',['priority','epic_id']);
   STRUCTURED_SCHEMA_FLAGS.sprints=flags;
   STRUCTURED_SCHEMA_FLAGS.sprintTickets=ticketFlags;
   const sprintRows=structuredSafeRows(sprints).map((sprint,index)=>{
@@ -379,6 +391,7 @@ async function replaceSprintsSnapshot(sprints){
       sprint_id:sprint.id,
       assignee:ticket.assignee || '',
       jira_id:ticket.jiraId || '',
+      epic_id:ticket.epicId || '',
       jira_url:ticket.jiraUrl || '',
       title:ticket.title || '',
       description:ticket.notes || ticket.desc || '',
@@ -386,6 +399,7 @@ async function replaceSprintsSnapshot(sprints){
       sort_order:ticketIndex,
       updated_at:now
     };
+    if(!ticketFlags.epic_id)delete row.epic_id;
     if(ticketFlags.priority){
       const normalizedPriority=String(ticket.priority || '').trim().toLowerCase();
       row.priority=normalizedPriority==='high' ? 'High' : normalizedPriority==='low' ? 'Low' : 'Medium';
@@ -423,9 +437,10 @@ async function loadStructuredSettings(){
 async function loadStructuredMetadata(){
   const result={
     deMeetings:[],
-    spTeamMembers:[]
+    spTeamMembers:[],
+    spNotes:[]
   };
-  const {data,error}=await sbClient.from('settings').select('key,value').in('key',['deMeetings','spTeamMembers']);
+  const {data,error}=await sbClient.from('settings').select('key,value').in('key',['deMeetings','spTeamMembers','spNotes']);
   if(error)throw error;
   (data || []).forEach(row=>{
     if(row.key==='deMeetings'){
@@ -456,6 +471,14 @@ async function loadStructuredMetadata(){
             return true;
           });
       }
+    }
+    if(row.key==='spNotes'){
+      result.spNotes=structuredSafeRows(row.value).map(note=>({
+        id:note?.id || '',
+        text:note?.text || '',
+        link:note?.link || '',
+        createdAt:note?.createdAt || ''
+      }));
     }
   });
   return result;
@@ -549,8 +572,10 @@ async function loadStructuredDataExplorer(){
     id:task.id,
     name:task.name || task.title || '',
     week:task.week || '',
+    meetingId:task.meeting_id || '',
     status:task.status,
     assignee:task.assignee || '',
+    jiraId:task.jira_id || '',
     priority:task.priority || 'Média',
     dueDate:task.due_date || '',
     notes:task.notes || '',
@@ -653,7 +678,8 @@ async function loadStructuredSprints(){
     end_date:(sprints || []).some(sprint=>Object.prototype.hasOwnProperty.call(sprint,'end_date'))
   };
   STRUCTURED_SCHEMA_FLAGS.sprintTickets={
-    priority:(tickets || []).some(ticket=>Object.prototype.hasOwnProperty.call(ticket,'priority'))
+    priority:(tickets || []).some(ticket=>Object.prototype.hasOwnProperty.call(ticket,'priority')),
+    epic_id:(tickets || []).some(ticket=>Object.prototype.hasOwnProperty.call(ticket,'epic_id'))
   };
   const groupedTickets=sortStructuredRows(tickets).reduce((acc,ticket)=>{
     if(!acc[ticket.sprint_id])acc[ticket.sprint_id]=[];
@@ -662,6 +688,7 @@ async function loadStructuredSprints(){
       id:ticket.id,
       assignee:ticket.assignee || '',
       jiraId:ticket.jira_id || '',
+      epicId:ticket.epic_id || '',
       jiraUrl:ticket.jira_url || '',
       title:ticket.title,
       desc:ticket.description || '',
@@ -713,7 +740,8 @@ export async function loadAllData(){
       rpdeTickets:rpdeTickets.status==='fulfilled' ? rpdeTickets.value : [],
       msData:msData.status==='fulfilled' ? msData.value : [],
       spData:spData.status==='fulfilled' ? spData.value : [],
-      spTeamMembers:metadata.status==='fulfilled' ? metadata.value.spTeamMembers : []
+      spTeamMembers:metadata.status==='fulfilled' ? metadata.value.spTeamMembers : [],
+      spNotes:metadata.status==='fulfilled' ? metadata.value.spNotes : []
     };
   }catch(err){
     console.error('Structured load failed:', err);

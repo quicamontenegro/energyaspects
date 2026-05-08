@@ -23,6 +23,7 @@ export function createDashboardApp(root, initialSnapshot, persistence) {
     milestoneStatus: 'all',
     editingTicket: null,
     editingSprintIndex: null,
+    editingSprintNoteId: null,
   };
 
   function persist(snapshot) {
@@ -208,6 +209,7 @@ function getRemovalConfirmMessage(action, trigger) {
     'remove-milestone': 'Remove this milestone and all its tasks?',
     'remove-milestone-task': 'Remove this task from the milestone?',
     'remove-sprint-member': 'Remove this member from the team?',
+    'remove-sprint-note': 'Remove this sprint note?',
     'remove-rpde-ticket': 'Remove this queue item?',
     'remove-sprint-plan': 'Remove this sprint and all its tickets?',
     'remove-sprint-ticket': 'Remove this ticket from the sprint?',
@@ -430,12 +432,12 @@ function handleClickAction(trigger, updateState, root, uiState, render) {
       state.deTasks.push({
         id: createId('de-task'),
         name,
-        week: meetingId,
+        week: null,
         meetingId,
         assignee: String(form?.get('assignee') || '').trim(),
+        jiraId: String(form?.get('jiraId') || '').trim(),
         status: String(form?.get('status') || 'inprogress'),
         priority: String(form?.get('priority') || 'Medium'),
-        dueDate: String(form?.get('dueDate') || ''),
         notes: String(form?.get('notes') || '').trim(),
         createdAt: new Date().toISOString(),
       });
@@ -517,6 +519,70 @@ function handleClickAction(trigger, updateState, root, uiState, render) {
       members.splice(memberIndex, 1);
       state.spTeamMembers = members;
     });
+    return;
+  }
+
+  if (trigger.dataset.action === 'add-sprint-note') {
+    const form = readForm(root, '[data-form="sprint-note-create"]');
+    const text = String(form?.get('text') || '').trim();
+    const link = String(form?.get('link') || '').trim();
+    if (!text) return;
+    updateState((state) => {
+      const notes = Array.isArray(state.spNotes) ? state.spNotes : [];
+      notes.unshift({
+        id: createId('sprint-note'),
+        text,
+        link,
+        createdAt: new Date().toISOString(),
+      });
+      state.spNotes = notes;
+    });
+    resetForm(root, '[data-form="sprint-note-create"]');
+    return;
+  }
+
+  if (trigger.dataset.action === 'edit-sprint-note') {
+    uiState.editingSprintNoteId = String(trigger.dataset.noteId || '').trim() || null;
+    render();
+    return;
+  }
+
+  if (trigger.dataset.action === 'cancel-edit-sprint-note') {
+    uiState.editingSprintNoteId = null;
+    render();
+    return;
+  }
+
+  if (trigger.dataset.action === 'save-edit-sprint-note') {
+    const noteId = String(trigger.dataset.noteId || '').trim();
+    if (!noteId) return;
+    const form = readForm(root, `[data-form="sprint-note-edit"][data-note-id="${noteId}"]`);
+    const text = String(form?.get('text') || '').trim();
+    const link = String(form?.get('link') || '').trim();
+    if (!text) return;
+    updateState((state) => {
+      const notes = Array.isArray(state.spNotes) ? state.spNotes : [];
+      const note = notes.find((item) => String(item?.id || '') === noteId);
+      if (!note) return;
+      note.text = text;
+      note.link = link;
+    });
+    uiState.editingSprintNoteId = null;
+    render();
+    return;
+  }
+
+  if (trigger.dataset.action === 'remove-sprint-note') {
+    const noteId = String(trigger.dataset.noteId || '').trim();
+    if (!noteId) return;
+    updateState((state) => {
+      const notes = Array.isArray(state.spNotes) ? state.spNotes : [];
+      state.spNotes = notes.filter((note) => String(note?.id || '') !== noteId);
+    });
+    if (uiState.editingSprintNoteId === noteId) {
+      uiState.editingSprintNoteId = null;
+      render();
+    }
     return;
   }
 
@@ -635,6 +701,7 @@ function handleClickAction(trigger, updateState, root, uiState, render) {
         id: createId('sprint-ticket'),
         title,
         jiraId: String(form?.get('jiraId') || '').trim(),
+        epicId: String(form?.get('epicId') || '').trim(),
         jiraUrl: String(form?.get('jiraUrl') || '').trim(),
         desc: notes,
         notes,
@@ -675,6 +742,7 @@ function handleClickAction(trigger, updateState, root, uiState, render) {
       ticket.status = String(formData.get('status') || 'todo').trim();
       ticket.priority = String(formData.get('priority') || 'Medium').trim() || 'Medium';
       ticket.jiraId = String(formData.get('jiraId') || '').trim();
+      ticket.epicId = String(formData.get('epicId') || '').trim();
       ticket.jiraUrl = String(formData.get('jiraUrl') || '').trim();
       const notes = String(formData.get('notes') || '').trim();
       ticket.notes = notes;

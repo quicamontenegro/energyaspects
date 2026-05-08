@@ -102,8 +102,10 @@ create table if not exists public.data_explorer_tasks (
   id text primary key,
   name text not null,
   week date,
+  meeting_id text not null default '',
   status text not null check (status in ('inprogress','completed','roadmap','blocked','onhold')),
   assignee text not null default '',
+  jira_id text not null default '',
   priority text not null default 'Média',
   due_date date,
   notes text not null default '',
@@ -113,8 +115,10 @@ create table if not exists public.data_explorer_tasks (
 
 alter table public.data_explorer_tasks add column if not exists name text not null default '';
 alter table public.data_explorer_tasks add column if not exists week date;
+alter table public.data_explorer_tasks add column if not exists meeting_id text not null default '';
 alter table public.data_explorer_tasks add column if not exists status text not null default 'inprogress';
 alter table public.data_explorer_tasks add column if not exists assignee text not null default '';
+alter table public.data_explorer_tasks add column if not exists jira_id text not null default '';
 alter table public.data_explorer_tasks add column if not exists priority text not null default 'Média';
 alter table public.data_explorer_tasks add column if not exists due_date date;
 alter table public.data_explorer_tasks add column if not exists notes text not null default '';
@@ -224,6 +228,7 @@ create table if not exists public.sprint_tickets (
   sprint_id text not null references public.sprints(id) on delete cascade,
   assignee text not null default '',
   jira_id text not null default '',
+  epic_id text not null default '',
   jira_url text not null default '',
   title text not null,
   description text not null default '',
@@ -236,6 +241,7 @@ create table if not exists public.sprint_tickets (
 alter table public.sprint_tickets add column if not exists sprint_id text;
 alter table public.sprint_tickets add column if not exists assignee text not null default '';
 alter table public.sprint_tickets add column if not exists jira_id text not null default '';
+alter table public.sprint_tickets add column if not exists epic_id text not null default '';
 alter table public.sprint_tickets add column if not exists jira_url text not null default '';
 alter table public.sprint_tickets add column if not exists title text not null default '';
 alter table public.sprint_tickets add column if not exists description text not null default '';

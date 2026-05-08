@@ -37,15 +37,28 @@ export function renderDataExplorerSection(state, uiState) {
           </div>
         </div>
         <div class="de-forms-bar">
-          <form class="de-form de-form--meeting" data-form="meeting-create">
-            <input name="date" class="field-input field-input--sm" type="date" placeholder="Date" />
-            <input name="name" class="field-input field-input--sm" type="text" placeholder="Meeting name" />
-            <textarea name="notes" class="field-input field-input--sm" rows="1" placeholder="Notes"></textarea>
-            <button class="button button--secondary button--sm" type="button" data-action="add-meeting">Add Meeting</button>
+          <form class="de-form--meeting-create" data-form="meeting-create">
+            <div class="meeting-form__fields">
+              <div class="form-group">
+                <label class="form-label">Date</label>
+                <input name="date" class="field-input" type="date" />
+              </div>
+              <div class="form-group">
+                <label class="form-label">Meeting Name</label>
+                <input name="name" class="field-input" type="text" placeholder="e.g., Sprint Planning, Daily Standup" />
+              </div>
+              <div class="form-group form-group--full">
+                <label class="form-label">Notes (Optional)</label>
+                <textarea name="notes" class="field-input" rows="2" placeholder="Add any relevant notes..."></textarea>
+              </div>
+            </div>
+            <div class="meeting-form__footer">
+              <button class="button button--primary" type="button" data-action="add-meeting">Create Meeting</button>
+            </div>
           </form>
         </div>
         <div class="stack-list">
-          ${sortedMeetings.length ? sortedMeetings.map((meeting) => renderMeetingBoard(meeting, getTasksForMeeting(state.deTasks || [], meeting), uiState)).join('') : renderEmptyBoard()}
+          ${sortedMeetings.length ? sortedMeetings.map((meeting) => renderMeetingBoard(meeting, getTasksForMeeting(state.deTasks || [], meeting), uiState, state.spTeamMembers || [])).join('') : renderEmptyBoard()}
         </div>
       </section>
     </section>
@@ -63,7 +76,7 @@ function getTasksForMeeting(tasks, meeting) {
   });
 }
 
-function renderMeetingBoard(meeting, tasks, uiState) {
+function renderMeetingBoard(meeting, tasks, uiState, teamMembers) {
   const meetingId = escapeHtml(meeting.id || '');
   const dateValue = escapeHtml(meeting.date || '');
   const nameValue = escapeHtml(meeting.name || '');
@@ -78,7 +91,7 @@ function renderMeetingBoard(meeting, tasks, uiState) {
             <form class="de-form de-form--meeting de-form--meeting-edit" data-form="meeting-edit" data-meeting-id="${meetingId}">
               <input name="date" class="field-input field-input--sm" type="date" value="${dateValue}" />
               <input name="name" class="field-input field-input--sm" type="text" value="${nameValue}" placeholder="Meeting name" />
-              <input name="notes" class="field-input field-input--sm" type="text" value="${notesValue}" placeholder="Notes" />
+              <textarea name="notes" class="field-input field-input--sm" rows="2" placeholder="Notes">${notesValue}</textarea>
             </form>
           ` : `
             <div class="de-meeting-summary">
@@ -103,14 +116,17 @@ function renderMeetingBoard(meeting, tasks, uiState) {
       </header>
       <form class="de-form de-form--task" data-form="task-create" data-meeting-id="${meetingId}">
         <input name="name" class="field-input field-input--sm" type="text" placeholder="Task title" />
-        <input name="assignee" class="field-input field-input--sm" type="text" placeholder="Assignee" />
+        <select name="assignee" class="field-input field-input--sm">
+          <option value="">Select Assignee</option>
+          ${(teamMembers || []).map((member) => `<option value="${escapeHtml(member.name)}">${escapeHtml(member.name)}</option>`).join('')}
+        </select>
+        <input name="jiraId" class="field-input field-input--sm" type="text" placeholder="JIRA ID" />
         <select name="priority" class="field-input field-input--sm"><option value="High">High</option><option value="Medium" selected>Medium</option><option value="Low">Low</option></select>
-        <input name="dueDate" class="field-input field-input--sm" type="date" />
         <input name="notes" class="field-input field-input--sm" type="text" placeholder="Notes" />
         <button class="button button--primary button--sm" type="button" data-action="add-task" data-meeting-id="${meetingId}">Add Task</button>
       </form>
       <div class="week-board__columns">
-        ${STATUS_OPTIONS.map((status) => renderStatusColumn(status, tasks.filter((task) => task.status === status))).join('')}
+        ${STATUS_OPTIONS.filter((status) => tasks.some((task) => task.status === status)).map((status) => renderStatusColumn(status, tasks.filter((task) => task.status === status))).join('')}
       </div>
     </article>
   `;
@@ -135,7 +151,7 @@ function renderTaskCard(task) {
   const pColor = PRIORITY_COLOR[priority] || PRIORITY_COLOR.Medium;
   const taskNotes = String(task.notes || task.desc || task.description || '').trim();
   const hasNotes = taskNotes.length > 0;
-  const hasDue = task.dueDate && task.dueDate.trim();
+  const jiraId = String(task.jiraId || '').trim();
   return `
     <article class="task-card">
       <div class="task-card__top">
@@ -146,7 +162,7 @@ function renderTaskCard(task) {
         <span class="priority-badge" style="background:${pColor.bg};color:${pColor.text}">${escapeHtml(priority)}</span>
         ${task.assignee ? `<span class="assignee-chip"><span class="av-xs">${initials(task.assignee)}</span>${escapeHtml(task.assignee)}</span>` : ''}
       </div>
-      ${hasDue ? `<div class="task-due">📅 ${escapeHtml(task.dueDate)}</div>` : ''}
+      ${jiraId ? `<div class="task-jira-id">Jira: ${escapeHtml(jiraId)}</div>` : ''}
       ${hasNotes ? `<p class="task-notes">${escapeHtml(taskNotes)}</p>` : ''}
       <select class="status-select" data-action="update-de-status" data-task-id="${escapeHtml(task.id)}">
         ${STATUS_OPTIONS.map((option) => `<option value="${option}" ${task.status === option ? 'selected' : ''}>${formatStatus(option)}</option>`).join('')}

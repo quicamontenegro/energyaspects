@@ -42,6 +42,7 @@ export function createDefaultSnapshot() {
     msData: [],
     spData: [],
     spTeamMembers: [],
+    spNotes: [],
   };
 }
 
@@ -98,6 +99,9 @@ export function mergeSnapshot(baseSnapshot, remoteSnapshot) {
       name: member?.name || '',
       role: member?.role || '',
     }));
+  }
+  if (Array.isArray(remote.spNotes)) {
+    base.spNotes = cloneState(remote.spNotes);
   }
 
   return base;

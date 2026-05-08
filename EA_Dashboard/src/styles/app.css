@@ -461,6 +461,7 @@ button {
   display: flex;
   flex-direction: column;
   gap: 8px;
+  min-height: 200px;
 }
 
 .status-column--blocked {
@@ -473,8 +474,49 @@ button {
   border-color: rgba(15, 118, 110, 0.1);
 }
 
+.status-col-title {
+  font-size: 0.875rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text);
+  margin: 0 0 8px 0;
+  padding: 0;
+}
+
+.status-col-count {
+  font-weight: 700;
+  color: var(--muted);
+  margin-left: auto;
+  background: rgba(0, 0, 0, 0.04);
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 0.75rem;
+}
+
+.status-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.empty-column {
+  padding: 32px 14px;
+  border-radius: var(--radius-lg);
+  border: 1px dashed rgba(15, 23, 42, 0.12);
+  background: rgba(15, 23, 42, 0.02);
+  text-align: center;
+  color: var(--muted);
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
 .task-card,
-.empty-column,
 .task-line,
 .member-card {
   padding: 14px;
@@ -690,6 +732,88 @@ button {
   align-items: end;
 }
 
+.sprint-notes-card {
+  padding: 18px;
+}
+
+.sprint-notes-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.sprint-note-item {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.85);
+  border: 1px solid rgba(15, 23, 42, 0.08);
+}
+
+.sprint-note-item__meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.sprint-note-item__action-icons {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.sprint-note-item__text {
+  margin: 0;
+  white-space: pre-wrap;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--text);
+}
+
+.sprint-note-link {
+  font-size: 12px;
+  color: var(--indigo);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  word-break: break-word;
+}
+
+.sprint-note-link:hover {
+  color: var(--accent-strong);
+}
+
+.sprint-note-edit-form {
+  display: grid;
+  gap: 8px;
+}
+
+.sprint-note-edit-form textarea {
+  min-height: 72px;
+  resize: vertical;
+}
+
+.sprint-note-item__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.sprint-notes-form {
+  display: grid;
+  grid-template-columns: minmax(260px, 1fr) minmax(200px, 300px) auto;
+  gap: 8px;
+  align-items: end;
+}
+
+.sprint-notes-form textarea {
+  min-height: 72px;
+  resize: vertical;
+}
+
 .sprint-backlog-card {
   padding: 18px;
 }
@@ -821,6 +945,14 @@ button {
   gap: 6px;
 }
 
+.sprint-ticket-ids {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+}
+
 .sprint-ticket-id {
   display: inline-block;
   font-size: 10px;
@@ -842,6 +974,20 @@ a.sprint-ticket-id:hover {
   font-size: 12px;
   font-weight: 600;
   line-height: 1.3;
+}
+
+.sprint-ticket-epic {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  font-size: 10px;
+  font-weight: 700;
+  color: #0369a1;
+  background: rgba(14, 165, 233, 0.14);
+  border: 1px solid rgba(14, 165, 233, 0.25);
+  border-radius: 999px;
+  padding: 2px 7px;
+  letter-spacing: 0.03em;
 }
 
 .sprint-ticket-note-preview {
@@ -1190,9 +1336,58 @@ a.sprint-ticket-id:hover {
   border-radius: var(--radius-lg);
 }
 
+.de-form--meeting-create {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  width: 100%;
+  background: rgba(255, 255, 255, 0.4);
+  padding: 20px 20px;
+  border-radius: var(--radius-lg);
+  border: 1px solid rgba(15, 23, 42, 0.08);
+}
+
+.meeting-form__fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.form-group--full {
+  grid-column: 1 / -1;
+}
+
+.form-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text);
+  opacity: 0.7;
+}
+
+.meeting-form__footer {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: 6px;
+}
+
+.meeting-form__footer .button {
+  min-width: 140px;
+}
+
 .de-form--meeting {
-  grid-template-columns: 120px 1fr 140px auto;
-  align-items: end;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+  padding: 12px;
+  border-radius: var(--radius-lg);
 }
 
 .de-form--meeting-edit {
@@ -1245,6 +1440,7 @@ a.sprint-ticket-id:hover {
   background: rgba(15, 23, 42, 0.04);
   color: var(--muted);
   line-height: 1.45;
+  white-space: pre-line;
 }
 
 .de-meeting-date {
@@ -1266,7 +1462,7 @@ a.sprint-ticket-id:hover {
 }
 
 .de-form--task {
-  grid-template-columns: 1fr 100px 100px 110px 100px 120px auto;
+  grid-template-columns: 280px 120px 110px 110px 100px 120px auto;
   align-items: end;
 }
 
@@ -1303,6 +1499,10 @@ a.sprint-ticket-id:hover {
   }
 
   .sprint-members-form {
+    grid-template-columns: 1fr 1fr auto;
+  }
+
+  .sprint-notes-form {
     grid-template-columns: 1fr 1fr auto;
   }
 
@@ -1398,6 +1598,10 @@ a.sprint-ticket-id:hover {
   }
 
   .sprint-members-form {
+    grid-template-columns: 1fr;
+  }
+
+  .sprint-notes-form {
     grid-template-columns: 1fr;
   }
 
@@ -1734,6 +1938,12 @@ a.sprint-ticket-id:hover {
 .task-due {
   font-size: 11px;
   color: var(--muted);
+}
+
+.task-jira-id {
+  font-size: 11px;
+  color: var(--muted);
+  font-weight: 500;
 }
 
 .task-notes {
