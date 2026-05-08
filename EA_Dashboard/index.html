@@ -1,31 +1,14 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>EA Dashboard</title>
-<style>
-  html,body{margin:0;height:100%;background:#eef2f7;}
-  .shell{position:fixed;inset:0;border:0;width:100%;height:100%;background:#eef2f7;}
-</style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>EA Dashboard</title>
+  <meta name="supabase-url" content="%VITE_SUPABASE_URL%" />
+  <meta name="supabase-anon-key" content="%VITE_SUPABASE_ANON_KEY%" />
 </head>
 <body>
-<iframe
-  class="shell"
-  id="shell"
-  src="/invoicing_dashboard.html#sprints"
-  title="EA Dashboard"
-  loading="eager"
-  referrerpolicy="same-origin"
-></iframe>
-<script>
-  (function(){
-    var h=(location.hash||'').replace('#','').trim();
-    if(h)document.getElementById('shell').src='/invoicing_dashboard.html#'+h;
-    window.addEventListener('message',function(e){
-      if(e.data&&e.data.type==='tabChange')history.replaceState(null,'','#'+e.data.tab);
-    });
-  })();
-</script>
+  <div id="app"></div>
+  <script type="module" src="/src/main.js"></script>
 </body>
 </html>
