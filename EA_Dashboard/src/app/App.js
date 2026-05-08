@@ -19,6 +19,7 @@ export function createDashboardApp(root, initialSnapshot, persistence) {
     milestoneTeam: 'rp',
     milestoneStatus: 'all',
     editingTicket: null,
+    editingSprintIndex: null,
   };
 
   function persist(snapshot) {
@@ -505,9 +506,21 @@ function handleClickAction(trigger, updateState, root, uiState, render) {
   if (trigger.dataset.action === 'add-sprint-plan') {
     const form = readForm(root, '[data-form="sprint-create"]');
     const name = String(form?.get('name') || '').trim();
-    if (!name) return;
+    const startDate = String(form?.get('startDate') || '').trim();
+    const endDate = String(form?.get('endDate') || '').trim();
+    if (!name || !startDate || !endDate) return;
+    const [normalizedStartDate, normalizedEndDate] = startDate <= endDate
+      ? [startDate, endDate]
+      : [endDate, startDate];
     updateState((state) => {
-      state.spData.push({ id: createId('sprint'), name, tickets: [] });
+      state.spData.push({
+        id: createId('sprint'),
+        name,
+        startDate: normalizedStartDate,
+        endDate: normalizedEndDate,
+        createdAt: new Date().toISOString(),
+        tickets: [],
+      });
     });
     resetForm(root, '[data-form="sprint-create"]');
     return;
@@ -517,6 +530,45 @@ function handleClickAction(trigger, updateState, root, uiState, render) {
     updateState((state) => {
       state.spData.splice(sprintIndex, 1);
     });
+    if (uiState.editingSprintIndex === sprintIndex) {
+      uiState.editingSprintIndex = null;
+    }
+    render();
+    return;
+  }
+
+  if (trigger.dataset.action === 'edit-sprint-plan' && Number.isInteger(sprintIndex)) {
+    uiState.editingSprintIndex = sprintIndex;
+    render();
+    return;
+  }
+
+  if (trigger.dataset.action === 'cancel-edit-sprint-plan' && Number.isInteger(sprintIndex)) {
+    uiState.editingSprintIndex = null;
+    render();
+    return;
+  }
+
+  if (trigger.dataset.action === 'save-edit-sprint-plan' && Number.isInteger(sprintIndex)) {
+    const form = readForm(root, `[data-form="sprint-edit"][data-sprint-index="${sprintIndex}"]`);
+    const name = String(form?.get('name') || '').trim();
+    const startDate = String(form?.get('startDate') || '').trim();
+    const endDate = String(form?.get('endDate') || '').trim();
+    if (!name || !startDate || !endDate) return;
+    const [normalizedStartDate, normalizedEndDate] = startDate <= endDate
+      ? [startDate, endDate]
+      : [endDate, startDate];
+
+    updateState((state) => {
+      const sprint = state.spData[sprintIndex];
+      if (!sprint) return;
+      sprint.name = name;
+      sprint.startDate = normalizedStartDate;
+      sprint.endDate = normalizedEndDate;
+    });
+
+    uiState.editingSprintIndex = null;
+    render();
     return;
   }
 

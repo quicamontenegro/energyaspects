@@ -16,6 +16,34 @@ const STATUS_COLOR = {
 export function renderSprintsSection(state, uiState) {
   const sprintMembers = getSprintMembers(state.spTeamMembers);
   const sprints = state.spData || [];
+  const sprintEntries = sprints
+    .map((sprint, index) => ({ sprint, index }))
+    .sort((left, right) => {
+      const leftEnd = parseSprintDate(left.sprint?.endDate);
+      const rightEnd = parseSprintDate(right.sprint?.endDate);
+      
+      // Primary: sort by end date (most recent first)
+      if (leftEnd && rightEnd && leftEnd.getTime() !== rightEnd.getTime()) {
+        return rightEnd.getTime() - leftEnd.getTime();
+      }
+      
+      // Secondary: if end dates are equal, sort by start date (most recent first)
+      const leftStart = parseSprintDate(left.sprint?.startDate);
+      const rightStart = parseSprintDate(right.sprint?.startDate);
+      if (leftStart && rightStart && leftStart.getTime() !== rightStart.getTime()) {
+        return rightStart.getTime() - leftStart.getTime();
+      }
+      
+      // Tertiary: if dates are equal, sort by creation date (most recent first)
+      const leftCreated = parseSprintDate(left.sprint?.createdAt);
+      const rightCreated = parseSprintDate(right.sprint?.createdAt);
+      if (leftCreated && rightCreated) {
+        return rightCreated.getTime() - leftCreated.getTime();
+      }
+      
+      return 0;
+    });
+  
   const totalTickets = sprints.reduce((sum, sprint) => sum + (sprint.tickets || []).length, 0);
 
   return `
@@ -62,10 +90,12 @@ export function renderSprintsSection(state, uiState) {
         </div>
         <div class="sprint-create-form" data-form="sprint-create">
           <input name="name" class="field-input field-input--sm" type="text" placeholder="Sprint name" />
+          <input name="startDate" class="field-input field-input--sm" type="date" />
+          <input name="endDate" class="field-input field-input--sm" type="date" />
           <button class="button button--secondary button--sm" type="button" data-action="add-sprint-plan">Add sprint</button>
         </div>
         <div class="stack-list sprint-list">
-          ${sprints.length ? sprints.map((sprint) => renderSprintCard(state.spData.indexOf(sprint), sprint, getSprintMembers(state.spTeamMembers), uiState)).join('') : '<article class="empty-card"><h3>No sprint plans</h3><p>Create a sprint inline and start assigning tickets.</p></article>'}
+          ${sprintEntries.length ? sprintEntries.map(({ sprint, index }) => renderSprintCard(index, sprint, getSprintMembers(state.spTeamMembers), uiState)).join('') : '<article class="empty-card"><h3>No sprint plans</h3><p>Create a sprint inline and start assigning tickets.</p></article>'}
         </div>
       </section>
     </section>
@@ -75,20 +105,30 @@ export function renderSprintsSection(state, uiState) {
 function renderSprintCard(sprintIndex, sprint, sprintMembers, uiState) {
   const grouped = groupSprintTicketsByAssignee(sprint.tickets || [], sprintMembers);
   const visibleAssignees = Object.keys(grouped).filter((assignee) => grouped[assignee].length > 0);
+  const dateRange = formatSprintDateRange(sprint.startDate, sprint.endDate);
+  const isEditingSprint = uiState.editingSprintIndex === sprintIndex;
 
   return `
     <article class="sprint-card">
       <div class="sprint-card__top">
         <div class="sprint-card__head">
           <h3 class="sprint-card__title">${escapeHtml(sprint.name || 'Untitled sprint')}</h3>
-          <button class="btn-icon" type="button" data-action="remove-sprint-plan" data-sprint-index="${sprintIndex}" title="Delete sprint">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6h12zM10 11v6M14 11v6"/></svg>
-          </button>
+          <div class="sprint-card__actions">
+            <button class="btn-icon btn-icon--edit" type="button" data-action="edit-sprint-plan" data-sprint-index="${sprintIndex}" title="Edit sprint">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+            </button>
+            <button class="btn-icon" type="button" data-action="remove-sprint-plan" data-sprint-index="${sprintIndex}" title="Delete sprint">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6h12zM10 11v6M14 11v6"/></svg>
+            </button>
+          </div>
         </div>
         <div class="sprint-card__meta">
+          ${dateRange ? `<span class="sprint-date-range">${escapeHtml(dateRange)}</span>` : ''}
           <span class="sprint-badge">${(sprint.tickets || []).length} tickets</span>
         </div>
       </div>
+
+      ${isEditingSprint ? renderSprintEditForm(sprintIndex, sprint) : ''}
 
       <div class="sprint-board">
         ${visibleAssignees.length
@@ -215,6 +255,47 @@ function groupSprintTicketsByAssignee(tickets, sprintMembers) {
   });
 
   return grouped;
+}
+
+function renderSprintEditForm(sprintIndex, sprint) {
+  return `
+    <div class="sprint-edit-form" data-form="sprint-edit" data-sprint-index="${sprintIndex}">
+      <input name="name" class="field-input field-input--sm" type="text" value="${escapeHtml(sprint.name || '')}" placeholder="Sprint name" />
+      <input name="startDate" class="field-input field-input--sm" type="date" value="${escapeHtml(normalizeSprintDateInput(sprint.startDate))}" />
+      <input name="endDate" class="field-input field-input--sm" type="date" value="${escapeHtml(normalizeSprintDateInput(sprint.endDate))}" />
+      <button class="button button--secondary button--sm" type="button" data-action="cancel-edit-sprint-plan" data-sprint-index="${sprintIndex}">Cancel</button>
+      <button class="button button--primary button--sm" type="button" data-action="save-edit-sprint-plan" data-sprint-index="${sprintIndex}">Save</button>
+    </div>
+  `;
+}
+
+function normalizeSprintDateInput(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
+  const date = parseSprintDate(raw);
+  if (!date) return '';
+  return date.toISOString().slice(0, 10);
+}
+
+function parseSprintDate(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return null;
+  const date = new Date(raw);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function formatSprintDateRange(startDate, endDate) {
+  const start = formatSprintDate(startDate);
+  const end = formatSprintDate(endDate);
+  if (start && end) return `${start} - ${end}`;
+  return start || end || '';
+}
+
+function formatSprintDate(value) {
+  const date = parseSprintDate(value);
+  if (!date) return '';
+  return date.toLocaleDateString('pt-PT', { day: '2-digit', month: 'short' });
 }
 
 function groupSprintTicketsByStatus(tickets) {

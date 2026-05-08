@@ -202,12 +202,16 @@ create table if not exists public.sprints (
   id text primary key,
   team text not null check (team in ('rp','de')),
   name text not null,
+  start_date date,
+  end_date date,
   sort_order integer not null default 0,
   updated_at timestamptz not null default timezone('utc', now())
 );
 
 alter table public.sprints add column if not exists team text not null default 'rp';
 alter table public.sprints add column if not exists name text not null default '';
+alter table public.sprints add column if not exists start_date date;
+alter table public.sprints add column if not exists end_date date;
 alter table public.sprints add column if not exists sort_order integer not null default 0;
 alter table public.sprints add column if not exists updated_at timestamptz default timezone('utc', now());
 alter table public.sprints add column if not exists team_id text;

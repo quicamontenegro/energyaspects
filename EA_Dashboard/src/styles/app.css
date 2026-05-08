@@ -596,6 +596,12 @@ button {
   gap: 12px;
 }
 
+.sprint-card__actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
 .sprint-card__title {
   font-size: 14px;
   font-weight: 700;
@@ -617,6 +623,18 @@ button {
   background: rgba(79, 70, 229, 0.1);
   color: var(--indigo);
   border-radius: 6px;
+}
+
+.sprint-date-range {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 3px 8px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+  background: rgba(15, 23, 42, 0.06);
 }
 
 .sprint-members-grid {
@@ -696,10 +714,18 @@ button {
 
 .sprint-create-form {
   display: grid;
-  grid-template-columns: minmax(180px, 1fr) auto;
+  grid-template-columns: minmax(180px, 1fr) minmax(140px, 170px) minmax(140px, 170px) auto;
   gap: 8px;
   margin-bottom: 12px;
   align-items: end;
+}
+
+.sprint-edit-form {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) minmax(140px, 170px) minmax(140px, 170px) auto auto;
+  gap: 8px;
+  align-items: end;
+  margin-bottom: 12px;
 }
 
 /* Sprint button styles unified with button--secondary */
@@ -1200,7 +1226,11 @@ a.sprint-ticket-id:hover {
   }
 
   .sprint-create-form {
-    grid-template-columns: 1fr auto;
+    grid-template-columns: 1fr 1fr 1fr auto;
+  }
+
+  .sprint-edit-form {
+    grid-template-columns: 1fr 1fr 1fr auto auto;
   }
 
   .queue-form {
@@ -1282,6 +1312,10 @@ a.sprint-ticket-id:hover {
   }
 
   .sprint-create-form {
+    grid-template-columns: 1fr;
+  }
+
+  .sprint-edit-form {
     grid-template-columns: 1fr;
   }
 

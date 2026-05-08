@@ -16,6 +16,7 @@ const STRUCTURED_SCHEMA_FLAGS = {
   dataExplorerTasks:null,
   sprints:null,
   milestones:null,
+  milestoneTasks:null,
   velocitySprintCompleted:null
 };
 
@@ -314,7 +315,9 @@ async function replaceMilestonesSnapshot(milestones){
   if(!sbClient)return;
   const now=new Date().toISOString();
   const flags=STRUCTURED_SCHEMA_FLAGS.milestones || await detectTableColumns('milestones',['team','team_id','sort_order']);
+  const taskFlags=STRUCTURED_SCHEMA_FLAGS.milestoneTasks || await detectTableColumns('milestone_tasks',['name','title','sort_order']);
   STRUCTURED_SCHEMA_FLAGS.milestones=flags;
+  STRUCTURED_SCHEMA_FLAGS.milestoneTasks=taskFlags;
   const milestoneRows=structuredSafeRows(milestones).map((milestone,index)=>{
     const row={
       id:milestone.id,
@@ -330,15 +333,20 @@ async function replaceMilestonesSnapshot(milestones){
     if(flags.sort_order)row.sort_order=index;
     return row;
   });
-  const taskRows=milestoneRows.flatMap((milestone,index)=>structuredSafeRows(milestones[index]?.tasks).map((task,taskIndex)=>({
-    id:task.id,
-    milestone_id:milestone.id,
-    name:task.name || '',
-    status:STRUCTURED_STATUS.milestoneTask.includes(task.status) ? task.status : 'notstarted',
-    notes:task.notes || '',
-    sort_order:taskIndex,
-    updated_at:now
-  })));
+  const taskRows=milestoneRows.flatMap((milestone,index)=>structuredSafeRows(milestones[index]?.tasks).map((task,taskIndex)=>{
+    const taskName=task.name || task.title || '';
+    const row={
+      id:task.id,
+      milestone_id:milestone.id,
+      status:STRUCTURED_STATUS.milestoneTask.includes(task.status) ? task.status : 'notstarted',
+      notes:task.notes || '',
+      updated_at:now
+    };
+    if(taskFlags.name)row.name=taskName;
+    if(taskFlags.title)row.title=taskName;
+    if(taskFlags.sort_order)row.sort_order=taskIndex;
+    return row;
+  }));
   if (milestoneRows.length) await replaceTableRows('milestones', milestoneRows);
   if (taskRows.length) await replaceTableRows('milestone_tasks', taskRows);
 }
@@ -346,7 +354,7 @@ async function replaceMilestonesSnapshot(milestones){
 async function replaceSprintsSnapshot(sprints){
   if(!sbClient)return;
   const now=new Date().toISOString();
-  const flags=STRUCTURED_SCHEMA_FLAGS.sprints || await detectTableColumns('sprints',['team','team_id','sort_order']);
+  const flags=STRUCTURED_SCHEMA_FLAGS.sprints || await detectTableColumns('sprints',['team','team_id','sort_order','start_date','end_date']);
   STRUCTURED_SCHEMA_FLAGS.sprints=flags;
   const sprintRows=structuredSafeRows(sprints).map((sprint,index)=>{
     const row={
@@ -357,6 +365,8 @@ async function replaceSprintsSnapshot(sprints){
     if(flags.team)row.team=sprint.team || 'rp';
     if(flags.team_id)row.team_id=(sprint.team || 'rp')==='de' ? 'team_de' : 'team_rp';
     if(flags.sort_order)row.sort_order=index;
+    if(flags.start_date)row.start_date=sprint.startDate || null;
+    if(flags.end_date)row.end_date=sprint.endDate || null;
     return row;
   });
   const ticketRows=sprintRows.flatMap((sprint,index)=>structuredSafeRows(sprints[index]?.tickets).map((ticket,ticketIndex)=>({
@@ -589,11 +599,16 @@ async function loadStructuredMilestones(){
     team_id:(milestones || []).some(milestone=>Object.prototype.hasOwnProperty.call(milestone,'team_id')),
     sort_order:(milestones || []).some(milestone=>Object.prototype.hasOwnProperty.call(milestone,'sort_order'))
   };
+  STRUCTURED_SCHEMA_FLAGS.milestoneTasks={
+    name:(tasks || []).some(task=>Object.prototype.hasOwnProperty.call(task,'name')),
+    title:(tasks || []).some(task=>Object.prototype.hasOwnProperty.call(task,'title')),
+    sort_order:(tasks || []).some(task=>Object.prototype.hasOwnProperty.call(task,'sort_order'))
+  };
   const groupedTasks=sortStructuredRows(tasks).reduce((acc,task)=>{
     if(!acc[task.milestone_id])acc[task.milestone_id]=[];
     acc[task.milestone_id].push({
       id:task.id,
-      name:task.name,
+      name:task.name || task.title || '',
       status:task.status,
       notes:task.notes || ''
     });
@@ -621,7 +636,9 @@ async function loadStructuredSprints(){
   STRUCTURED_SCHEMA_FLAGS.sprints={
     team:(sprints || []).some(sprint=>Object.prototype.hasOwnProperty.call(sprint,'team')),
     team_id:(sprints || []).some(sprint=>Object.prototype.hasOwnProperty.call(sprint,'team_id')),
-    sort_order:(sprints || []).some(sprint=>Object.prototype.hasOwnProperty.call(sprint,'sort_order'))
+    sort_order:(sprints || []).some(sprint=>Object.prototype.hasOwnProperty.call(sprint,'sort_order')),
+    start_date:(sprints || []).some(sprint=>Object.prototype.hasOwnProperty.call(sprint,'start_date')),
+    end_date:(sprints || []).some(sprint=>Object.prototype.hasOwnProperty.call(sprint,'end_date'))
   };
   const groupedTickets=sortStructuredRows(tickets).reduce((acc,ticket)=>{
     if(!acc[ticket.sprint_id])acc[ticket.sprint_id]=[];
@@ -641,6 +658,9 @@ async function loadStructuredSprints(){
     id:sprint.id,
     team:normalizeStructuredTeam(sprint.team, sprint.team_id),
     name:sprint.name,
+    startDate:sprint.start_date || '',
+    endDate:sprint.end_date || '',
+    createdAt:sprint.created_at || sprint.updated_at || new Date().toISOString(),
     tickets:groupedTickets[sprint.id] || []
   }));
   return mapped;
