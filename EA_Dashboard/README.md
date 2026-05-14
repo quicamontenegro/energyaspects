@@ -239,6 +239,73 @@ Se quiseres gerar build estatico:
 npm run build
 ```
 
+## 11) Backup da BD com pg_dump
+
+Para backup de disaster recovery (schema + dados), usa o fluxo por `pg_dump`.
+
+Cria o ficheiro `.env.pgdump` na raiz do projeto:
+
+```bash
+cat > .env.pgdump <<'EOF'
+SUPABASE_DB_HOST=db.<your-project-ref>.supabase.co
+SUPABASE_DB_PORT=5432
+SUPABASE_DB_NAME=postgres
+SUPABASE_DB_USER=postgres
+SUPABASE_DB_PASSWORD=<your-db-password>
+BACKUP_DIR=$HOME/projects/backups/db
+EOF
+```
+
+Executar backup manual:
+
+```bash
+npm run backup:dump
+```
+
+Opcional (SQL plain):
+
+```bash
+npm run backup:dump:plain
+```
+
+Executar o wrapper noturno (com retenção dos ultimos 14 ficheiros):
+
+```bash
+npm run backup:dump:nightly
+```
+
+Executar backup combinado (EA_Dashboard + personal-hub) em paralelo, com uma unica mensagem Telegram:
+
+```bash
+npm run backup:dump:combined
+```
+
+Por omissao, o script combinado procura o outro projeto em:
+
+```text
+$HOME/projects/personal-hub
+```
+
+Para usar outro caminho:
+
+```bash
+OTHER_PROJECT_DIR=/caminho/personal-hub npm run backup:dump:combined
+```
+
+Exemplo de cron igual ao servidor do outro projeto:
+
+```cron
+15 3 * * * cd ~/projects/energyaspects/EA_Dashboard && ./scripts/pgdump-nightly.sh >> ~/projects/backups/db/cron.log 2>&1
+```
+
+Exemplo de cron unico para os dois projetos (recomendado quando queres uma unica notificacao):
+
+```cron
+15 3 * * * cd ~/projects/energyaspects/EA_Dashboard && OTHER_PROJECT_DIR=~/projects/personal-hub ./scripts/pgdump-nightly-combined.sh >> ~/projects/backups/db/cron.log 2>&1
+```
+
+Nota: se existir `scripts/notify-telegram-backup.sh`, o wrapper envia notificacao em caso de sucesso/erro.
+
 Para testar a build:
 
 ```bash

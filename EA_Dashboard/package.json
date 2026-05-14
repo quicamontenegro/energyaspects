@@ -6,7 +6,12 @@
   "scripts": {
     "dev": "vite --port 5173 --strictPort",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "backup:db": "node scripts/backup-supabase.mjs",
+    "backup:dump": "bash scripts/pgdump-supabase.sh",
+    "backup:dump:plain": "bash scripts/pgdump-supabase.sh --plain",
+    "backup:dump:nightly": "bash scripts/pgdump-nightly.sh",
+    "backup:dump:combined": "bash scripts/pgdump-nightly-combined.sh"
   },
   "keywords": [],
   "author": "",
