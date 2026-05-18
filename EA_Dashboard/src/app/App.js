@@ -299,6 +299,19 @@ function handleClickAction(trigger, updateState, root, uiState, render) {
     return;
   }
 
+  if (trigger.dataset.action === 'toggle-sprint-collapse') {
+    const sprintKey = String(trigger.dataset.sprintKey || '').trim();
+    if (!sprintKey) return;
+    const isCurrentlyCollapsed = String(trigger.dataset.collapsed || 'false') === 'true';
+    updateState((state) => {
+      if (!state.spCollapsedByKey || typeof state.spCollapsedByKey !== 'object' || Array.isArray(state.spCollapsedByKey)) {
+        state.spCollapsedByKey = {};
+      }
+      state.spCollapsedByKey[sprintKey] = !isCurrentlyCollapsed;
+    });
+    return;
+  }
+
   if (trigger.dataset.action === 'add-project') {
     const form = readForm(root, '[data-form="project-create"]');
     const name = String(form?.get('name') || '').trim();
@@ -801,6 +814,14 @@ function handleClickAction(trigger, updateState, root, uiState, render) {
 
   if (trigger.dataset.action === 'remove-sprint-plan' && Number.isInteger(sprintIndex)) {
     updateState((state) => {
+      const sprintToRemove = state.spData[sprintIndex];
+      const sprintId = String(sprintToRemove?.id || '').trim();
+      if (sprintId) {
+        if (!state.spCollapsedByKey || typeof state.spCollapsedByKey !== 'object' || Array.isArray(state.spCollapsedByKey)) {
+          state.spCollapsedByKey = {};
+        }
+        delete state.spCollapsedByKey[sprintId];
+      }
       state.spData.splice(sprintIndex, 1);
     });
     if (uiState.editingSprintIndex === sprintIndex) {

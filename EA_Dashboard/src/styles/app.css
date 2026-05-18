@@ -625,6 +625,15 @@ button {
   border-radius: var(--radius-lg);
 }
 
+.sprint-card__body {
+  display: grid;
+  gap: 12px;
+}
+
+.sprint-card__body.is-collapsed {
+  display: none;
+}
+
 .sprint-card__top {
   display: flex;
   flex-direction: column;
@@ -642,6 +651,15 @@ button {
   display: inline-flex;
   align-items: center;
   gap: 6px;
+}
+
+.sprint-card__collapse-toggle svg {
+  transition: transform 0.18s ease;
+  transform: rotate(90deg);
+}
+
+.sprint-card__collapse-toggle.is-collapsed svg {
+  transform: rotate(0deg);
 }
 
 .sprint-card__title {

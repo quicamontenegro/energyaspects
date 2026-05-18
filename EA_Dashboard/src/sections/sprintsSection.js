@@ -126,11 +126,32 @@ export function renderSprintsSection(state, uiState) {
           <button class="button button--secondary button--sm" type="button" data-action="add-sprint-plan">Add sprint</button>
         </div>
         <div class="stack-list sprint-list">
-          ${sprintEntries.length ? sprintEntries.map(({ sprint, index }) => renderSprintCard(index, sprint, getSprintMembers(state.spTeamMembers), uiState)).join('') : '<article class="empty-card"><h3>No sprint plans</h3><p>Create a sprint inline and start assigning tickets.</p></article>'}
+          ${sprintEntries.length ? sprintEntries.map(({ sprint, index }, orderIndex) => {
+            const sprintKey = getSprintUiKey(sprint, index);
+            const persistedCollapse = state?.spCollapsedByKey?.[sprintKey];
+            const isCollapsed = typeof persistedCollapse === 'boolean' ? persistedCollapse : orderIndex !== 0;
+            return renderSprintCard(index, sprint, getSprintMembers(state.spTeamMembers), uiState, {
+              isCollapsed,
+              sprintKey,
+            });
+          }).join('') : '<article class="empty-card"><h3>No sprint plans</h3><p>Create a sprint inline and start assigning tickets.</p></article>'}
         </div>
       </section>
     </section>
   `;
+}
+
+function getSprintUiKey(sprint, sprintIndex) {
+  const sprintId = String(sprint?.id || '').trim();
+  if (sprintId) return sprintId;
+  const fallback = [
+    String(sprint?.name || '').trim(),
+    String(sprint?.startDate || '').trim(),
+    String(sprint?.endDate || '').trim(),
+    String(sprint?.createdAt || '').trim(),
+    String(sprintIndex),
+  ].join('|');
+  return fallback;
 }
 
 function renderSprintNoteItem(note, uiState) {
@@ -337,11 +358,14 @@ function resolveNoteHref(value) {
   return '';
 }
 
-function renderSprintCard(sprintIndex, sprint, sprintMembers, uiState) {
+function renderSprintCard(sprintIndex, sprint, sprintMembers, uiState, options = {}) {
   const grouped = groupSprintTicketsByAssignee(sprint.tickets || [], sprintMembers);
   const visibleAssignees = Object.keys(grouped).filter((assignee) => grouped[assignee].length > 0);
   const sprintBoardNotes = Array.isArray(sprint?.notesBoard) ? sprint.notesBoard : [];
   const isEditingSprint = uiState.editingSprintIndex === sprintIndex;
+  const isCollapsed = options.isCollapsed === true;
+  const sprintKey = String(options.sprintKey || '').trim();
+  const collapseLabel = isCollapsed ? 'Expand sprint' : 'Collapse sprint';
 
   return `
     <article class="sprint-card">
@@ -349,6 +373,9 @@ function renderSprintCard(sprintIndex, sprint, sprintMembers, uiState) {
         <div class="sprint-card__head">
           <h3 class="sprint-card__title">${escapeHtml(sprint.name || 'Untitled sprint')}</h3>
           <div class="sprint-card__actions">
+            <button class="btn-icon sprint-card__collapse-toggle ${isCollapsed ? 'is-collapsed' : ''}" type="button" data-action="toggle-sprint-collapse" data-sprint-key="${escapeHtml(sprintKey)}" data-collapsed="${isCollapsed ? 'true' : 'false'}" title="${collapseLabel}" aria-label="${collapseLabel}" aria-expanded="${isCollapsed ? 'false' : 'true'}">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>
+            </button>
             <button class="btn-icon btn-icon--edit" type="button" data-action="edit-sprint-plan" data-sprint-index="${sprintIndex}" title="Edit sprint">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
             </button>
@@ -362,48 +389,50 @@ function renderSprintCard(sprintIndex, sprint, sprintMembers, uiState) {
         </div>
       </div>
 
-      ${isEditingSprint ? renderSprintEditForm(sprintIndex, sprint) : ''}
+      <div class="sprint-card__body ${isCollapsed ? 'is-collapsed' : ''}">
+        ${isEditingSprint ? renderSprintEditForm(sprintIndex, sprint) : ''}
 
-      <div class="sprint-board">
-        ${visibleAssignees.length
-          ? visibleAssignees.map((assignee) => renderAssigneeColumn(sprintIndex, assignee, grouped[assignee] || [], sprintMembers, uiState)).join('')
-          : '<div class="sprint-board__empty">No tickets in this sprint yet.</div>'}
-      </div>
-
-      <div class="sprint-add-ticket">
-        <div class="sprint-add-form" data-form="sprint-ticket-create" data-sprint-index="${sprintIndex}">
-          <input name="title" class="field-input field-input--sm" type="text" placeholder="Add ticket..." />
-          <input name="jiraId" class="field-input field-input--sm" type="text" placeholder="Ticket ID" />
-          <input name="epicId" class="field-input field-input--sm" type="text" placeholder="EPIC ID" />
-          <input name="jiraUrl" class="field-input field-input--sm" type="url" placeholder="Jira URL" />
-          <select name="status" class="field-input field-input--sm">${TICKET_STATUSES.map((status) => `<option value="${status}">${formatStatus(status)}</option>`).join('')}</select>
-          <select name="priority" class="field-input field-input--sm">${PRIORITY_OPTIONS.map((priority) => `<option value="${priority}" ${priority === 'Medium' ? 'selected' : ''}>${priority}</option>`).join('')}</select>
-          <textarea name="notes" class="field-input field-input--sm sprint-ticket-notes-input" placeholder="Notes"></textarea>
-          <button class="button button--secondary button--sm" type="button" data-action="add-sprint-ticket" data-sprint-index="${sprintIndex}">
-            Add
-          </button>
-        </div>
-      </div>
-
-      <div class="sprint-card-notesboard">
-        <div class="sprint-card-notesboard__head">
-          <h4>Sprint notes</h4>
-          <span class="sprint-members-count">${sprintBoardNotes.length} notes</span>
+        <div class="sprint-board">
+          ${visibleAssignees.length
+            ? visibleAssignees.map((assignee) => renderAssigneeColumn(sprintIndex, assignee, grouped[assignee] || [], sprintMembers, uiState)).join('')
+            : '<div class="sprint-board__empty">No tickets in this sprint yet.</div>'}
         </div>
 
-        <div class="sprint-card-notesboard__list">
-          ${sprintBoardNotes.length
-            ? sprintBoardNotes.map((note) => renderSprintBoardNoteItem(note, sprintIndex, uiState)).join('')
-            : '<article class="empty-card sprint-card-notesboard__empty"><h3>No notes yet</h3><p>Add notes specific to this sprint.</p></article>'}
+        <div class="sprint-add-ticket">
+          <div class="sprint-add-form" data-form="sprint-ticket-create" data-sprint-index="${sprintIndex}">
+            <input name="title" class="field-input field-input--sm" type="text" placeholder="Add ticket..." />
+            <input name="jiraId" class="field-input field-input--sm" type="text" placeholder="Ticket ID" />
+            <input name="epicId" class="field-input field-input--sm" type="text" placeholder="EPIC ID" />
+            <input name="jiraUrl" class="field-input field-input--sm" type="url" placeholder="Jira URL" />
+            <select name="status" class="field-input field-input--sm">${TICKET_STATUSES.map((status) => `<option value="${status}">${formatStatus(status)}</option>`).join('')}</select>
+            <select name="priority" class="field-input field-input--sm">${PRIORITY_OPTIONS.map((priority) => `<option value="${priority}" ${priority === 'Medium' ? 'selected' : ''}>${priority}</option>`).join('')}</select>
+            <textarea name="notes" class="field-input field-input--sm sprint-ticket-notes-input" placeholder="Notes"></textarea>
+            <button class="button button--secondary button--sm" type="button" data-action="add-sprint-ticket" data-sprint-index="${sprintIndex}">
+              Add
+            </button>
+          </div>
         </div>
 
-        <div class="sprint-card-notesboard__form" data-form="sprint-board-note-create" data-sprint-index="${sprintIndex}">
-          ${renderSprintNoteEditor({
-            noteId: `sprint-${sprintIndex}-create`,
-            text: '',
-            placeholder: 'Add note for this sprint...'
-          })}
-          <button class="button button--secondary button--sm" type="button" data-action="add-sprint-board-note" data-sprint-index="${sprintIndex}">Add note</button>
+        <div class="sprint-card-notesboard">
+          <div class="sprint-card-notesboard__head">
+            <h4>Sprint notes</h4>
+            <span class="sprint-members-count">${sprintBoardNotes.length} notes</span>
+          </div>
+
+          <div class="sprint-card-notesboard__list">
+            ${sprintBoardNotes.length
+              ? sprintBoardNotes.map((note) => renderSprintBoardNoteItem(note, sprintIndex, uiState)).join('')
+              : '<article class="empty-card sprint-card-notesboard__empty"><h3>No notes yet</h3><p>Add notes specific to this sprint.</p></article>'}
+          </div>
+
+          <div class="sprint-card-notesboard__form" data-form="sprint-board-note-create" data-sprint-index="${sprintIndex}">
+            ${renderSprintNoteEditor({
+              noteId: `sprint-${sprintIndex}-create`,
+              text: '',
+              placeholder: 'Add note for this sprint...'
+            })}
+            <button class="button button--secondary button--sm" type="button" data-action="add-sprint-board-note" data-sprint-index="${sprintIndex}">Add note</button>
+          </div>
         </div>
       </div>
     </article>

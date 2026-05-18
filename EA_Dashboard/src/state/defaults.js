@@ -43,6 +43,7 @@ export function createDefaultSnapshot() {
     spData: [],
     spTeamMembers: [],
     spNotes: [],
+    spCollapsedByKey: {},
   };
 }
 
@@ -102,6 +103,9 @@ export function mergeSnapshot(baseSnapshot, remoteSnapshot) {
   }
   if (Array.isArray(remote.spNotes)) {
     base.spNotes = cloneState(remote.spNotes);
+  }
+  if (remote.spCollapsedByKey && typeof remote.spCollapsedByKey === 'object' && !Array.isArray(remote.spCollapsedByKey)) {
+    base.spCollapsedByKey = cloneState(remote.spCollapsedByKey);
   }
 
   return base;
