@@ -20,6 +20,8 @@ const STATUS_COLOR = {
   deployed: '#7c3aed',
 };
 
+const NOTE_COLORS = ['', '#4f46e5', '#0f766e', '#0891b2', '#d97706', '#dc2626', '#be185d', '#334155'];
+
 export function renderSprintsSection(state, uiState) {
   const sprintMembers = getSprintMembers(state.spTeamMembers);
   const sprintNotes = Array.isArray(state.spNotes) ? state.spNotes : [];
@@ -190,9 +192,25 @@ function renderSprintNoteEditor({ noteId, text, placeholder }) {
         <button class="sprint-note-tool" type="button" data-action="format-sprint-note-text" data-format="list" title="Bullet list">List</button>
       </div>
       <input type="hidden" name="text" value="${escapeHtml(rawValue)}" />
+      <div class="sprint-note-color-row" role="group" aria-label="Note color">
+        ${NOTE_COLORS.map((swatchColor) => renderNoteColorSwatch(swatchColor)).join('')}
+      </div>
       <div class="field-input field-input--sm sprint-note-editor__input" contenteditable="true" data-placeholder="${escapeHtml(placeholder)}">${initialHtml}</div>
     </div>
   `;
+}
+
+function renderNoteColorSwatch(color) {
+  const normalized = normalizeNoteColor(color);
+  const label = normalized ? `Use ${normalized}` : 'No color';
+  const swatchStyle = normalized ? ` style="--swatch:${escapeHtml(normalized)}"` : '';
+  return `<button class="note-color-swatch" type="button" data-action="select-sprint-note-color" data-color="${escapeHtml(normalized)}" title="${label}"${swatchStyle}></button>`;
+}
+
+function normalizeNoteColor(value) {
+  const raw = String(value || '').trim().toLowerCase();
+  if (!raw) return '';
+  return /^#[0-9a-f]{6}$/i.test(raw) ? raw : '';
 }
 
 function renderSprintNoteBody(value) {
@@ -375,7 +393,7 @@ function renderSprintCard(sprintIndex, sprint, sprintMembers, uiState) {
 
         <div class="sprint-card-notesboard__list">
           ${sprintBoardNotes.length
-            ? sprintBoardNotes.map((note) => renderSprintBoardNoteItem(note, sprintIndex)).join('')
+            ? sprintBoardNotes.map((note) => renderSprintBoardNoteItem(note, sprintIndex, uiState)).join('')
             : '<article class="empty-card sprint-card-notesboard__empty"><h3>No notes yet</h3><p>Add notes specific to this sprint.</p></article>'}
         </div>
 
@@ -392,17 +410,41 @@ function renderSprintCard(sprintIndex, sprint, sprintMembers, uiState) {
   `;
 }
 
-function renderSprintBoardNoteItem(note, sprintIndex) {
+function renderSprintBoardNoteItem(note, sprintIndex, uiState) {
   const noteId = escapeHtml(note?.id || '');
+  const noteRawId = String(note?.id || '').trim();
   const noteDate = formatNoteDate(note?.createdAt);
   const noteLinkValue = String(note?.link || '').trim();
   const noteLinkHref = resolveNoteHref(noteLinkValue);
+  const editKey = `${sprintIndex}:${noteRawId}`;
+  const isEditing = uiState?.editingSprintBoardNoteKey === editKey;
+
+  if (isEditing) {
+    return `
+      <article class="sprint-note-item sprint-note-item--inline sprint-note-item--editing">
+        <form class="sprint-note-edit-form" data-form="sprint-board-note-edit" data-sprint-index="${sprintIndex}" data-note-id="${noteId}">
+          ${renderSprintNoteEditor({
+            noteId: `sprint-${sprintIndex}-note-${noteId}`,
+            text: String(note?.text || ''),
+            placeholder: 'Note text'
+          })}
+        </form>
+        <div class="sprint-note-item__actions">
+          <button class="button button--secondary button--sm" type="button" data-action="cancel-edit-sprint-board-note" data-sprint-index="${sprintIndex}" data-note-id="${noteId}">Cancel</button>
+          <button class="button button--primary button--sm" type="button" data-action="save-edit-sprint-board-note" data-sprint-index="${sprintIndex}" data-note-id="${noteId}">Save</button>
+        </div>
+      </article>
+    `;
+  }
 
   return `
     <article class="sprint-note-item sprint-note-item--inline">
       <div class="sprint-note-item__meta">
         <span class="sprint-date-range">${escapeHtml(noteDate)}</span>
         <div class="sprint-note-item__action-icons">
+          <button class="btn-icon btn-icon--edit" type="button" data-action="edit-sprint-board-note" data-sprint-index="${sprintIndex}" data-note-id="${noteId}" title="Edit note">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+          </button>
           <button class="btn-icon" type="button" data-action="remove-sprint-board-note" data-sprint-index="${sprintIndex}" data-note-id="${noteId}" title="Delete note">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 6l-1.4 14H6.4L5 6M10 11v6M14 11v6M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/></svg>
           </button>

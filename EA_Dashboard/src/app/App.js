@@ -25,6 +25,7 @@ export function createDashboardApp(root, initialSnapshot, persistence) {
     editingTicket: null,
     editingSprintIndex: null,
     editingSprintNoteId: null,
+    editingSprintBoardNoteKey: null,
   };
 
   function persist(snapshot) {
@@ -288,6 +289,13 @@ function handleClickAction(trigger, updateState, root, uiState, render) {
     const hiddenInput = editor.querySelector('input[name="text"]');
     if (!(editable instanceof HTMLElement) || !(hiddenInput instanceof HTMLInputElement)) return;
     applySprintNoteFormatting(editable, hiddenInput, String(trigger.dataset.format || '').trim());
+    return;
+  }
+
+  if (trigger.dataset.action === 'select-sprint-note-color') {
+    const editor = trigger.closest('[data-note-editor]');
+    if (!editor) return;
+    applySprintNoteTextColor(editor, String(trigger.dataset.color || '').trim());
     return;
   }
 
@@ -680,6 +688,44 @@ function handleClickAction(trigger, updateState, root, uiState, render) {
     return;
   }
 
+  if (trigger.dataset.action === 'edit-sprint-board-note' && Number.isInteger(sprintIndex)) {
+    const noteId = String(trigger.dataset.noteId || '').trim();
+    if (!noteId) return;
+    uiState.editingSprintBoardNoteKey = `${sprintIndex}:${noteId}`;
+    render();
+    return;
+  }
+
+  if (trigger.dataset.action === 'cancel-edit-sprint-board-note' && Number.isInteger(sprintIndex)) {
+    const noteId = String(trigger.dataset.noteId || '').trim();
+    if (!noteId) return;
+    const key = `${sprintIndex}:${noteId}`;
+    if (uiState.editingSprintBoardNoteKey === key) {
+      uiState.editingSprintBoardNoteKey = null;
+    }
+    render();
+    return;
+  }
+
+  if (trigger.dataset.action === 'save-edit-sprint-board-note' && Number.isInteger(sprintIndex)) {
+    const noteId = String(trigger.dataset.noteId || '').trim();
+    if (!noteId) return;
+    syncSprintNoteEditors(root.querySelector(`[data-form="sprint-board-note-edit"][data-sprint-index="${sprintIndex}"][data-note-id="${noteId}"]`));
+    const form = readForm(root, `[data-form="sprint-board-note-edit"][data-sprint-index="${sprintIndex}"][data-note-id="${noteId}"]`);
+    const text = String(form?.get('text') || '').trim();
+    if (!text) return;
+    updateState((state) => {
+      const sprint = state.spData[sprintIndex];
+      if (!sprint || !Array.isArray(sprint.notesBoard)) return;
+      const note = sprint.notesBoard.find((item) => String(item?.id || '') === noteId);
+      if (!note) return;
+      note.text = text;
+    });
+    uiState.editingSprintBoardNoteKey = null;
+    render();
+    return;
+  }
+
   if (trigger.dataset.action === 'remove-sprint-board-note' && Number.isInteger(sprintIndex)) {
     const noteId = String(trigger.dataset.noteId || '').trim();
     if (!noteId) return;
@@ -688,6 +734,10 @@ function handleClickAction(trigger, updateState, root, uiState, render) {
       if (!sprint || !Array.isArray(sprint.notesBoard)) return;
       sprint.notesBoard = sprint.notesBoard.filter((note) => String(note?.id || '') !== noteId);
     });
+    if (uiState.editingSprintBoardNoteKey === `${sprintIndex}:${noteId}`) {
+      uiState.editingSprintBoardNoteKey = null;
+      render();
+    }
     return;
   }
 
@@ -756,6 +806,7 @@ function handleClickAction(trigger, updateState, root, uiState, render) {
     if (uiState.editingSprintIndex === sprintIndex) {
       uiState.editingSprintIndex = null;
     }
+    uiState.editingSprintBoardNoteKey = null;
     render();
     return;
   }
@@ -933,6 +984,22 @@ function syncSprintNoteEditors(container) {
   container.querySelectorAll('[data-note-editor]').forEach((editorRoot) => {
     syncSprintNoteEditorValue(editorRoot);
   });
+}
+
+function applySprintNoteTextColor(editorRoot, color) {
+  if (!(editorRoot instanceof Element)) return;
+  const editable = editorRoot.querySelector('.sprint-note-editor__input[contenteditable="true"]');
+  if (!(editable instanceof HTMLElement)) return;
+  const normalizedColor = String(color || '').trim().toLowerCase();
+  editable.focus();
+
+  if (/^#[0-9a-f]{6}$/i.test(normalizedColor)) {
+    document.execCommand('foreColor', false, normalizedColor);
+  } else {
+    document.execCommand('foreColor', false, '#0f172a');
+  }
+
+  syncSprintNoteEditorValue(editorRoot);
 }
 
 function normalizeSprintNoteLinkUrl(value) {

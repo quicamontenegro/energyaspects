@@ -307,6 +307,7 @@ async function saveStructuredMetadata(snapshot){
       value:structuredSafeRows(snapshot.spNotes).map(note=>({
         id:note?.id || '',
         text:note?.text || '',
+        color:note?.color || '',
         link:note?.link || '',
         createdAt:note?.createdAt || ''
       })),
@@ -319,6 +320,7 @@ async function saveStructuredMetadata(snapshot){
         notes:structuredSafeRows(sprint?.notesBoard).map(note=>({
           id:note?.id || '',
           text:note?.text || '',
+          color:note?.color || '',
           link:note?.link || '',
           createdAt:note?.createdAt || ''
         }))
@@ -490,6 +492,7 @@ async function loadStructuredMetadata(){
       result.spNotes=structuredSafeRows(row.value).map(note=>({
         id:note?.id || '',
         text:note?.text || '',
+        color:note?.color || '',
         link:note?.link || '',
         createdAt:note?.createdAt || ''
       }));
@@ -501,6 +504,7 @@ async function loadStructuredMetadata(){
           notes:structuredSafeRows(item?.notes).map(note=>({
             id:note?.id || '',
             text:note?.text || '',
+            color:note?.color || '',
             link:note?.link || '',
             createdAt:note?.createdAt || ''
           }))
@@ -524,6 +528,7 @@ function mergeSprintNotesBoardIntoSprints(spData, metadata){
     acc[key]=structuredSafeRows(row?.notes).map(note=>({
       id:note?.id || '',
       text:note?.text || '',
+      color:note?.color || '',
       link:note?.link || '',
       createdAt:note?.createdAt || ''
     }));

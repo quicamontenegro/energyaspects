@@ -808,6 +808,27 @@ button {
   display: none;
 }
 
+.sprint-note-color-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.note-color-swatch {
+  width: 16px;
+  height: 16px;
+  border-radius: 999px;
+  border: 2px solid rgba(15, 23, 42, 0.18);
+  background: var(--swatch, #ffffff);
+  padding: 0;
+  cursor: pointer;
+}
+
+.note-color-swatch[data-color=""] {
+  background: #ffffff;
+}
+
 .sprint-note-editor__input {
   min-height: 88px;
   resize: vertical;
@@ -879,7 +900,7 @@ button {
 .sprint-note-item--editing .sprint-note-editor {
   flex: 1;
   min-height: 0;
-  grid-template-rows: auto 1fr auto;
+  grid-template-rows: auto auto 1fr;
 }
 
 .sprint-note-item--editing .sprint-note-editor__input {
