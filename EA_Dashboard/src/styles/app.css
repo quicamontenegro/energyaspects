@@ -768,10 +768,84 @@ button {
 
 .sprint-note-item__text {
   margin: 0;
-  white-space: pre-wrap;
   font-size: 12px;
   line-height: 1.45;
   color: var(--text);
+}
+
+.sprint-note-item__text p {
+  margin: 0 0 6px;
+}
+
+.sprint-note-item__text p:last-child {
+  margin-bottom: 0;
+}
+
+.sprint-note-item__text ul {
+  margin: 0;
+  padding-left: 18px;
+}
+
+.sprint-note-item__text code {
+  font-size: 11px;
+  border-radius: 5px;
+  background: rgba(15, 23, 42, 0.08);
+  padding: 1px 5px;
+}
+
+.sprint-note-item__text a {
+  color: var(--indigo);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.sprint-note-editor {
+  display: grid;
+  gap: 6px;
+}
+
+.sprint-note-editor input[type="hidden"] {
+  display: none;
+}
+
+.sprint-note-editor__input {
+  min-height: 88px;
+  resize: vertical;
+  overflow: auto;
+  line-height: 1.45;
+  cursor: text;
+}
+
+.sprint-note-editor__input:focus {
+  outline: none;
+}
+
+.sprint-note-editor__input:empty::before {
+  content: attr(data-placeholder);
+  color: var(--muted);
+}
+
+.sprint-note-toolbar {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.sprint-note-tool {
+  min-width: 34px;
+  border: 1px solid rgba(15, 23, 42, 0.14);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.92);
+  color: var(--text);
+  font-size: 11px;
+  font-weight: 700;
+  padding: 4px 8px;
+  cursor: pointer;
+}
+
+.sprint-note-tool:hover {
+  border-color: rgba(67, 56, 202, 0.35);
+  background: rgba(67, 56, 202, 0.08);
 }
 
 .sprint-note-link {
@@ -791,9 +865,30 @@ button {
   gap: 8px;
 }
 
-.sprint-note-edit-form textarea {
-  min-height: 72px;
-  resize: vertical;
+.sprint-note-item--editing {
+  min-height: 260px;
+}
+
+.sprint-note-item--editing .sprint-note-edit-form {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.sprint-note-item--editing .sprint-note-editor {
+  flex: 1;
+  min-height: 0;
+  grid-template-rows: auto 1fr auto;
+}
+
+.sprint-note-item--editing .sprint-note-editor__input {
+  height: 100%;
+  min-height: 140px;
+}
+
+.sprint-note-item--editing .sprint-note-item__actions {
+  margin-top: auto;
 }
 
 .sprint-note-item__actions {
@@ -804,14 +899,9 @@ button {
 
 .sprint-notes-form {
   display: grid;
-  grid-template-columns: minmax(260px, 1fr) minmax(200px, 300px) auto;
+  grid-template-columns: minmax(260px, 1fr) auto;
   gap: 8px;
   align-items: end;
-}
-
-.sprint-notes-form textarea {
-  min-height: 72px;
-  resize: vertical;
 }
 
 .sprint-backlog-card {
@@ -1061,6 +1151,61 @@ a.sprint-ticket-id:hover {
   margin-top: 12px;
   padding-top: 12px;
   border-top: 1px solid rgba(15, 23, 42, 0.06);
+}
+
+.sprint-card-notesboard {
+  margin-top: 10px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(15, 23, 42, 0.06);
+  display: grid;
+  gap: 10px;
+}
+
+.sprint-card-notesboard__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.sprint-card-notesboard__head h4 {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--text);
+}
+
+.sprint-card-notesboard__list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 8px;
+}
+
+.sprint-card-notesboard__empty {
+  padding: 16px;
+}
+
+.sprint-card-notesboard__empty h3 {
+  font-size: 12px;
+  margin: 0 0 4px;
+}
+
+.sprint-card-notesboard__empty p {
+  margin: 0;
+  font-size: 11px;
+}
+
+.sprint-card-notesboard__form {
+  display: grid;
+  grid-template-columns: minmax(240px, 1fr) auto;
+  gap: 8px;
+  align-items: end;
+}
+
+.sprint-note-item--inline {
+  min-height: 0;
 }
 
 .sprint-add-form {
@@ -1513,7 +1658,7 @@ a.sprint-ticket-id:hover {
   }
 
   .sprint-notes-form {
-    grid-template-columns: 1fr 1fr auto;
+    grid-template-columns: 1fr auto;
   }
 
   .sprint-create-form {
@@ -1530,6 +1675,10 @@ a.sprint-ticket-id:hover {
 
   .sprint-add-form {
     grid-template-columns: 1fr 1fr 1fr 1fr 1fr auto;
+  }
+
+  .sprint-card-notesboard__form {
+    grid-template-columns: 1fr auto;
   }
 }
 
@@ -1628,6 +1777,10 @@ a.sprint-ticket-id:hover {
   }
 
   .sprint-add-form {
+    grid-template-columns: 1fr;
+  }
+
+  .sprint-card-notesboard__form {
     grid-template-columns: 1fr;
   }
 

@@ -97,8 +97,11 @@ export function renderSprintsSection(state, uiState) {
           ${sprintNotes.length ? sprintNotes.map((note) => renderSprintNoteItem(note, uiState)).join('') : '<article class="empty-card"><h3>No notes yet</h3><p>Add an internal note for sprint planning decisions.</p></article>'}
         </div>
         <div class="sprint-notes-form" data-form="sprint-note-create">
-          <textarea name="text" class="field-input field-input--sm" placeholder="Add sprint note..."></textarea>
-          <input name="link" class="field-input field-input--sm" type="url" placeholder="Associated link (optional)" />
+          ${renderSprintNoteEditor({
+            noteId: 'create',
+            text: '',
+            placeholder: 'Add sprint note...'
+          })}
           <button class="button button--secondary button--sm" type="button" data-action="add-sprint-note">Add note</button>
         </div>
       </section>
@@ -130,7 +133,7 @@ export function renderSprintsSection(state, uiState) {
 
 function renderSprintNoteItem(note, uiState) {
   const noteId = escapeHtml(note?.id || '');
-  const noteText = escapeHtml(note?.text || '');
+  const noteTextRaw = String(note?.text || '');
   const noteDate = formatNoteDate(note?.createdAt);
   const noteLinkValue = String(note?.link || '').trim();
   const noteLinkHref = resolveNoteHref(noteLinkValue);
@@ -138,10 +141,13 @@ function renderSprintNoteItem(note, uiState) {
 
   if (isEditing) {
     return `
-      <article class="sprint-note-item">
+      <article class="sprint-note-item sprint-note-item--editing">
         <form class="sprint-note-edit-form" data-form="sprint-note-edit" data-note-id="${noteId}">
-          <textarea name="text" class="field-input field-input--sm" placeholder="Note text">${noteText}</textarea>
-          <input name="link" class="field-input field-input--sm" type="url" value="${escapeHtml(noteLinkValue)}" placeholder="Associated link (optional)" />
+          ${renderSprintNoteEditor({
+            noteId,
+            text: noteTextRaw,
+            placeholder: 'Note text'
+          })}
         </form>
         <div class="sprint-note-item__actions">
           <button class="button button--secondary button--sm" type="button" data-action="cancel-edit-sprint-note" data-note-id="${noteId}">Cancel</button>
@@ -164,10 +170,132 @@ function renderSprintNoteItem(note, uiState) {
           </button>
         </div>
       </div>
-      <p class="sprint-note-item__text">${noteText}</p>
+      <div class="sprint-note-item__text">${renderSprintNoteBody(note?.text || '')}</div>
       ${noteLinkHref ? `<a class="sprint-note-link" href="${escapeHtml(noteLinkHref)}" target="_blank" rel="noopener noreferrer">${escapeHtml(noteLinkValue)}</a>` : ''}
     </article>
   `;
+}
+
+function renderSprintNoteEditor({ noteId, text, placeholder }) {
+  const rawValue = String(text || '');
+  const initialHtml = renderSprintNoteEditorHtml(rawValue);
+
+  return `
+    <div class="sprint-note-editor" data-note-editor="${escapeHtml(String(noteId || ''))}">
+      <div class="sprint-note-toolbar" role="group" aria-label="Note formatting">
+        <button class="sprint-note-tool" type="button" data-action="format-sprint-note-text" data-format="bold" title="Bold">B</button>
+        <button class="sprint-note-tool" type="button" data-action="format-sprint-note-text" data-format="italic" title="Italic">I</button>
+        <button class="sprint-note-tool" type="button" data-action="format-sprint-note-text" data-format="code" title="Code">&lt;/&gt;</button>
+        <button class="sprint-note-tool" type="button" data-action="format-sprint-note-text" data-format="link" title="Link">Link</button>
+        <button class="sprint-note-tool" type="button" data-action="format-sprint-note-text" data-format="list" title="Bullet list">List</button>
+      </div>
+      <input type="hidden" name="text" value="${escapeHtml(rawValue)}" />
+      <div class="field-input field-input--sm sprint-note-editor__input" contenteditable="true" data-placeholder="${escapeHtml(placeholder)}">${initialHtml}</div>
+    </div>
+  `;
+}
+
+function renderSprintNoteBody(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+  if (isRichTextHtml(raw)) {
+    return linkifyUrlsInHtml(sanitizeRichTextHtml(raw));
+  }
+  return renderSprintNoteRichText(raw);
+}
+
+function renderSprintNoteEditorHtml(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+  if (isRichTextHtml(raw)) {
+    return sanitizeRichTextHtml(raw);
+  }
+  return renderSprintNoteRichText(raw);
+}
+
+function isRichTextHtml(value) {
+  return /<(p|br|strong|b|em|i|code|ul|ol|li|a)(\s|>)/i.test(String(value || ''));
+}
+
+function sanitizeRichTextHtml(value) {
+  let html = String(value || '');
+  html = html.replace(/<\/?(script|style)[^>]*>/gi, '');
+  html = html.replace(/\son\w+=("[^"]*"|'[^']*'|[^\s>]+)/gi, '');
+  html = html.replace(/javascript:/gi, '');
+  return html;
+}
+
+function linkifyUrlsInHtml(html) {
+  const parts = String(html || '').split(/(<[^>]+>)/g);
+  return parts
+    .map((part) => {
+      if (!part || part.startsWith('<')) {
+        return part;
+      }
+      return linkifyPlainUrls(part);
+    })
+    .join('');
+}
+
+function linkifyPlainUrls(text) {
+  return String(text || '').replace(/(https?:\/\/[^\s<]+)/gi, (rawUrl) => {
+    const safeHref = resolveNoteHref(rawUrl);
+    if (!safeHref) return rawUrl;
+    return `<a href="${escapeHtml(safeHref)}" target="_blank" rel="noopener noreferrer">${escapeHtml(rawUrl)}</a>`;
+  });
+}
+
+function renderSprintNoteRichText(value) {
+  const source = String(value || '').trim();
+  if (!source) {
+    return '';
+  }
+
+  const lines = source.split('\n');
+  const html = [];
+  let listItems = [];
+
+  const flushList = () => {
+    if (!listItems.length) return;
+    html.push(`<ul>${listItems.map((item) => `<li>${item}</li>`).join('')}</ul>`);
+    listItems = [];
+  };
+
+  lines.forEach((line) => {
+    const bulletMatch = line.match(/^\s*[-*]\s+(.+)$/);
+    if (bulletMatch) {
+      listItems.push(formatNoteInlineMarkup(bulletMatch[1]));
+      return;
+    }
+
+    if (!line.trim()) {
+      flushList();
+      return;
+    }
+
+    flushList();
+    html.push(`<p>${formatNoteInlineMarkup(line)}</p>`);
+  });
+
+  flushList();
+  return html.join('');
+}
+
+function formatNoteInlineMarkup(rawText) {
+  let text = escapeHtml(String(rawText || ''));
+
+  text = text.replace(/`([^`]+)`/g, '<code>$1</code>');
+  text = text.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+  text = text.replace(/\*([^*]+)\*/g, '<em>$1</em>');
+  text = text.replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, (match, label, hrefRaw) => {
+    const href = resolveNoteHref(hrefRaw);
+    if (!href) return label;
+    return `<a href="${escapeHtml(href)}" target="_blank" rel="noopener noreferrer">${label}</a>`;
+  });
+
+  text = linkifyPlainUrls(text);
+
+  return text;
 }
 
 function formatNoteDate(value) {
@@ -194,6 +322,7 @@ function resolveNoteHref(value) {
 function renderSprintCard(sprintIndex, sprint, sprintMembers, uiState) {
   const grouped = groupSprintTicketsByAssignee(sprint.tickets || [], sprintMembers);
   const visibleAssignees = Object.keys(grouped).filter((assignee) => grouped[assignee].length > 0);
+  const sprintBoardNotes = Array.isArray(sprint?.notesBoard) ? sprint.notesBoard : [];
   const isEditingSprint = uiState.editingSprintIndex === sprintIndex;
 
   return `
@@ -237,6 +366,50 @@ function renderSprintCard(sprintIndex, sprint, sprintMembers, uiState) {
           </button>
         </div>
       </div>
+
+      <div class="sprint-card-notesboard">
+        <div class="sprint-card-notesboard__head">
+          <h4>Sprint notes</h4>
+          <span class="sprint-members-count">${sprintBoardNotes.length} notes</span>
+        </div>
+
+        <div class="sprint-card-notesboard__list">
+          ${sprintBoardNotes.length
+            ? sprintBoardNotes.map((note) => renderSprintBoardNoteItem(note, sprintIndex)).join('')
+            : '<article class="empty-card sprint-card-notesboard__empty"><h3>No notes yet</h3><p>Add notes specific to this sprint.</p></article>'}
+        </div>
+
+        <div class="sprint-card-notesboard__form" data-form="sprint-board-note-create" data-sprint-index="${sprintIndex}">
+          ${renderSprintNoteEditor({
+            noteId: `sprint-${sprintIndex}-create`,
+            text: '',
+            placeholder: 'Add note for this sprint...'
+          })}
+          <button class="button button--secondary button--sm" type="button" data-action="add-sprint-board-note" data-sprint-index="${sprintIndex}">Add note</button>
+        </div>
+      </div>
+    </article>
+  `;
+}
+
+function renderSprintBoardNoteItem(note, sprintIndex) {
+  const noteId = escapeHtml(note?.id || '');
+  const noteDate = formatNoteDate(note?.createdAt);
+  const noteLinkValue = String(note?.link || '').trim();
+  const noteLinkHref = resolveNoteHref(noteLinkValue);
+
+  return `
+    <article class="sprint-note-item sprint-note-item--inline">
+      <div class="sprint-note-item__meta">
+        <span class="sprint-date-range">${escapeHtml(noteDate)}</span>
+        <div class="sprint-note-item__action-icons">
+          <button class="btn-icon" type="button" data-action="remove-sprint-board-note" data-sprint-index="${sprintIndex}" data-note-id="${noteId}" title="Delete note">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 6l-1.4 14H6.4L5 6M10 11v6M14 11v6M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/></svg>
+          </button>
+        </div>
+      </div>
+      <div class="sprint-note-item__text">${renderSprintNoteBody(note?.text || '')}</div>
+      ${noteLinkHref ? `<a class="sprint-note-link" href="${escapeHtml(noteLinkHref)}" target="_blank" rel="noopener noreferrer">${escapeHtml(noteLinkValue)}</a>` : ''}
     </article>
   `;
 }

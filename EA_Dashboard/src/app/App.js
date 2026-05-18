@@ -141,6 +141,15 @@ export function createDashboardApp(root, initialSnapshot, persistence) {
   });
 
   root.addEventListener('input', (event) => {
+    if (event.target instanceof Element) {
+      const richEditor = event.target.closest('.sprint-note-editor__input[contenteditable="true"]');
+      if (richEditor) {
+        const editorRoot = richEditor.closest('[data-note-editor]');
+        syncSprintNoteEditorValue(editorRoot);
+        return;
+      }
+    }
+
     const field = event.target.closest('[data-action]');
     if (!field) {
       return;
@@ -219,6 +228,7 @@ function getRemovalConfirmMessage(action, trigger) {
     'remove-milestone-task': 'Remove this task from the milestone?',
     'remove-sprint-member': 'Remove this member from the team?',
     'remove-sprint-note': 'Remove this sprint note?',
+    'remove-sprint-board-note': 'Remove this sprint board note?',
     'remove-rpde-ticket': 'Remove this queue item?',
     'remove-sprint-plan': 'Remove this sprint and all its tickets?',
     'remove-sprint-ticket': 'Remove this ticket from the sprint?',
@@ -270,6 +280,16 @@ function handleClickAction(trigger, updateState, root, uiState, render) {
   const taskIndex = Number(trigger.dataset.taskIndex);
   const milestoneIndex = Number(trigger.dataset.milestoneIndex);
   const ticketIndex = Number(trigger.dataset.ticketIndex);
+
+  if (trigger.dataset.action === 'format-sprint-note-text') {
+    const editor = trigger.closest('[data-note-editor]');
+    if (!editor) return;
+    const editable = editor.querySelector('.sprint-note-editor__input[contenteditable="true"]');
+    const hiddenInput = editor.querySelector('input[name="text"]');
+    if (!(editable instanceof HTMLElement) || !(hiddenInput instanceof HTMLInputElement)) return;
+    applySprintNoteFormatting(editable, hiddenInput, String(trigger.dataset.format || '').trim());
+    return;
+  }
 
   if (trigger.dataset.action === 'add-project') {
     const form = readForm(root, '[data-form="project-create"]');
@@ -575,16 +595,16 @@ function handleClickAction(trigger, updateState, root, uiState, render) {
   }
 
   if (trigger.dataset.action === 'add-sprint-note') {
+    syncSprintNoteEditors(root.querySelector('[data-form="sprint-note-create"]'));
     const form = readForm(root, '[data-form="sprint-note-create"]');
     const text = String(form?.get('text') || '').trim();
-    const link = String(form?.get('link') || '').trim();
     if (!text) return;
     updateState((state) => {
       const notes = Array.isArray(state.spNotes) ? state.spNotes : [];
       notes.unshift({
         id: createId('sprint-note'),
         text,
-        link,
+        link: '',
         createdAt: new Date().toISOString(),
       });
       state.spNotes = notes;
@@ -608,16 +628,16 @@ function handleClickAction(trigger, updateState, root, uiState, render) {
   if (trigger.dataset.action === 'save-edit-sprint-note') {
     const noteId = String(trigger.dataset.noteId || '').trim();
     if (!noteId) return;
+    syncSprintNoteEditors(root.querySelector(`[data-form="sprint-note-edit"][data-note-id="${noteId}"]`));
     const form = readForm(root, `[data-form="sprint-note-edit"][data-note-id="${noteId}"]`);
     const text = String(form?.get('text') || '').trim();
-    const link = String(form?.get('link') || '').trim();
     if (!text) return;
     updateState((state) => {
       const notes = Array.isArray(state.spNotes) ? state.spNotes : [];
       const note = notes.find((item) => String(item?.id || '') === noteId);
       if (!note) return;
       note.text = text;
-      note.link = link;
+      note.link = String(note.link || '').trim();
     });
     uiState.editingSprintNoteId = null;
     render();
@@ -635,6 +655,39 @@ function handleClickAction(trigger, updateState, root, uiState, render) {
       uiState.editingSprintNoteId = null;
       render();
     }
+    return;
+  }
+
+  if (trigger.dataset.action === 'add-sprint-board-note' && Number.isInteger(sprintIndex)) {
+    syncSprintNoteEditors(root.querySelector(`[data-form="sprint-board-note-create"][data-sprint-index="${sprintIndex}"]`));
+    const form = readForm(root, `[data-form="sprint-board-note-create"][data-sprint-index="${sprintIndex}"]`);
+    const text = String(form?.get('text') || '').trim();
+    if (!text) return;
+    updateState((state) => {
+      const sprint = state.spData[sprintIndex];
+      if (!sprint) return;
+      if (!Array.isArray(sprint.notesBoard)) {
+        sprint.notesBoard = [];
+      }
+      sprint.notesBoard.unshift({
+        id: createId('sprint-board-note'),
+        text,
+        link: '',
+        createdAt: new Date().toISOString(),
+      });
+    });
+    resetForm(root, `[data-form="sprint-board-note-create"][data-sprint-index="${sprintIndex}"]`);
+    return;
+  }
+
+  if (trigger.dataset.action === 'remove-sprint-board-note' && Number.isInteger(sprintIndex)) {
+    const noteId = String(trigger.dataset.noteId || '').trim();
+    if (!noteId) return;
+    updateState((state) => {
+      const sprint = state.spData[sprintIndex];
+      if (!sprint || !Array.isArray(sprint.notesBoard)) return;
+      sprint.notesBoard = sprint.notesBoard.filter((note) => String(note?.id || '') !== noteId);
+    });
     return;
   }
 
@@ -689,6 +742,7 @@ function handleClickAction(trigger, updateState, root, uiState, render) {
         endDate: normalizedEndDate,
         createdAt: new Date().toISOString(),
         tickets: [],
+        notesBoard: [],
       });
     });
     resetForm(root, '[data-form="sprint-create"]');
@@ -803,6 +857,91 @@ function handleClickAction(trigger, updateState, root, uiState, render) {
     uiState.editingTicket = null;
     render();
   }
+}
+
+function applySprintNoteFormatting(editable, hiddenInput, formatType) {
+  editable.focus();
+
+  if (formatType === 'bold') {
+    document.execCommand('bold');
+    syncSprintNoteEditorValue(editable.closest('[data-note-editor]'));
+    return;
+  }
+
+  if (formatType === 'italic') {
+    document.execCommand('italic');
+    syncSprintNoteEditorValue(editable.closest('[data-note-editor]'));
+    return;
+  }
+
+  if (formatType === 'list') {
+    document.execCommand('insertUnorderedList');
+    syncSprintNoteEditorValue(editable.closest('[data-note-editor]'));
+    return;
+  }
+
+  if (formatType === 'code') {
+    const selection = window.getSelection();
+    if (!selection || selection.rangeCount === 0) return;
+    const range = selection.getRangeAt(0);
+    const selectedText = selection.toString() || 'code';
+    const codeElement = document.createElement('code');
+    codeElement.textContent = selectedText;
+    range.deleteContents();
+    range.insertNode(codeElement);
+    range.setStartAfter(codeElement);
+    range.collapse(true);
+    selection.removeAllRanges();
+    selection.addRange(range);
+    syncSprintNoteEditorValue(editable.closest('[data-note-editor]'));
+    return;
+  }
+
+  if (formatType === 'link') {
+    const rawUrl = window.prompt('Insere o URL do link', 'https://');
+    if (rawUrl === null) return;
+    const normalizedUrl = normalizeSprintNoteLinkUrl(rawUrl);
+    if (!normalizedUrl) {
+      window.alert('URL invalido. Usa um link como https://exemplo.com');
+      return;
+    }
+
+    const selection = window.getSelection();
+    const selectedText = selection?.toString().trim() || '';
+    if (selectedText) {
+      document.execCommand('createLink', false, normalizedUrl);
+    } else {
+      document.execCommand('insertHTML', false, `<a href="${normalizedUrl}" target="_blank" rel="noopener noreferrer">link</a>`);
+    }
+    syncSprintNoteEditorValue(editable.closest('[data-note-editor]'));
+    return;
+  }
+
+  hiddenInput.value = editable.innerHTML;
+}
+
+function syncSprintNoteEditorValue(editorRoot) {
+  if (!(editorRoot instanceof Element)) return;
+  const editable = editorRoot.querySelector('.sprint-note-editor__input[contenteditable="true"]');
+  const hiddenInput = editorRoot.querySelector('input[name="text"]');
+  if (!(editable instanceof HTMLElement) || !(hiddenInput instanceof HTMLInputElement)) return;
+  hiddenInput.value = editable.innerHTML;
+}
+
+function syncSprintNoteEditors(container) {
+  if (!(container instanceof Element)) return;
+  container.querySelectorAll('[data-note-editor]').forEach((editorRoot) => {
+    syncSprintNoteEditorValue(editorRoot);
+  });
+}
+
+function normalizeSprintNoteLinkUrl(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+  if (/^https?:\/\//i.test(raw)) return raw;
+  if (/^www\./i.test(raw)) return `https://${raw}`;
+  if (/^[a-z0-9.-]+\.[a-z]{2,}(\/.*)?$/i.test(raw)) return `https://${raw}`;
+  return '';
 }
 
 function handleChangeAction(field, updateState, uiState, render) {

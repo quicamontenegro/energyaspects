@@ -311,6 +311,19 @@ async function saveStructuredMetadata(snapshot){
         createdAt:note?.createdAt || ''
       })),
       updated_at:now
+    },
+    {
+      key:'spSprintNotesBoard',
+      value:structuredSafeRows(snapshot.spData).map(sprint=>({
+        sprintId:sprint?.id || '',
+        notes:structuredSafeRows(sprint?.notesBoard).map(note=>({
+          id:note?.id || '',
+          text:note?.text || '',
+          link:note?.link || '',
+          createdAt:note?.createdAt || ''
+        }))
+      })).filter(item=>String(item.sprintId || '').trim()),
+      updated_at:now
     }
   ];
   const {error}=await sbClient.from('settings').upsert(rows,{onConflict:'key'});
@@ -438,9 +451,10 @@ async function loadStructuredMetadata(){
   const result={
     deMeetings:[],
     spTeamMembers:[],
-    spNotes:[]
+    spNotes:[],
+    spSprintNotesBoard:[]
   };
-  const {data,error}=await sbClient.from('settings').select('key,value').in('key',['deMeetings','spTeamMembers','spNotes']);
+  const {data,error}=await sbClient.from('settings').select('key,value').in('key',['deMeetings','spTeamMembers','spNotes','spSprintNotesBoard']);
   if(error)throw error;
   (data || []).forEach(row=>{
     if(row.key==='deMeetings'){
@@ -480,8 +494,46 @@ async function loadStructuredMetadata(){
         createdAt:note?.createdAt || ''
       }));
     }
+    if(row.key==='spSprintNotesBoard'){
+      result.spSprintNotesBoard=structuredSafeRows(row.value)
+        .map(item=>({
+          sprintId:item?.sprintId || '',
+          notes:structuredSafeRows(item?.notes).map(note=>({
+            id:note?.id || '',
+            text:note?.text || '',
+            link:note?.link || '',
+            createdAt:note?.createdAt || ''
+          }))
+        }))
+        .filter(item=>String(item.sprintId || '').trim());
+    }
   });
   return result;
+}
+
+function mergeSprintNotesBoardIntoSprints(spData, metadata){
+  const safeSprints=structuredSafeRows(spData);
+  const boardRows=structuredSafeRows(metadata?.spSprintNotesBoard);
+  if(!boardRows.length){
+    return safeSprints;
+  }
+
+  const boardBySprintId=boardRows.reduce((acc,row)=>{
+    const key=String(row?.sprintId || '').trim();
+    if(!key)return acc;
+    acc[key]=structuredSafeRows(row?.notes).map(note=>({
+      id:note?.id || '',
+      text:note?.text || '',
+      link:note?.link || '',
+      createdAt:note?.createdAt || ''
+    }));
+    return acc;
+  },{});
+
+  return safeSprints.map((sprint)=>({
+    ...sprint,
+    notesBoard:boardBySprintId[String(sprint?.id || '').trim()] || structuredSafeRows(sprint?.notesBoard)
+  }));
 }
 
 async function loadStructuredProjects(){
@@ -731,17 +783,20 @@ export async function loadAllData(){
     if(msData.status==='rejected')console.error('Structured milestones load failed:', msData.reason);
     if(spData.status==='rejected')console.error('Structured sprints load failed:', spData.reason);
     if(metadata.status==='rejected')console.error('Structured metadata load failed:', metadata.reason);
+    const resolvedMetadata=metadata.status==='fulfilled' ? metadata.value : {deMeetings:[],spTeamMembers:[],spNotes:[],spSprintNotesBoard:[]};
+    const resolvedSpData=spData.status==='fulfilled' ? mergeSprintNotesBoardIntoSprints(spData.value, resolvedMetadata) : [];
+
     return {
       settings:settings.status==='fulfilled' ? settings.value : {monthlyHours:176,hoursPerDay:8},
       projects:projects.status==='fulfilled' ? projects.value : [],
       teams:teams.status==='fulfilled' ? teams.value : [],
       deTasks:deTasks.status==='fulfilled' ? deTasks.value : [],
-      deMeetings:metadata.status==='fulfilled' ? metadata.value.deMeetings : [],
+      deMeetings:resolvedMetadata.deMeetings,
       rpdeTickets:rpdeTickets.status==='fulfilled' ? rpdeTickets.value : [],
       msData:msData.status==='fulfilled' ? msData.value : [],
-      spData:spData.status==='fulfilled' ? spData.value : [],
-      spTeamMembers:metadata.status==='fulfilled' ? metadata.value.spTeamMembers : [],
-      spNotes:metadata.status==='fulfilled' ? metadata.value.spNotes : []
+      spData:resolvedSpData,
+      spTeamMembers:resolvedMetadata.spTeamMembers,
+      spNotes:resolvedMetadata.spNotes
     };
   }catch(err){
     console.error('Structured load failed:', err);
