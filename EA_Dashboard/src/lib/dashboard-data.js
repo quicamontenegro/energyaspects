@@ -33,10 +33,7 @@ export async function loadDashboardSnapshot() {
   const baseline = createDefaultSnapshot();
 
   if (!config.url || !config.anonKey) {
-    return {
-      snapshot: baseline,
-      canSync: false,
-    };
+    throw new Error('Supabase configuration is required. Local-only mode is disabled.');
   }
 
   const client = createClient(config.url, config.anonKey, {
@@ -48,11 +45,7 @@ export async function loadDashboardSnapshot() {
   try {
     const remote = await loadAllData();
     if (!remote || typeof remote !== 'object') {
-      console.error('Supabase returned no snapshot payload. Falling back to local mode.');
-      return {
-        snapshot: baseline,
-        canSync: false,
-      };
+      throw new Error('Supabase returned an invalid snapshot payload.');
     }
 
     return {
@@ -61,20 +54,18 @@ export async function loadDashboardSnapshot() {
     };
   } catch (error) {
     console.error('Failed to load dashboard snapshot from Supabase.', error);
-    return {
-      snapshot: baseline,
-      canSync: false,
-    };
+    throw new Error('Supabase sync is mandatory. Dashboard start blocked to prevent local-only data.');
   }
 }
 
 export function createDashboardPersistence(canSync) {
+  if (!canSync) {
+    throw new Error('Supabase sync is mandatory. Persistence cannot run in local mode.');
+  }
+
   let latestState = createDefaultSnapshot();
 
   async function flush() {
-    if (!canSync) {
-      return;
-    }
     await saveCoreSnapshot(cloneState(latestState));
   }
 
@@ -84,10 +75,6 @@ export function createDashboardPersistence(canSync) {
     },
     schedule(nextState) {
       latestState = cloneState(nextState);
-      if (!canSync) {
-        return Promise.resolve();
-      }
-
       return flush();
     },
     flush,

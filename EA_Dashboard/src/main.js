@@ -18,7 +18,7 @@ bootstrap().catch((error) => {
       <section class="hero-card">
         <p class="eyebrow">Initialization Error</p>
         <h1>EA Dashboard could not start.</h1>
-        <p class="hero-copy">Check the browser console and confirm the Supabase configuration is valid.</p>
+        <p class="hero-copy">Supabase is mandatory and local mode is disabled. Check the browser console and confirm the Supabase configuration/connection is valid.</p>
       </section>
     </main>
   `;

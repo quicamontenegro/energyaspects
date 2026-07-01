@@ -25,8 +25,16 @@ export function createDashboardApp(root, initialSnapshot, persistence) {
     editingTicket: null,
     creatingSprintTicket: null,
     editingSprintIndex: null,
+    reorderingSprintIndex: null,
     editingSprintNoteId: null,
     editingSprintBoardNoteKey: null,
+  };
+  const dragState = {
+    type: '',
+    sprintIndex: null,
+    ticketIndex: null,
+    assignee: '',
+    epicKey: '',
   };
 
   function persist(snapshot) {
@@ -40,10 +48,12 @@ export function createDashboardApp(root, initialSnapshot, persistence) {
     
     if (uiState.editingTicket) {
       const { sprintIndex, ticketIndex } = uiState.editingTicket;
-      const ticket = state.spData[sprintIndex]?.tickets[ticketIndex];
+      const sprint = state.spData[sprintIndex];
+      const ticket = sprint?.tickets?.[ticketIndex];
       if (ticket) {
         const members = getSprintMembers(state.spTeamMembers);
-        modal = renderGlobalTicketEditModal(sprintIndex, ticketIndex, ticket, members);
+        const relatedTickets = getRelatedEpicTicketsForEdit(sprint, ticketIndex);
+        modal = renderGlobalTicketEditModal(sprintIndex, ticketIndex, ticket, members, relatedTickets);
       }
     }
 
@@ -173,6 +183,172 @@ export function createDashboardApp(root, initialSnapshot, persistence) {
     }
   });
 
+  root.addEventListener('dragstart', (event) => {
+    const ticketHandle = event.target instanceof Element ? event.target.closest('[data-ticket-drag]') : null;
+    const epicHandle = event.target instanceof Element ? event.target.closest('[data-epic-drag]') : null;
+
+    if (ticketHandle instanceof HTMLElement) {
+      const sprintIndex = Number(ticketHandle.dataset.sprintIndex);
+      const ticketIndex = Number(ticketHandle.dataset.ticketIndex);
+      if (!Number.isInteger(sprintIndex) || !Number.isInteger(ticketIndex)) return;
+      if (uiState.reorderingSprintIndex !== sprintIndex) return;
+
+      dragState.type = 'ticket';
+      dragState.sprintIndex = sprintIndex;
+      dragState.ticketIndex = ticketIndex;
+      dragState.assignee = '';
+      dragState.epicKey = '';
+      const dropItem = ticketHandle.closest('[data-ticket-drop]');
+      if (dropItem instanceof HTMLElement) {
+        dropItem.classList.add('is-dragging');
+      }
+
+      if (event.dataTransfer) {
+        event.dataTransfer.effectAllowed = 'move';
+        event.dataTransfer.setData('text/plain', `ticket:${sprintIndex}:${ticketIndex}`);
+      }
+      return;
+    }
+
+    if (epicHandle instanceof HTMLElement) {
+      const sprintIndex = Number(epicHandle.dataset.sprintIndex);
+      const assignee = String(epicHandle.dataset.assignee || '').trim();
+      const epicKey = String(epicHandle.dataset.epicKey || '').trim();
+      if (!Number.isInteger(sprintIndex) || !assignee || !epicKey) return;
+      if (uiState.reorderingSprintIndex !== sprintIndex) return;
+
+      dragState.type = 'epic';
+      dragState.sprintIndex = sprintIndex;
+      dragState.ticketIndex = null;
+      dragState.assignee = assignee;
+      dragState.epicKey = epicKey;
+
+      const epicCard = epicHandle.closest('[data-epic-drop]');
+      if (epicCard instanceof HTMLElement) {
+        epicCard.classList.add('is-epic-dragging');
+      }
+
+      if (event.dataTransfer) {
+        event.dataTransfer.effectAllowed = 'move';
+        event.dataTransfer.setData('text/plain', `epic:${sprintIndex}:${assignee}:${epicKey}`);
+      }
+    }
+  });
+
+  root.addEventListener('dragover', (event) => {
+    if (dragState.type === 'ticket') {
+      const dropItem = event.target instanceof Element ? event.target.closest('[data-ticket-drop]') : null;
+      if (!(dropItem instanceof HTMLElement)) return;
+
+      const sprintIndex = Number(dropItem.dataset.sprintIndex);
+      if (!Number.isInteger(sprintIndex) || sprintIndex !== dragState.sprintIndex) return;
+
+      event.preventDefault();
+      if (event.dataTransfer) {
+        event.dataTransfer.dropEffect = 'move';
+      }
+      root.querySelectorAll('.sprint-ticket-preview__list-item.is-drag-over').forEach((node) => node.classList.remove('is-drag-over'));
+      dropItem.classList.add('is-drag-over');
+      return;
+    }
+
+    if (dragState.type === 'epic') {
+      const dropCard = event.target instanceof Element ? event.target.closest('[data-epic-drop]') : null;
+      if (!(dropCard instanceof HTMLElement)) return;
+
+      const sprintIndex = Number(dropCard.dataset.sprintIndex);
+      const assignee = String(dropCard.dataset.assignee || '').trim();
+      if (!Number.isInteger(sprintIndex) || sprintIndex !== dragState.sprintIndex) return;
+      if (!assignee || assignee !== dragState.assignee) return;
+
+      event.preventDefault();
+      if (event.dataTransfer) {
+        event.dataTransfer.dropEffect = 'move';
+      }
+      root.querySelectorAll('.sprint-ticket-card.is-epic-drag-over').forEach((node) => node.classList.remove('is-epic-drag-over'));
+      dropCard.classList.add('is-epic-drag-over');
+    }
+  });
+
+  root.addEventListener('drop', (event) => {
+    if (dragState.type === 'ticket') {
+      const dropItem = event.target instanceof Element ? event.target.closest('[data-ticket-drop]') : null;
+      if (!(dropItem instanceof HTMLElement)) return;
+      event.preventDefault();
+
+      const sourceSprint = dragState.sprintIndex;
+      const sourceIndex = dragState.ticketIndex;
+      const targetSprint = Number(dropItem.dataset.sprintIndex);
+      const targetIndex = Number(dropItem.dataset.ticketIndex);
+
+      clearSprintDragClasses(root);
+
+      if (!Number.isInteger(sourceSprint) || !Number.isInteger(sourceIndex)) return;
+      if (!Number.isInteger(targetSprint) || !Number.isInteger(targetIndex)) return;
+      if (sourceSprint !== targetSprint || sourceIndex === targetIndex) return;
+
+      const rect = dropItem.getBoundingClientRect();
+      const placeAfter = event.clientY > rect.top + (rect.height / 2);
+      const rawInsertIndex = placeAfter ? targetIndex + 1 : targetIndex;
+
+      updateState((state) => {
+        const sprint = state.spData[sourceSprint];
+        if (!sprint || !Array.isArray(sprint.tickets)) return;
+        const tickets = sprint.tickets;
+        if (sourceIndex < 0 || sourceIndex >= tickets.length) return;
+
+        const [movedTicket] = tickets.splice(sourceIndex, 1);
+        if (!movedTicket) return;
+
+        let insertIndex = Math.max(0, Math.min(rawInsertIndex, tickets.length));
+        if (sourceIndex < rawInsertIndex) {
+          insertIndex -= 1;
+        }
+        tickets.splice(insertIndex, 0, movedTicket);
+      });
+
+      resetSprintDragState(dragState);
+      return;
+    }
+
+    if (dragState.type === 'epic') {
+      const dropCard = event.target instanceof Element ? event.target.closest('[data-epic-drop]') : null;
+      if (!(dropCard instanceof HTMLElement)) return;
+      event.preventDefault();
+
+      const sourceSprint = dragState.sprintIndex;
+      const sourceAssignee = dragState.assignee;
+      const sourceEpicKey = dragState.epicKey;
+      const targetSprint = Number(dropCard.dataset.sprintIndex);
+      const targetAssignee = String(dropCard.dataset.assignee || '').trim();
+      const targetEpicKey = String(dropCard.dataset.epicKey || '').trim();
+
+      clearSprintDragClasses(root);
+
+      if (!Number.isInteger(sourceSprint) || !sourceEpicKey || !sourceAssignee) return;
+      if (!Number.isInteger(targetSprint) || !targetEpicKey || !targetAssignee) return;
+      if (sourceSprint !== targetSprint) return;
+      if (sourceAssignee !== targetAssignee) return;
+      if (sourceEpicKey === targetEpicKey) return;
+
+      const rect = dropCard.getBoundingClientRect();
+      const placeAfter = event.clientY > rect.top + (rect.height / 2);
+
+      updateState((state) => {
+        const sprint = state.spData[sourceSprint];
+        if (!sprint || !Array.isArray(sprint.tickets)) return;
+        reorderEpicGroupInSprintTickets(sprint.tickets, sourceAssignee, sourceEpicKey, targetEpicKey, placeAfter);
+      });
+
+      resetSprintDragState(dragState);
+    }
+  });
+
+  root.addEventListener('dragend', () => {
+    clearSprintDragClasses(root);
+    resetSprintDragState(dragState);
+  });
+
   window.addEventListener('hashchange', () => {
     uiState.tab = resolveTabFromHash();
     render();
@@ -243,6 +419,8 @@ function getRemovalConfirmMessage(action, trigger) {
     'remove-rpde-ticket': 'Remove this queue item?',
     'remove-sprint-plan': 'Remove this sprint and all its tickets?',
     'remove-sprint-ticket': 'Remove this ticket from the sprint?',
+    'remove-sprint-epic': 'Remove this epic and all tickets under it?',
+    'remove-sprint-ticket-in-form': 'Remove this ticket from the sprint?',
   };
   return messages[action] || `Remove this item?\n\nThis action cannot be undone.`;
 }
@@ -315,8 +493,22 @@ function handleClickAction(trigger, updateState, root, uiState, render) {
     const epicUrlInput = form.querySelector('input[name="epicUrl"]');
     if (!(epicUrlInput instanceof HTMLInputElement)) return;
 
-    epicUrlInput.focus();
-    epicUrlInput.select();
+    openLinkInputPopup({
+      title: 'Epic link',
+      initialValue: epicUrlInput.value || 'https://',
+      onConfirm: (rawUrl) => {
+        const trimmed = String(rawUrl || '').trim();
+        const normalized = trimmed ? normalizeUrl(trimmed) : '';
+        if (trimmed && !normalized) {
+          window.alert('URL invalido. Usa um link como https://jira/...');
+          return false;
+        }
+
+        epicUrlInput.value = normalized;
+        updateLinkPreview(form, 'epicUrl', normalized);
+        return true;
+      },
+    });
     return;
   }
 
@@ -327,8 +519,24 @@ function handleClickAction(trigger, updateState, root, uiState, render) {
     const ticketUrlInput = row?.querySelector('input[name="jiraUrl"]');
     if (!(ticketUrlInput instanceof HTMLInputElement)) return;
 
-    ticketUrlInput.focus();
-    ticketUrlInput.select();
+    openLinkInputPopup({
+      title: 'Ticket link',
+      initialValue: ticketUrlInput.value || 'https://',
+      onConfirm: (rawUrl) => {
+        const trimmed = String(rawUrl || '').trim();
+        const normalized = trimmed ? normalizeUrl(trimmed) : '';
+        if (trimmed && !normalized) {
+          window.alert('URL invalido. Usa um link como https://jira/...');
+          return false;
+        }
+
+        ticketUrlInput.value = normalized;
+        if (row instanceof Element) {
+          updateLinkPreview(row, 'jiraUrl', normalized);
+        }
+        return true;
+      },
+    });
     return;
   }
 
@@ -344,12 +552,11 @@ function handleClickAction(trigger, updateState, root, uiState, render) {
         <input class="field-input" name="jiraId" type="text" placeholder="DP-3333" />
         <button class="button button--secondary button--sm" type="button" data-action="set-ticket-link">Link</button>
       </div>
-      <input class="field-input sprint-link-inline-input" name="jiraUrl" type="url" value="" placeholder="https://jira/..." />
-      <div class="ticket-link-row__meta">
-        <button class="btn-icon" type="button" data-action="remove-ticket-link-row" title="Remove ticket">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 6l-1.4 14H6.4L5 6M10 11v6M14 11v6M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/></svg>
-        </button>
-      </div>
+      <input name="existingTicketIndex" type="hidden" value="" />
+      <input name="jiraUrl" type="hidden" value="" />
+      <input class="field-input" name="storyPoints" type="number" min="0" step="0.5" value="" placeholder="Story points" />
+      <input class="field-input" name="notes" type="text" value="" placeholder="Notes" />
+      <p class="sprint-link-hint" data-link-preview="jiraUrl">Sem link</p>
     `;
     list.appendChild(row);
     const newInput = row.querySelector('input[name="jiraId"]');
@@ -365,8 +572,13 @@ function handleClickAction(trigger, updateState, root, uiState, render) {
     if (rows.length <= 1) {
       const idInput = row.querySelector('input[name="jiraId"]');
       const urlInput = row.querySelector('input[name="jiraUrl"]');
+      const spInput = row.querySelector('input[name="storyPoints"]');
+      const notesInput = row.querySelector('input[name="notes"]');
       if (idInput instanceof HTMLInputElement) idInput.value = '';
       if (urlInput instanceof HTMLInputElement) urlInput.value = '';
+      if (spInput instanceof HTMLInputElement) spInput.value = '';
+      if (notesInput instanceof HTMLInputElement) notesInput.value = '';
+      updateLinkPreview(row, 'jiraUrl', '');
       return;
     }
     row.remove();
@@ -383,6 +595,12 @@ function handleClickAction(trigger, updateState, root, uiState, render) {
       }
       state.spCollapsedByKey[sprintKey] = !isCurrentlyCollapsed;
     });
+    return;
+  }
+
+  if (trigger.dataset.action === 'toggle-sprint-ticket-reorder-mode' && Number.isInteger(sprintIndex)) {
+    uiState.reorderingSprintIndex = uiState.reorderingSprintIndex === sprintIndex ? null : sprintIndex;
+    render();
     return;
   }
 
@@ -906,6 +1124,9 @@ function handleClickAction(trigger, updateState, root, uiState, render) {
     if (uiState.editingSprintIndex === sprintIndex) {
       uiState.editingSprintIndex = null;
     }
+    if (uiState.reorderingSprintIndex === sprintIndex) {
+      uiState.reorderingSprintIndex = null;
+    }
     uiState.editingSprintBoardNoteKey = null;
     render();
     return;
@@ -953,6 +1174,32 @@ function handleClickAction(trigger, updateState, root, uiState, render) {
     return;
   }
 
+  if (trigger.dataset.action === 'edit-sprint-epic' && Number.isInteger(sprintIndex) && Number.isInteger(ticketIndex)) {
+    uiState.editingTicket = { sprintIndex, ticketIndex };
+    render();
+    return;
+  }
+
+  if (trigger.dataset.action === 'remove-sprint-epic' && Number.isInteger(sprintIndex)) {
+    const assignee = String(trigger.dataset.assignee || '').trim();
+    const epicKey = String(trigger.dataset.epicKey || '').trim();
+    if (!assignee || !epicKey) return;
+
+    updateState((state) => {
+      const sprint = state.spData[sprintIndex];
+      if (!sprint || !Array.isArray(sprint.tickets)) return;
+      sprint.tickets = sprint.tickets.filter((ticket) => {
+        return !(getTicketAssigneeKey(ticket) === assignee && getTicketEpicKey(ticket) === epicKey);
+      });
+    }, { waitForSync: true });
+
+    if (uiState.editingTicket && uiState.editingTicket.sprintIndex === sprintIndex) {
+      uiState.editingTicket = null;
+      render();
+    }
+    return;
+  }
+
   if (trigger.dataset.action === 'cancel-create-sprint-ticket' && Number.isInteger(sprintIndex)) {
     uiState.creatingSprintTicket = null;
     render();
@@ -968,20 +1215,23 @@ function handleClickAction(trigger, updateState, root, uiState, render) {
     const epicUrl = normalizeUrl(String(formData.get('epicUrl') || ''));
     const status = String(formData.get('status') || 'todo').trim() || 'todo';
     const priority = String(formData.get('priority') || 'Medium').trim() || 'Medium';
-    const notes = String(formData.get('notes') || '').trim();
-    const storyPoints = normalizeStoryPoints(formData.get('storyPoints'));
     const assignee = String(formData.get('assignee') || '').trim();
     const ticketRows = Array.from(modal.querySelectorAll('[data-ticket-link-row]'));
     const ticketsToCreate = ticketRows
       .map((row) => {
         const jiraIdInput = row.querySelector('input[name="jiraId"]');
         const jiraUrlInput = row.querySelector('input[name="jiraUrl"]');
+        const storyPointsInput = row.querySelector('input[name="storyPoints"]');
+        const notesInput = row.querySelector('input[name="notes"]');
         const jiraId = jiraIdInput instanceof HTMLInputElement ? String(jiraIdInput.value || '').trim() : '';
         const jiraUrlRaw = jiraUrlInput instanceof HTMLInputElement ? String(jiraUrlInput.value || '') : '';
+        const notes = notesInput instanceof HTMLInputElement ? String(notesInput.value || '').trim() : '';
         if (!jiraId) return null;
         return {
           jiraId,
           jiraUrl: normalizeUrl(jiraUrlRaw),
+          storyPoints: normalizeStoryPoints(storyPointsInput instanceof HTMLInputElement ? storyPointsInput.value : ''),
+          notes,
         };
       })
       .filter(Boolean);
@@ -1000,10 +1250,10 @@ function handleClickAction(trigger, updateState, root, uiState, render) {
           jiraUrl: ticketSeed.jiraUrl,
           epicUrl,
           epicTitle,
-          desc: notes,
-          notes,
+          desc: ticketSeed.notes,
+          notes: ticketSeed.notes,
           assignee,
-          storyPoints,
+          storyPoints: ticketSeed.storyPoints,
           priority,
           status,
         });
@@ -1021,6 +1271,19 @@ function handleClickAction(trigger, updateState, root, uiState, render) {
     }, { waitForSync: true });
   }
 
+  if (trigger.dataset.action === 'toggle-delete-sprint-ticket-in-form' && Number.isInteger(sprintIndex) && Number.isInteger(ticketIndex)) {
+    const modal = root.querySelector(`[data-form="sprint-ticket-edit-modal"][data-sprint-index="${sprintIndex}"][data-ticket-index="${ticketIndex}"]`);
+    const form = modal?.querySelector('.ticket-edit-form');
+    const pendingDeleteInput = form?.querySelector('input[name="pendingDelete"]');
+    if (!(pendingDeleteInput instanceof HTMLInputElement)) return;
+
+    const shouldDelete = pendingDeleteInput.value !== '1';
+    pendingDeleteInput.value = shouldDelete ? '1' : '0';
+    trigger.classList.toggle('is-pending-delete', shouldDelete);
+    trigger.setAttribute('title', shouldDelete ? 'Delete pending (Save to apply)' : 'Delete ticket');
+    return;
+  }
+
   if (trigger.dataset.action === 'edit-sprint-ticket' && Number.isInteger(sprintIndex) && Number.isInteger(ticketIndex)) {
     uiState.editingTicket = { sprintIndex, ticketIndex };
     render();
@@ -1036,9 +1299,22 @@ function handleClickAction(trigger, updateState, root, uiState, render) {
     const modal = root.querySelector(`[data-form="sprint-ticket-edit-modal"][data-sprint-index="${sprintIndex}"][data-ticket-index="${ticketIndex}"]`);
     if (!modal) return;
     const form = modal.querySelector('.ticket-edit-form');
+    const pendingDeleteInput = form?.querySelector('input[name="pendingDelete"]');
+    const shouldDelete = pendingDeleteInput instanceof HTMLInputElement && pendingDeleteInput.value === '1';
+    if (shouldDelete) {
+      updateState((state) => {
+        state.spData[sprintIndex].tickets.splice(ticketIndex, 1);
+      }, { waitForSync: true });
+      uiState.editingTicket = null;
+      render();
+      return;
+    }
+
     const formData = new FormData(form);
     const jiraId = String(formData.get('jiraId') || '').trim();
     if (!jiraId) return;
+    const mainStoryPointsInput = form?.querySelector('input[name="mainStoryPoints"]');
+    const mainNotesInput = form?.querySelector('input[name="mainNotes"]');
     const epicTitle = String(formData.get('epicTitle') || '').trim();
     const epicUrl = normalizeUrl(String(formData.get('epicUrl') || ''));
     updateState((state) => {
@@ -1053,16 +1329,39 @@ function handleClickAction(trigger, updateState, root, uiState, render) {
       ticket.jiraUrl = normalizeUrl(String(formData.get('jiraUrl') || ''));
       ticket.epicUrl = epicUrl;
       ticket.epicTitle = epicTitle;
-      ticket.storyPoints = normalizeStoryPoints(formData.get('storyPoints'));
-      const notes = String(formData.get('notes') || '').trim();
+      ticket.storyPoints = normalizeStoryPoints(mainStoryPointsInput instanceof HTMLInputElement ? mainStoryPointsInput.value : '');
+      const notes = mainNotesInput instanceof HTMLInputElement ? String(mainNotesInput.value || '').trim() : '';
       ticket.notes = notes;
       ticket.desc = notes;
 
       const extraRows = Array.from(modal.querySelectorAll('[data-ticket-link-row]'));
       extraRows.forEach((row) => {
         const idInput = row.querySelector('input[name="jiraId"]');
+        const existingIndexInput = row.querySelector('input[name="existingTicketIndex"]');
         const urlInput = row.querySelector('input[name="jiraUrl"]');
+        const storyPointsInput = row.querySelector('input[name="storyPoints"]');
+        const notesInput = row.querySelector('input[name="notes"]');
         const extraId = idInput instanceof HTMLInputElement ? String(idInput.value || '').trim() : '';
+        const extraNotes = notesInput instanceof HTMLInputElement ? String(notesInput.value || '').trim() : '';
+        const existingIndex = existingIndexInput instanceof HTMLInputElement && String(existingIndexInput.value || '').trim() !== ''
+          ? Number(existingIndexInput.value)
+          : NaN;
+
+        if (Number.isInteger(existingIndex) && existingIndex >= 0 && existingIndex !== ticketIndex) {
+          const existingTicket = sprint.tickets[existingIndex];
+          if (!existingTicket || !extraId) return;
+          existingTicket.title = extraId;
+          existingTicket.jiraId = extraId;
+          existingTicket.jiraUrl = urlInput instanceof HTMLInputElement ? normalizeUrl(String(urlInput.value || '')) : '';
+          existingTicket.epicUrl = epicUrl;
+          existingTicket.epicTitle = epicTitle;
+          existingTicket.assignee = ticket.assignee;
+          existingTicket.storyPoints = normalizeStoryPoints(storyPointsInput instanceof HTMLInputElement ? storyPointsInput.value : '');
+          existingTicket.notes = extraNotes;
+          existingTicket.desc = extraNotes;
+          return;
+        }
+
         if (!extraId || extraId === jiraId) return;
 
         sprint.tickets.push({
@@ -1073,10 +1372,10 @@ function handleClickAction(trigger, updateState, root, uiState, render) {
           jiraUrl: urlInput instanceof HTMLInputElement ? normalizeUrl(String(urlInput.value || '')) : '',
           epicUrl,
           epicTitle,
-          desc: notes,
-          notes,
+          desc: extraNotes,
+          notes: extraNotes,
           assignee: ticket.assignee,
-          storyPoints: ticket.storyPoints,
+          storyPoints: normalizeStoryPoints(storyPointsInput instanceof HTMLInputElement ? storyPointsInput.value : ''),
           priority: ticket.priority,
           status: ticket.status,
         });
@@ -1146,6 +1445,177 @@ function applySprintNoteFormatting(editable, hiddenInput, formatType) {
   }
 
   hiddenInput.value = editable.innerHTML;
+}
+
+function updateLinkPreview(scope, fieldName, value) {
+  if (!(scope instanceof Element)) return;
+  const preview = scope.querySelector(`[data-link-preview="${fieldName}"]`);
+  if (!(preview instanceof HTMLElement)) return;
+  preview.textContent = String(value || '').trim() || 'Sem link';
+}
+
+function openLinkInputPopup({ title, initialValue, onConfirm }) {
+  const overlay = document.createElement('div');
+  overlay.className = 'link-input-popup-overlay';
+  overlay.innerHTML = `
+    <div class="link-input-popup" role="dialog" aria-modal="true" aria-label="${String(title || 'Link input')}">
+      <h3>${String(title || 'Link')}</h3>
+      <input class="field-input" type="text" value="" placeholder="https://..." />
+      <div class="link-input-popup__actions">
+        <button class="button button--secondary button--sm" type="button" data-popup-action="cancel">Cancel</button>
+        <button class="button button--primary button--sm" type="button" data-popup-action="save">Save</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+
+  const card = overlay.querySelector('.link-input-popup');
+  const input = overlay.querySelector('input');
+  const cancelBtn = overlay.querySelector('[data-popup-action="cancel"]');
+  const saveBtn = overlay.querySelector('[data-popup-action="save"]');
+
+  if (!(card instanceof HTMLElement) || !(input instanceof HTMLInputElement)) {
+    overlay.remove();
+    return;
+  }
+  input.value = String(initialValue || '');
+
+  const close = () => {
+    overlay.remove();
+  };
+
+  const submit = () => {
+    if (typeof onConfirm === 'function') {
+      const ok = onConfirm(input.value);
+      if (ok === false) return;
+    }
+    close();
+  };
+
+  overlay.addEventListener('click', (event) => {
+    if (event.target === overlay) {
+      close();
+    }
+  });
+
+  cancelBtn?.addEventListener('click', close);
+  saveBtn?.addEventListener('click', submit);
+
+  input.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      submit();
+      return;
+    }
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      close();
+    }
+  });
+
+  setTimeout(() => {
+    input.focus();
+    input.select();
+  }, 0);
+}
+
+function clearSprintDragClasses(root) {
+  if (!(root instanceof Element)) return;
+  root.querySelectorAll('.sprint-ticket-preview__list-item.is-drag-over').forEach((node) => {
+    node.classList.remove('is-drag-over');
+  });
+  root.querySelectorAll('.sprint-ticket-preview__list-item.is-dragging').forEach((node) => {
+    node.classList.remove('is-dragging');
+  });
+  root.querySelectorAll('.sprint-ticket-card.is-epic-drag-over').forEach((node) => {
+    node.classList.remove('is-epic-drag-over');
+  });
+  root.querySelectorAll('.sprint-ticket-card.is-epic-dragging').forEach((node) => {
+    node.classList.remove('is-epic-dragging');
+  });
+}
+
+function resetSprintDragState(dragState) {
+  dragState.type = '';
+  dragState.sprintIndex = null;
+  dragState.ticketIndex = null;
+  dragState.assignee = '';
+  dragState.epicKey = '';
+}
+
+function getTicketAssigneeKey(ticket) {
+  const raw = String(ticket?.assignee || '').trim();
+  return raw || 'Unassigned';
+}
+
+function getTicketEpicKey(ticket) {
+  const epicTitle = String(ticket?.epicTitle || '').trim();
+  const epicUrl = String(ticket?.epicUrl || '').trim();
+  const ticketId = String(ticket?.id || '').trim();
+  return epicTitle || epicUrl || `ticket:${ticketId}`;
+}
+
+function getRelatedEpicTicketsForEdit(sprint, mainTicketIndex) {
+  if (!sprint || !Array.isArray(sprint.tickets) || !Number.isInteger(mainTicketIndex)) {
+    return [];
+  }
+
+  const mainTicket = sprint.tickets[mainTicketIndex];
+  if (!mainTicket) {
+    return [];
+  }
+
+  const assigneeKey = getTicketAssigneeKey(mainTicket);
+  const epicKey = getTicketEpicKey(mainTicket);
+
+  return sprint.tickets
+    .map((ticket, ticketIndex) => ({ ticket, ticketIndex }))
+    .filter(({ ticket, ticketIndex }) => {
+      if (ticketIndex === mainTicketIndex) return false;
+      return getTicketAssigneeKey(ticket) === assigneeKey && getTicketEpicKey(ticket) === epicKey;
+    });
+}
+
+function reorderEpicGroupInSprintTickets(tickets, assignee, sourceEpicKey, targetEpicKey, placeAfter) {
+  if (!Array.isArray(tickets) || !assignee || !sourceEpicKey || !targetEpicKey) return;
+
+  const assigneeIndexes = [];
+  const assigneeTickets = [];
+  tickets.forEach((ticket, index) => {
+    if (getTicketAssigneeKey(ticket) !== assignee) return;
+    assigneeIndexes.push(index);
+    assigneeTickets.push(ticket);
+  });
+  if (!assigneeTickets.length) return;
+
+  const epicGroups = [];
+  const groupMap = new Map();
+  assigneeTickets.forEach((ticket) => {
+    const key = getTicketEpicKey(ticket);
+    if (!groupMap.has(key)) {
+      const group = { key, tickets: [] };
+      groupMap.set(key, group);
+      epicGroups.push(group);
+    }
+    groupMap.get(key).tickets.push(ticket);
+  });
+
+  const sourceIndex = epicGroups.findIndex((group) => group.key === sourceEpicKey);
+  const targetIndex = epicGroups.findIndex((group) => group.key === targetEpicKey);
+  if (sourceIndex === -1 || targetIndex === -1 || sourceIndex === targetIndex) return;
+
+  const [movedGroup] = epicGroups.splice(sourceIndex, 1);
+  let insertIndex = placeAfter ? targetIndex + 1 : targetIndex;
+  if (sourceIndex < targetIndex) {
+    insertIndex -= 1;
+  }
+  insertIndex = Math.max(0, Math.min(insertIndex, epicGroups.length));
+  epicGroups.splice(insertIndex, 0, movedGroup);
+
+  const reorderedAssigneeTickets = epicGroups.flatMap((group) => group.tickets);
+  assigneeIndexes.forEach((ticketIndex, position) => {
+    tickets[ticketIndex] = reorderedAssigneeTickets[position];
+  });
 }
 
 function syncSprintNoteEditorValue(editorRoot) {

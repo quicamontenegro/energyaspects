@@ -54,8 +54,6 @@ export function renderSprintsSection(state, uiState) {
       return 0;
     });
   
-  const totalTickets = sprints.reduce((sum, sprint) => sum + (sprint.tickets || []).length, 0);
-
   return `
     <section class="panel-stack sprint-panel-stack">
       <section class="board-card sprint-members-card">
@@ -116,7 +114,6 @@ export function renderSprintsSection(state, uiState) {
           </div>
           <div class="sprint-backlog-meta">
             <span class="sprint-backlog-kpi">${sprints.length} sprints</span>
-            <span class="sprint-backlog-kpi">${totalTickets} tickets</span>
           </div>
         </div>
         <div class="sprint-create-form" data-form="sprint-create">
@@ -364,6 +361,7 @@ function renderSprintCard(sprintIndex, sprint, sprintMembers, uiState, options =
   const visibleAssignees = Object.keys(grouped);
   const sprintBoardNotes = Array.isArray(sprint?.notesBoard) ? sprint.notesBoard : [];
   const isEditingSprint = uiState.editingSprintIndex === sprintIndex;
+  const isReorderingTickets = uiState.reorderingSprintIndex === sprintIndex;
   const isCollapsed = options.isCollapsed === true;
   const sprintKey = String(options.sprintKey || '').trim();
   const collapseLabel = isCollapsed ? 'Expand sprint' : 'Collapse sprint';
@@ -377,6 +375,9 @@ function renderSprintCard(sprintIndex, sprint, sprintMembers, uiState, options =
             <button class="btn-icon sprint-card__collapse-toggle ${isCollapsed ? 'is-collapsed' : ''}" type="button" data-action="toggle-sprint-collapse" data-sprint-key="${escapeHtml(sprintKey)}" data-collapsed="${isCollapsed ? 'true' : 'false'}" title="${collapseLabel}" aria-label="${collapseLabel}" aria-expanded="${isCollapsed ? 'false' : 'true'}">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>
             </button>
+            <button class="btn-icon ${isReorderingTickets ? 'is-active' : ''}" type="button" data-action="toggle-sprint-ticket-reorder-mode" data-sprint-index="${sprintIndex}" title="Reorder tickets" aria-label="Reorder tickets">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 6h11M8 12h11M8 18h11"/><path d="M4 8l2-2 2 2M6 6v12M4 16l2 2 2-2"/></svg>
+            </button>
             <button class="btn-icon btn-icon--edit" type="button" data-action="edit-sprint-plan" data-sprint-index="${sprintIndex}" title="Edit sprint">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
             </button>
@@ -385,13 +386,11 @@ function renderSprintCard(sprintIndex, sprint, sprintMembers, uiState, options =
             </button>
           </div>
         </div>
-        <div class="sprint-card__meta">
-          <span class="sprint-badge">${(sprint.tickets || []).length} tickets</span>
-        </div>
       </div>
 
       <div class="sprint-card__body ${isCollapsed ? 'is-collapsed' : ''}">
         ${isEditingSprint ? renderSprintEditForm(sprintIndex, sprint) : ''}
+        ${isReorderingTickets ? '<div class="sprint-reorder-hint">Modo de ordenacao ativo: arrasta os tickets para cima/baixo e larga para guardar.</div>' : ''}
 
         <div class="sprint-board">
           ${visibleAssignees.length
@@ -481,13 +480,12 @@ function renderAssigneeColumn(sprintIndex, assignee, items, sprintMembers, uiSta
       <header class="sprint-column__head">
         <div class="av-sm" style="background: linear-gradient(135deg, var(--accent), var(--indigo));">${memberInitials}</div>
         <span class="sprint-column__title">${escapeHtml(assignee || 'Unassigned')}</span>
-        <span class="sprint-column__count">${items.length}</span>
-        <button class="btn-icon" type="button" data-action="open-add-sprint-ticket-modal" data-sprint-index="${sprintIndex}" data-assignee="${escapeHtml(assignee)}" title="Add ticket">
+        <button class="btn-icon sprint-add-ticket-btn" type="button" data-action="open-add-sprint-ticket-modal" data-sprint-index="${sprintIndex}" data-assignee="${escapeHtml(assignee)}" title="Add ticket">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
         </button>
       </header>
       <div class="sprint-column__body">
-        ${items.length ? epicGroups.map((group) => renderSprintEpicCard(sprintIndex, group, sprintMembers, uiState)).join('') : '<div class="sprint-column__empty">No tickets assigned</div>'}
+        ${items.length ? epicGroups.map((group) => renderSprintEpicCard(sprintIndex, assignee, group, sprintMembers, uiState)).join('') : '<div class="sprint-column__empty">No tickets assigned</div>'}
       </div>
     </section>
   `;
@@ -560,21 +558,25 @@ function renderSprintTicket(sprintIndex, ticketIndex, ticket, sprintMembers, uiS
   `;
 }
 
-function renderSprintEpicCard(sprintIndex, group, sprintMembers, uiState) {
+function renderSprintEpicCard(sprintIndex, assignee, group, sprintMembers, uiState) {
   const lead = group.items[0];
   const leadTicket = lead?.ticket || {};
+  const leadTicketIndex = Number(lead?.ticketIndex);
   const epicHref = resolveEpicHref(leadTicket);
   const epicTitle = String(leadTicket.epicTitle || '').trim() || 'No epic title';
   const totalSp = group.items.reduce((sum, item) => sum + (Number(item?.ticket?.storyPoints) || 0), 0);
   const totalSpLabel = totalSp > 0 ? formatStoryPointsDisplay(totalSp) : '';
-  const indexLabel = `${(lead?.ticketIndex ?? 0) + 1}->`;
+  const canReorder = uiState.reorderingSprintIndex === sprintIndex;
+  const epicDropAttrs = canReorder
+    ? `data-epic-drop="true" data-epic-drag="true" draggable="true" data-sprint-index="${sprintIndex}" data-assignee="${escapeHtml(assignee)}" data-epic-key="${escapeHtml(String(group.key || ''))}"`
+    : '';
 
   return `
-    <article class="sprint-ticket-card" style="--ticket-status-color:${STATUS_COLOR[leadTicket.status] || '#64748b'};">
+    <article class="sprint-ticket-card ${canReorder ? 'is-epic-reorder-enabled' : ''}" style="--ticket-status-color:${STATUS_COLOR[leadTicket.status] || '#64748b'};" ${epicDropAttrs}>
       <div class="sprint-ticket-card__top">
         <div class="sprint-ticket-preview">
           <div class="sprint-ticket-preview__epic">
-            <span class="sprint-ticket-preview__index">${escapeHtml(indexLabel)}</span>
+            ${canReorder ? `<button class="btn-icon sprint-epic-drag-handle" type="button" draggable="true" data-epic-drag="true" data-sprint-index="${sprintIndex}" data-assignee="${escapeHtml(assignee)}" data-epic-key="${escapeHtml(String(group.key || ''))}" title="Drag epic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 5h.01M10 12h.01M10 19h.01M14 5h.01M14 12h.01M14 19h.01"/></svg></button>` : ''}
             ${epicHref
               ? `<a class="sprint-ticket-preview__epic-link" href="${escapeHtml(epicHref)}" target="_blank" rel="noopener noreferrer">${escapeHtml(epicTitle)}</a>`
               : `<span class="sprint-ticket-preview__epic-text">${escapeHtml(epicTitle)}</span>`}
@@ -585,8 +587,12 @@ function renderSprintEpicCard(sprintIndex, group, sprintMembers, uiState) {
               const jiraHref = resolveJiraHref(ticket);
               const ticketLabel = String(ticket.jiraId || ticket.title || '').trim() || 'No ticket';
               const storyPointsLabel = formatStoryPointsDisplay(ticket.storyPoints);
+              const ticketNotes = String(ticket.notes || ticket.desc || ticket.description || '').trim();
+              const reorderAttrs = canReorder
+                ? `data-ticket-drop="true" data-sprint-index="${sprintIndex}" data-ticket-index="${ticketIndex}"`
+                : '';
               return `
-                <li class="sprint-ticket-preview__list-item">
+                <li class="sprint-ticket-preview__list-item ${canReorder ? 'is-reorder-enabled' : ''}" ${reorderAttrs}>
                   <div class="sprint-ticket-preview__line">
                     <span class="sprint-ticket-preview__main">
                       ${jiraHref
@@ -597,19 +603,21 @@ function renderSprintEpicCard(sprintIndex, group, sprintMembers, uiState) {
                         ${TICKET_STATUSES.map((status) => `<option value="${status}" ${ticket.status === status ? 'selected' : ''}>${formatStatus(status)}</option>`).join('')}
                       </select>
                     </span>
-                    <div class="sprint-ticket-actions sprint-ticket-actions--inline">
-                      <button class="btn-icon btn-icon--edit" type="button" data-action="edit-sprint-ticket" data-sprint-index="${sprintIndex}" data-ticket-index="${ticketIndex}" title="Edit ticket">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-                      </button>
-                      <button class="btn-icon" type="button" data-action="remove-sprint-ticket" data-sprint-index="${sprintIndex}" data-ticket-index="${ticketIndex}" title="Delete ticket">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 6l-1.4 14H6.4L5 6M10 11v6M14 11v6M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/></svg>
-                      </button>
-                    </div>
+                    ${canReorder ? `<button class="btn-icon sprint-ticket-drag-handle" type="button" draggable="true" data-ticket-drag="true" data-sprint-index="${sprintIndex}" data-ticket-index="${ticketIndex}" title="Drag to reorder"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 5h.01M10 12h.01M10 19h.01M14 5h.01M14 12h.01M14 19h.01"/></svg></button>` : ''}
                   </div>
+                  ${ticketNotes ? `<p class="sprint-ticket-preview__note">${escapeHtml(ticketNotes)}</p>` : ''}
                 </li>
               `;
             }).join('')}
           </ul>
+        </div>
+        <div class="sprint-ticket-actions sprint-ticket-actions--epic">
+          <button class="btn-icon btn-icon--edit" type="button" data-action="edit-sprint-epic" data-sprint-index="${sprintIndex}" data-ticket-index="${leadTicketIndex}" title="Edit epic">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+          </button>
+          <button class="btn-icon" type="button" data-action="remove-sprint-epic" data-sprint-index="${sprintIndex}" data-assignee="${escapeHtml(assignee)}" data-epic-key="${escapeHtml(String(group.key || ''))}" title="Delete epic">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 6l-1.4 14H6.4L5 6M10 11v6M14 11v6M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/></svg>
+          </button>
         </div>
       </div>
     </article>
@@ -766,9 +774,40 @@ export function getSprintMembers(rawMembers) {
   });
 }
 
-export function renderGlobalTicketEditModal(sprintIndex, ticketIndex, ticket, sprintMembers) {
+export function renderGlobalTicketEditModal(sprintIndex, ticketIndex, ticket, sprintMembers, relatedTickets = []) {
   const ticketUrl = String(ticket.jiraUrl || '').trim();
   const epicUrl = String(ticket.epicUrl || '').trim();
+  const relatedRows = Array.isArray(relatedTickets) ? relatedTickets : [];
+  const relatedRowsMarkup = relatedRows.length
+    ? relatedRows.map(({ ticket: relatedTicket, ticketIndex: relatedTicketIndex }) => {
+      const relatedUrl = String(relatedTicket?.jiraUrl || '').trim();
+      return `
+        <div class="ticket-link-row" data-ticket-link-row>
+          <div class="inline-link-field">
+            <input class="field-input" name="jiraId" type="text" value="${escapeHtml(String(relatedTicket?.jiraId || relatedTicket?.title || ''))}" placeholder="DP-9999" />
+            <button class="button button--secondary button--sm" type="button" data-action="set-ticket-link">Link</button>
+          </div>
+          <input name="existingTicketIndex" type="hidden" value="${escapeHtml(String(relatedTicketIndex))}" />
+          <input name="jiraUrl" type="hidden" value="${escapeHtml(relatedUrl)}" />
+          <input class="field-input" name="storyPoints" type="number" min="0" step="0.5" value="${escapeHtml(String(relatedTicket?.storyPoints ?? ''))}" placeholder="Story points" />
+          <input class="field-input" name="notes" type="text" value="${escapeHtml(String(relatedTicket?.notes || relatedTicket?.desc || ''))}" placeholder="Notes" />
+          <p class="sprint-link-hint" data-link-preview="jiraUrl">${escapeHtml(relatedUrl || 'Sem link')}</p>
+        </div>
+      `;
+    }).join('')
+    : `
+      <div class="ticket-link-row" data-ticket-link-row>
+        <div class="inline-link-field">
+          <input class="field-input" name="jiraId" type="text" placeholder="DP-9999" />
+          <button class="button button--secondary button--sm" type="button" data-action="set-ticket-link">Link</button>
+        </div>
+        <input name="existingTicketIndex" type="hidden" value="" />
+        <input name="jiraUrl" type="hidden" value="" />
+        <input class="field-input" name="storyPoints" type="number" min="0" step="0.5" value="" placeholder="Story points" />
+        <input class="field-input" name="notes" type="text" value="" placeholder="Notes" />
+        <p class="sprint-link-hint" data-link-preview="jiraUrl">Sem link</p>
+      </div>
+    `;
 
   return `
     <article class="sprint-ticket-edit-modal" data-form="sprint-ticket-edit-modal" data-sprint-index="${sprintIndex}" data-ticket-index="${ticketIndex}">
@@ -796,33 +835,30 @@ export function renderGlobalTicketEditModal(sprintIndex, ticketIndex, ticket, sp
                 <input class="field-input" name="epicTitle" type="text" value="${escapeHtml(ticket.epicTitle || '')}" placeholder="TESTING in EA DS" />
                 <button class="button button--secondary button--sm" type="button" data-action="set-epic-link">Link</button>
               </div>
-              <input class="field-input sprint-link-inline-input" name="epicUrl" type="url" value="${escapeHtml(epicUrl)}" placeholder="https://jira/..." />
+              <input name="epicUrl" type="hidden" value="${escapeHtml(epicUrl)}" />
+              <p class="sprint-link-hint" data-link-preview="epicUrl">${escapeHtml(epicUrl || 'Sem link')}</p>
             </div>
 
             <div class="form-group">
               <label>Ticket ID</label>
-              <div class="inline-link-field">
+              <div class="inline-link-field inline-link-field--with-delete">
                 <input class="field-input" name="jiraId" type="text" value="${escapeHtml(ticket.jiraId || '')}" placeholder="DP-3333" />
                 <button class="button button--secondary button--sm" type="button" data-action="set-ticket-link">Link</button>
+                <button class="btn-icon" type="button" data-action="toggle-delete-sprint-ticket-in-form" data-sprint-index="${sprintIndex}" data-ticket-index="${ticketIndex}" title="Delete ticket">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 6l-1.4 14H6.4L5 6M10 11v6M14 11v6M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/></svg>
+                </button>
               </div>
-              <input class="field-input sprint-link-inline-input" name="jiraUrl" type="url" value="${escapeHtml(ticketUrl)}" placeholder="https://jira/..." />
+              <input name="pendingDelete" type="hidden" value="0" />
+              <input name="jiraUrl" type="hidden" value="${escapeHtml(ticketUrl)}" />
+              <input class="field-input" name="mainStoryPoints" type="number" min="0" step="0.5" value="${escapeHtml(String(ticket.storyPoints || ''))}" placeholder="Story points" />
+              <input class="field-input" name="mainNotes" type="text" value="${escapeHtml(ticket.notes || ticket.desc || '')}" placeholder="Notes" />
+              <p class="sprint-link-hint" data-link-preview="jiraUrl">${escapeHtml(ticketUrl || 'Sem link')}</p>
             </div>
 
             <div class="form-group">
               <label>More Tickets</label>
               <div class="ticket-links-list" data-ticket-links-list>
-                <div class="ticket-link-row" data-ticket-link-row>
-                  <div class="inline-link-field">
-                    <input class="field-input" name="jiraId" type="text" placeholder="DP-9999" />
-                    <button class="button button--secondary button--sm" type="button" data-action="set-ticket-link">Link</button>
-                  </div>
-                  <input class="field-input sprint-link-inline-input" name="jiraUrl" type="url" value="" placeholder="https://jira/..." />
-                  <div class="ticket-link-row__meta">
-                    <button class="btn-icon" type="button" data-action="remove-ticket-link-row" title="Remove ticket">
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 6l-1.4 14H6.4L5 6M10 11v6M14 11v6M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/></svg>
-                    </button>
-                  </div>
-                </div>
+                ${relatedRowsMarkup}
               </div>
               <button class="button button--secondary button--sm" type="button" data-action="add-ticket-link-row">Add ticket</button>
             </div>
@@ -834,15 +870,6 @@ export function renderGlobalTicketEditModal(sprintIndex, ticketIndex, ticket, sp
               </select>
             </div>
 
-            <div class="form-group">
-              <label>Story Points</label>
-              <input class="field-input" name="storyPoints" type="number" min="0" step="0.5" value="${escapeHtml(String(ticket.storyPoints || ''))}" placeholder="0" />
-            </div>
-
-            <div class="form-group">
-              <label>Notes</label>
-              <textarea class="field-input" name="notes" placeholder="Add notes...">${escapeHtml(ticket.notes || ticket.desc || '')}</textarea>
-            </div>
           </form>
         </div>
         <div class="modal-footer">
@@ -883,7 +910,8 @@ export function renderSprintTicketCreateModal(sprintIndex, defaultAssignee, spri
                 <input class="field-input" name="epicTitle" type="text" placeholder="TESTING in EA DS" />
                 <button class="button button--secondary button--sm" type="button" data-action="set-epic-link">Link</button>
               </div>
-              <input class="field-input sprint-link-inline-input" name="epicUrl" type="url" value="" placeholder="https://jira/..." />
+              <input name="epicUrl" type="hidden" value="" />
+              <p class="sprint-link-hint" data-link-preview="epicUrl">Sem link</p>
             </div>
 
             <div class="form-group">
@@ -894,12 +922,10 @@ export function renderSprintTicketCreateModal(sprintIndex, defaultAssignee, spri
                     <input class="field-input" name="jiraId" type="text" placeholder="DP-3333" />
                     <button class="button button--secondary button--sm" type="button" data-action="set-ticket-link">Link</button>
                   </div>
-                  <input class="field-input sprint-link-inline-input" name="jiraUrl" type="url" value="" placeholder="https://jira/..." />
-                  <div class="ticket-link-row__meta">
-                    <button class="btn-icon" type="button" data-action="remove-ticket-link-row" title="Remove ticket">
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 6l-1.4 14H6.4L5 6M10 11v6M14 11v6M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/></svg>
-                    </button>
-                  </div>
+                  <input name="jiraUrl" type="hidden" value="" />
+                  <input class="field-input" name="storyPoints" type="number" min="0" step="0.5" value="" placeholder="Story points" />
+                  <input class="field-input" name="notes" type="text" value="" placeholder="Notes" />
+                  <p class="sprint-link-hint" data-link-preview="jiraUrl">Sem link</p>
                 </div>
               </div>
               <button class="button button--secondary button--sm" type="button" data-action="add-ticket-link-row">Add ticket</button>
@@ -912,15 +938,6 @@ export function renderSprintTicketCreateModal(sprintIndex, defaultAssignee, spri
               </select>
             </div>
 
-            <div class="form-group">
-              <label>Story Points</label>
-              <input class="field-input" name="storyPoints" type="number" min="0" step="0.5" placeholder="0" />
-            </div>
-
-            <div class="form-group">
-              <label>Notes</label>
-              <textarea class="field-input" name="notes" placeholder="Notes"></textarea>
-            </div>
           </form>
         </div>
         <div class="modal-footer">
