@@ -1,7 +1,7 @@
 import { renderDataExplorerSection, renderDataExplorerTaskEditModal } from '../sections/dataExplorerSection.js';
 import { renderInvoicingSection } from '../sections/invoicingSection.js';
 import { renderMilestonesSection } from '../sections/milestonesSection.js';
-import { renderSprintsSection, renderGlobalTicketEditModal, getSprintMembers } from '../sections/sprintsSection.js';
+import { renderSprintsSection, renderGlobalTicketEditModal, renderSprintTicketCreateModal, getSprintMembers } from '../sections/sprintsSection.js';
 import { renderVelocitySection } from '../sections/velocitySection.js';
 import { cloneState, createDefaultSnapshot } from '../state/defaults.js';
 import { createStore } from '../state/store.js';
@@ -23,6 +23,7 @@ export function createDashboardApp(root, initialSnapshot, persistence) {
     milestoneTeam: 'rp',
     milestoneStatus: 'all',
     editingTicket: null,
+    creatingSprintTicket: null,
     editingSprintIndex: null,
     editingSprintNoteId: null,
     editingSprintBoardNoteKey: null,
@@ -43,6 +44,15 @@ export function createDashboardApp(root, initialSnapshot, persistence) {
       if (ticket) {
         const members = getSprintMembers(state.spTeamMembers);
         modal = renderGlobalTicketEditModal(sprintIndex, ticketIndex, ticket, members);
+      }
+    }
+
+    if (!modal && uiState.creatingSprintTicket) {
+      const { sprintIndex, assignee } = uiState.creatingSprintTicket;
+      const sprint = state.spData[sprintIndex];
+      if (sprint) {
+        const members = getSprintMembers(state.spTeamMembers);
+        modal = renderSprintTicketCreateModal(sprintIndex, assignee, members);
       }
     }
 
@@ -296,6 +306,70 @@ function handleClickAction(trigger, updateState, root, uiState, render) {
     const editor = trigger.closest('[data-note-editor]');
     if (!editor) return;
     applySprintNoteTextColor(editor, String(trigger.dataset.color || '').trim());
+    return;
+  }
+
+  if (trigger.dataset.action === 'set-epic-link') {
+    const form = trigger.closest('.ticket-edit-form');
+    if (!(form instanceof Element)) return;
+    const epicUrlInput = form.querySelector('input[name="epicUrl"]');
+    if (!(epicUrlInput instanceof HTMLInputElement)) return;
+
+    epicUrlInput.focus();
+    epicUrlInput.select();
+    return;
+  }
+
+  if (trigger.dataset.action === 'set-ticket-link') {
+    const form = trigger.closest('.ticket-edit-form');
+    if (!(form instanceof Element)) return;
+    const row = trigger.closest('[data-ticket-link-row]') || trigger.closest('.form-group');
+    const ticketUrlInput = row?.querySelector('input[name="jiraUrl"]');
+    if (!(ticketUrlInput instanceof HTMLInputElement)) return;
+
+    ticketUrlInput.focus();
+    ticketUrlInput.select();
+    return;
+  }
+
+  if (trigger.dataset.action === 'add-ticket-link-row') {
+    const list = trigger.closest('.form-group')?.querySelector('[data-ticket-links-list]');
+    if (!(list instanceof Element)) return;
+
+    const row = document.createElement('div');
+    row.className = 'ticket-link-row';
+    row.setAttribute('data-ticket-link-row', 'true');
+    row.innerHTML = `
+      <div class="inline-link-field">
+        <input class="field-input" name="jiraId" type="text" placeholder="DP-3333" />
+        <button class="button button--secondary button--sm" type="button" data-action="set-ticket-link">Link</button>
+      </div>
+      <input class="field-input sprint-link-inline-input" name="jiraUrl" type="url" value="" placeholder="https://jira/..." />
+      <div class="ticket-link-row__meta">
+        <button class="btn-icon" type="button" data-action="remove-ticket-link-row" title="Remove ticket">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 6l-1.4 14H6.4L5 6M10 11v6M14 11v6M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/></svg>
+        </button>
+      </div>
+    `;
+    list.appendChild(row);
+    const newInput = row.querySelector('input[name="jiraId"]');
+    if (newInput instanceof HTMLInputElement) newInput.focus();
+    return;
+  }
+
+  if (trigger.dataset.action === 'remove-ticket-link-row') {
+    const row = trigger.closest('[data-ticket-link-row]');
+    const list = row?.parentElement;
+    if (!(row instanceof Element) || !(list instanceof Element)) return;
+    const rows = list.querySelectorAll('[data-ticket-link-row]');
+    if (rows.length <= 1) {
+      const idInput = row.querySelector('input[name="jiraId"]');
+      const urlInput = row.querySelector('input[name="jiraUrl"]');
+      if (idInput instanceof HTMLInputElement) idInput.value = '';
+      if (urlInput instanceof HTMLInputElement) urlInput.value = '';
+      return;
+    }
+    row.remove();
     return;
   }
 
@@ -798,12 +872,17 @@ function handleClickAction(trigger, updateState, root, uiState, render) {
     const formattedName = formatSprintNameWithDates(name, normalizedStartDate, normalizedEndDate);
     
     updateState((state) => {
+      const columnAssignees = normalizeSprintMembers(state.spTeamMembers)
+        .map((member) => String(member?.name || '').trim())
+        .filter((memberName) => memberName.length > 0);
+
       state.spData.push({
         id: createId('sprint'),
         name: formattedName,
         startDate: normalizedStartDate,
         endDate: normalizedEndDate,
         createdAt: new Date().toISOString(),
+        columnAssignees,
         tickets: [],
         notesBoard: [],
       });
@@ -867,28 +946,72 @@ function handleClickAction(trigger, updateState, root, uiState, render) {
     return;
   }
 
-  if (trigger.dataset.action === 'add-sprint-ticket' && Number.isInteger(sprintIndex)) {
-    const form = readForm(root, `[data-form="sprint-ticket-create"][data-sprint-index="${sprintIndex}"]`);
-    const title = String(form?.get('title') || '').trim();
-    const status = String(form?.get('status') || 'todo').trim() || 'todo';
-    const priority = String(form?.get('priority') || 'Medium').trim() || 'Medium';
-    const notes = String(form?.get('notes') || '').trim();
-    if (!title) return;
+  if (trigger.dataset.action === 'open-add-sprint-ticket-modal' && Number.isInteger(sprintIndex)) {
+    const assignee = String(trigger.dataset.assignee || '').trim();
+    uiState.creatingSprintTicket = { sprintIndex, assignee };
+    render();
+    return;
+  }
+
+  if (trigger.dataset.action === 'cancel-create-sprint-ticket' && Number.isInteger(sprintIndex)) {
+    uiState.creatingSprintTicket = null;
+    render();
+    return;
+  }
+
+  if (trigger.dataset.action === 'save-create-sprint-ticket' && Number.isInteger(sprintIndex)) {
+    const modal = root.querySelector(`[data-form="sprint-ticket-create-modal"][data-sprint-index="${sprintIndex}"]`);
+    if (!modal) return;
+    const form = modal.querySelector('.ticket-edit-form');
+    const formData = new FormData(form);
+    const epicTitle = String(formData.get('epicTitle') || '').trim();
+    const epicUrl = normalizeUrl(String(formData.get('epicUrl') || ''));
+    const status = String(formData.get('status') || 'todo').trim() || 'todo';
+    const priority = String(formData.get('priority') || 'Medium').trim() || 'Medium';
+    const notes = String(formData.get('notes') || '').trim();
+    const storyPoints = normalizeStoryPoints(formData.get('storyPoints'));
+    const assignee = String(formData.get('assignee') || '').trim();
+    const ticketRows = Array.from(modal.querySelectorAll('[data-ticket-link-row]'));
+    const ticketsToCreate = ticketRows
+      .map((row) => {
+        const jiraIdInput = row.querySelector('input[name="jiraId"]');
+        const jiraUrlInput = row.querySelector('input[name="jiraUrl"]');
+        const jiraId = jiraIdInput instanceof HTMLInputElement ? String(jiraIdInput.value || '').trim() : '';
+        const jiraUrlRaw = jiraUrlInput instanceof HTMLInputElement ? String(jiraUrlInput.value || '') : '';
+        if (!jiraId) return null;
+        return {
+          jiraId,
+          jiraUrl: normalizeUrl(jiraUrlRaw),
+        };
+      })
+      .filter(Boolean);
+
+    if (!ticketsToCreate.length) return;
+
     updateState((state) => {
-      state.spData[sprintIndex].tickets.push({
-        id: createId('sprint-ticket'),
-        title,
-        jiraId: String(form?.get('jiraId') || '').trim(),
-        epicId: String(form?.get('epicId') || '').trim(),
-        jiraUrl: String(form?.get('jiraUrl') || '').trim(),
-        desc: notes,
-        notes,
-        assignee: '',
-        priority,
-        status,
+      const sprint = state.spData[sprintIndex];
+      if (!sprint) return;
+      ticketsToCreate.forEach((ticketSeed) => {
+        sprint.tickets.push({
+          id: createId('sprint-ticket'),
+          title: ticketSeed.jiraId,
+          jiraId: ticketSeed.jiraId,
+          epicId: '',
+          jiraUrl: ticketSeed.jiraUrl,
+          epicUrl,
+          epicTitle,
+          desc: notes,
+          notes,
+          assignee,
+          storyPoints,
+          priority,
+          status,
+        });
       });
     });
-    resetForm(root, `[data-form="sprint-ticket-create"][data-sprint-index="${sprintIndex}"]`);
+
+    uiState.creatingSprintTicket = null;
+    render();
     return;
   }
 
@@ -901,6 +1024,7 @@ function handleClickAction(trigger, updateState, root, uiState, render) {
   if (trigger.dataset.action === 'edit-sprint-ticket' && Number.isInteger(sprintIndex) && Number.isInteger(ticketIndex)) {
     uiState.editingTicket = { sprintIndex, ticketIndex };
     render();
+    return;
   }
 
   if (trigger.dataset.action === 'cancel-edit-sprint-ticket' && Number.isInteger(sprintIndex) && Number.isInteger(ticketIndex)) {
@@ -913,18 +1037,50 @@ function handleClickAction(trigger, updateState, root, uiState, render) {
     if (!modal) return;
     const form = modal.querySelector('.ticket-edit-form');
     const formData = new FormData(form);
+    const jiraId = String(formData.get('jiraId') || '').trim();
+    if (!jiraId) return;
+    const epicTitle = String(formData.get('epicTitle') || '').trim();
+    const epicUrl = normalizeUrl(String(formData.get('epicUrl') || ''));
     updateState((state) => {
       const ticket = state.spData[sprintIndex].tickets[ticketIndex];
-      ticket.title = String(formData.get('title') || '').trim();
+      const sprint = state.spData[sprintIndex];
+      if (!ticket || !sprint) return;
+      ticket.title = jiraId;
       ticket.assignee = String(formData.get('assignee') || '').trim();
       ticket.status = String(formData.get('status') || 'todo').trim();
       ticket.priority = String(formData.get('priority') || 'Medium').trim() || 'Medium';
-      ticket.jiraId = String(formData.get('jiraId') || '').trim();
-      ticket.epicId = String(formData.get('epicId') || '').trim();
-      ticket.jiraUrl = String(formData.get('jiraUrl') || '').trim();
+      ticket.jiraId = jiraId;
+      ticket.jiraUrl = normalizeUrl(String(formData.get('jiraUrl') || ''));
+      ticket.epicUrl = epicUrl;
+      ticket.epicTitle = epicTitle;
+      ticket.storyPoints = normalizeStoryPoints(formData.get('storyPoints'));
       const notes = String(formData.get('notes') || '').trim();
       ticket.notes = notes;
       ticket.desc = notes;
+
+      const extraRows = Array.from(modal.querySelectorAll('[data-ticket-link-row]'));
+      extraRows.forEach((row) => {
+        const idInput = row.querySelector('input[name="jiraId"]');
+        const urlInput = row.querySelector('input[name="jiraUrl"]');
+        const extraId = idInput instanceof HTMLInputElement ? String(idInput.value || '').trim() : '';
+        if (!extraId || extraId === jiraId) return;
+
+        sprint.tickets.push({
+          id: createId('sprint-ticket'),
+          title: extraId,
+          jiraId: extraId,
+          epicId: '',
+          jiraUrl: urlInput instanceof HTMLInputElement ? normalizeUrl(String(urlInput.value || '')) : '',
+          epicUrl,
+          epicTitle,
+          desc: notes,
+          notes,
+          assignee: ticket.assignee,
+          storyPoints: ticket.storyPoints,
+          priority: ticket.priority,
+          status: ticket.status,
+        });
+      });
     });
     uiState.editingTicket = null;
     render();
@@ -1213,4 +1369,17 @@ function formatSprintNameWithDates(baseName, startDate, endDate) {
   const dateRange = start && end ? `${start} - ${end}` : '';
   
   return dateRange ? `${baseName} [${dateRange}]` : baseName;
+}
+
+function normalizeUrl(rawUrl) {
+  const value = String(rawUrl || '').trim();
+  return /^https?:\/\//i.test(value) ? value : '';
+}
+
+function normalizeStoryPoints(rawValue) {
+  const value = String(rawValue ?? '').trim();
+  if (!value) return null;
+  const parsed = Number(value);
+  if (Number.isNaN(parsed) || parsed < 0) return null;
+  return parsed;
 }

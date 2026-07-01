@@ -326,6 +326,28 @@ async function saveStructuredMetadata(snapshot){
         }))
       })).filter(item=>String(item.sprintId || '').trim()),
       updated_at:now
+    },
+    {
+      key:'spSprintColumns',
+      value:structuredSafeRows(snapshot.spData).map(sprint=>({
+        sprintId:sprint?.id || '',
+        assignees:structuredSafeRows(sprint?.columnAssignees)
+          .map(name=>String(name || '').trim())
+          .filter(Boolean)
+      })).filter(item=>String(item.sprintId || '').trim()),
+      updated_at:now
+    },
+    {
+      key:'spSprintTicketExtras',
+      value:structuredSafeRows(snapshot.spData).flatMap(sprint=>
+        structuredSafeRows(sprint?.tickets).map(ticket=>({
+          ticketId:ticket?.id || '',
+          storyPoints:ticket?.storyPoints ?? null,
+          epicUrl:ticket?.epicUrl || '',
+          epicTitle:ticket?.epicTitle || ''
+        }))
+      ).filter(item=>String(item.ticketId || '').trim()),
+      updated_at:now
     }
   ];
   const {error}=await sbClient.from('settings').upsert(rows,{onConflict:'key'});
@@ -454,9 +476,11 @@ async function loadStructuredMetadata(){
     deMeetings:[],
     spTeamMembers:[],
     spNotes:[],
-    spSprintNotesBoard:[]
+    spSprintNotesBoard:[],
+    spSprintColumns:[],
+    spSprintTicketExtras:[]
   };
-  const {data,error}=await sbClient.from('settings').select('key,value').in('key',['deMeetings','spTeamMembers','spNotes','spSprintNotesBoard']);
+  const {data,error}=await sbClient.from('settings').select('key,value').in('key',['deMeetings','spTeamMembers','spNotes','spSprintNotesBoard','spSprintColumns','spSprintTicketExtras']);
   if(error)throw error;
   (data || []).forEach(row=>{
     if(row.key==='deMeetings'){
@@ -511,6 +535,26 @@ async function loadStructuredMetadata(){
         }))
         .filter(item=>String(item.sprintId || '').trim());
     }
+    if(row.key==='spSprintColumns'){
+      result.spSprintColumns=structuredSafeRows(row.value)
+        .map(item=>({
+          sprintId:item?.sprintId || '',
+          assignees:structuredSafeRows(item?.assignees)
+            .map(name=>String(name || '').trim())
+            .filter(Boolean)
+        }))
+        .filter(item=>String(item.sprintId || '').trim());
+    }
+    if(row.key==='spSprintTicketExtras'){
+      result.spSprintTicketExtras=structuredSafeRows(row.value)
+        .map(item=>({
+          ticketId:item?.ticketId || '',
+          storyPoints:item?.storyPoints ?? null,
+          epicUrl:item?.epicUrl || '',
+          epicTitle:item?.epicTitle || ''
+        }))
+        .filter(item=>String(item.ticketId || '').trim());
+    }
   });
   return result;
 }
@@ -518,7 +562,9 @@ async function loadStructuredMetadata(){
 function mergeSprintNotesBoardIntoSprints(spData, metadata){
   const safeSprints=structuredSafeRows(spData);
   const boardRows=structuredSafeRows(metadata?.spSprintNotesBoard);
-  if(!boardRows.length){
+  const columnRows=structuredSafeRows(metadata?.spSprintColumns);
+  const ticketExtraRows=structuredSafeRows(metadata?.spSprintTicketExtras);
+  if(!boardRows.length && !columnRows.length && !ticketExtraRows.length){
     return safeSprints;
   }
 
@@ -535,9 +581,34 @@ function mergeSprintNotesBoardIntoSprints(spData, metadata){
     return acc;
   },{});
 
+  const columnsBySprintId=columnRows.reduce((acc,row)=>{
+    const key=String(row?.sprintId || '').trim();
+    if(!key)return acc;
+    acc[key]=structuredSafeRows(row?.assignees)
+      .map(name=>String(name || '').trim())
+      .filter(Boolean);
+    return acc;
+  },{});
+
+  const ticketExtrasById=ticketExtraRows.reduce((acc,row)=>{
+    const key=String(row?.ticketId || '').trim();
+    if(!key)return acc;
+    acc[key]={
+      storyPoints:row?.storyPoints ?? null,
+      epicUrl:row?.epicUrl || '',
+      epicTitle:row?.epicTitle || ''
+    };
+    return acc;
+  },{});
+
   return safeSprints.map((sprint)=>({
     ...sprint,
-    notesBoard:boardBySprintId[String(sprint?.id || '').trim()] || structuredSafeRows(sprint?.notesBoard)
+    notesBoard:boardBySprintId[String(sprint?.id || '').trim()] || structuredSafeRows(sprint?.notesBoard),
+    columnAssignees:columnsBySprintId[String(sprint?.id || '').trim()] || structuredSafeRows(sprint?.columnAssignees),
+    tickets:structuredSafeRows(sprint?.tickets).map(ticket=>({
+      ...ticket,
+      ...(ticketExtrasById[String(ticket?.id || '').trim()] || {})
+    }))
   }));
 }
 
@@ -788,7 +859,7 @@ export async function loadAllData(){
     if(msData.status==='rejected')console.error('Structured milestones load failed:', msData.reason);
     if(spData.status==='rejected')console.error('Structured sprints load failed:', spData.reason);
     if(metadata.status==='rejected')console.error('Structured metadata load failed:', metadata.reason);
-    const resolvedMetadata=metadata.status==='fulfilled' ? metadata.value : {deMeetings:[],spTeamMembers:[],spNotes:[],spSprintNotesBoard:[]};
+    const resolvedMetadata=metadata.status==='fulfilled' ? metadata.value : {deMeetings:[],spTeamMembers:[],spNotes:[],spSprintNotesBoard:[],spSprintColumns:[],spSprintTicketExtras:[]};
     const resolvedSpData=spData.status==='fulfilled' ? mergeSprintNotesBoardIntoSprints(spData.value, resolvedMetadata) : [];
 
     return {

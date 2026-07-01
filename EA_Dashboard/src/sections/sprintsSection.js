@@ -359,8 +359,9 @@ function resolveNoteHref(value) {
 }
 
 function renderSprintCard(sprintIndex, sprint, sprintMembers, uiState, options = {}) {
-  const grouped = groupSprintTicketsByAssignee(sprint.tickets || [], sprintMembers);
-  const visibleAssignees = Object.keys(grouped).filter((assignee) => grouped[assignee].length > 0);
+  const columnAssignees = getSprintColumnAssignees(sprint, sprintMembers);
+  const grouped = groupSprintTicketsByAssignee(sprint.tickets || [], columnAssignees);
+  const visibleAssignees = Object.keys(grouped);
   const sprintBoardNotes = Array.isArray(sprint?.notesBoard) ? sprint.notesBoard : [];
   const isEditingSprint = uiState.editingSprintIndex === sprintIndex;
   const isCollapsed = options.isCollapsed === true;
@@ -395,22 +396,7 @@ function renderSprintCard(sprintIndex, sprint, sprintMembers, uiState, options =
         <div class="sprint-board">
           ${visibleAssignees.length
             ? visibleAssignees.map((assignee) => renderAssigneeColumn(sprintIndex, assignee, grouped[assignee] || [], sprintMembers, uiState)).join('')
-            : '<div class="sprint-board__empty">No tickets in this sprint yet.</div>'}
-        </div>
-
-        <div class="sprint-add-ticket">
-          <div class="sprint-add-form" data-form="sprint-ticket-create" data-sprint-index="${sprintIndex}">
-            <input name="title" class="field-input field-input--sm" type="text" placeholder="Add ticket..." />
-            <input name="jiraId" class="field-input field-input--sm" type="text" placeholder="Ticket ID" />
-            <input name="epicId" class="field-input field-input--sm" type="text" placeholder="EPIC ID" />
-            <input name="jiraUrl" class="field-input field-input--sm" type="url" placeholder="Jira URL" />
-            <select name="status" class="field-input field-input--sm">${TICKET_STATUSES.map((status) => `<option value="${status}">${formatStatus(status)}</option>`).join('')}</select>
-            <select name="priority" class="field-input field-input--sm">${PRIORITY_OPTIONS.map((priority) => `<option value="${priority}" ${priority === 'Medium' ? 'selected' : ''}>${priority}</option>`).join('')}</select>
-            <textarea name="notes" class="field-input field-input--sm sprint-ticket-notes-input" placeholder="Notes"></textarea>
-            <button class="button button--secondary button--sm" type="button" data-action="add-sprint-ticket" data-sprint-index="${sprintIndex}">
-              Add
-            </button>
-          </div>
+            : '<div class="sprint-board__empty">No sprint members configured yet.</div>'}
         </div>
 
         <div class="sprint-card-notesboard">
@@ -488,6 +474,7 @@ function renderSprintBoardNoteItem(note, sprintIndex, uiState) {
 function renderAssigneeColumn(sprintIndex, assignee, items, sprintMembers, uiState) {
   const member = sprintMembers.find((m) => m.name === assignee);
   const memberInitials = member ? initials(member.name) : '?';
+  const epicGroups = groupSprintTicketsByEpic(items);
 
   return `
     <section class="sprint-column" data-assignee="${escapeHtml(assignee)}">
@@ -495,9 +482,12 @@ function renderAssigneeColumn(sprintIndex, assignee, items, sprintMembers, uiSta
         <div class="av-sm" style="background: linear-gradient(135deg, var(--accent), var(--indigo));">${memberInitials}</div>
         <span class="sprint-column__title">${escapeHtml(assignee || 'Unassigned')}</span>
         <span class="sprint-column__count">${items.length}</span>
+        <button class="btn-icon" type="button" data-action="open-add-sprint-ticket-modal" data-sprint-index="${sprintIndex}" data-assignee="${escapeHtml(assignee)}" title="Add ticket">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+        </button>
       </header>
       <div class="sprint-column__body">
-        ${items.length ? items.map(({ ticket, ticketIndex }) => renderSprintTicket(sprintIndex, ticketIndex, ticket, sprintMembers, uiState)).join('') : '<div class="sprint-column__empty">No tickets assigned</div>'}
+        ${items.length ? epicGroups.map((group) => renderSprintEpicCard(sprintIndex, group, sprintMembers, uiState)).join('') : '<div class="sprint-column__empty">No tickets assigned</div>'}
       </div>
     </section>
   `;
@@ -522,21 +512,34 @@ function renderSprintColumn(sprintIndex, status, items, sprintMembers, uiState) 
 
 function renderSprintTicket(sprintIndex, ticketIndex, ticket, sprintMembers, uiState) {
   const jiraHref = resolveJiraHref(ticket);
+  const epicHref = resolveEpicHref(ticket);
   const statusColor = STATUS_COLOR[ticket.status] || '#64748b';
-  const epicId = String(ticket.epicId || '').trim();
-  const priority = normalizePriority(ticket.priority);
-  const priorityColor = PRIORITY_COLOR[priority] || PRIORITY_COLOR.Medium;
+  const epicTitle = String(ticket.epicTitle || '').trim() || 'No epic title';
+  const ticketLabel = String(ticket.jiraId || ticket.title || '').trim() || 'No ticket';
+  const storyPointsLabel = formatStoryPointsDisplay(ticket.storyPoints);
   const ticketNotes = String(ticket.notes || ticket.desc || ticket.description || '').trim();
   const hasNotes = ticketNotes.length > 0;
+  const indexLabel = `${ticketIndex + 1}->`;
 
   return `
     <article class="sprint-ticket-card" style="--ticket-status-color:${statusColor};">
       <div class="sprint-ticket-card__top">
-        <div class="sprint-ticket-ids">
-          ${jiraHref
-            ? `<a class="sprint-ticket-id" href="${escapeHtml(jiraHref)}" target="_blank" rel="noopener noreferrer">${escapeHtml(ticket.jiraId || 'Ticket')}</a>`
-            : `<span class="sprint-ticket-id">${escapeHtml(ticket.jiraId || 'No Ticket')}</span>`}
-          ${epicId ? `<span class="sprint-ticket-epic">EPIC: ${escapeHtml(epicId)}</span>` : ''}
+        <div class="sprint-ticket-preview">
+          <div class="sprint-ticket-preview__epic">
+            <span class="sprint-ticket-preview__index">${escapeHtml(indexLabel)}</span>
+            ${epicHref
+              ? `<a class="sprint-ticket-preview__epic-link" href="${escapeHtml(epicHref)}" target="_blank" rel="noopener noreferrer">${escapeHtml(epicTitle)}</a>`
+              : `<span class="sprint-ticket-preview__epic-text">${escapeHtml(epicTitle)}</span>`}
+            ${storyPointsLabel ? `<span class="sprint-ticket-preview__sp">(${escapeHtml(storyPointsLabel)} sp)</span>` : ''}
+          </div>
+          <ul class="sprint-ticket-preview__list">
+            <li>
+              ${jiraHref
+                ? `<a class="sprint-ticket-preview__ticket-link" href="${escapeHtml(jiraHref)}" target="_blank" rel="noopener noreferrer">${escapeHtml(ticketLabel)}</a>`
+                : `<span class="sprint-ticket-preview__ticket-text">${escapeHtml(ticketLabel)}</span>`}
+              ${storyPointsLabel ? `<span class="sprint-ticket-preview__ticket-sp">(${escapeHtml(storyPointsLabel)})</span>` : ''}
+            </li>
+          </ul>
         </div>
         <div class="sprint-ticket-actions">
           <button class="btn-icon btn-icon--edit" type="button" data-action="edit-sprint-ticket" data-sprint-index="${sprintIndex}" data-ticket-index="${ticketIndex}" title="Edit ticket">
@@ -547,16 +550,87 @@ function renderSprintTicket(sprintIndex, ticketIndex, ticket, sprintMembers, uiS
           </button>
         </div>
       </div>
-      <p class="sprint-ticket-title">${escapeHtml(ticket.title || 'Untitled')}</p>
       ${hasNotes ? `<p class="sprint-ticket-note-preview">${escapeHtml(ticketNotes)}</p>` : ''}
       <div class="sprint-ticket-card__meta">
-        <span class="priority-badge" style="background:${priorityColor.bg};color:${priorityColor.text}">${escapeHtml(priority)}</span>
         <select class="status-select" name="status" data-action="update-sprint-ticket-status" data-sprint-index="${sprintIndex}" data-ticket-index="${ticketIndex}">
           ${TICKET_STATUSES.map((status) => `<option value="${status}" ${ticket.status === status ? 'selected' : ''}>${formatStatus(status)}</option>`).join('')}
         </select>
       </div>
     </article>
   `;
+}
+
+function renderSprintEpicCard(sprintIndex, group, sprintMembers, uiState) {
+  const lead = group.items[0];
+  const leadTicket = lead?.ticket || {};
+  const epicHref = resolveEpicHref(leadTicket);
+  const epicTitle = String(leadTicket.epicTitle || '').trim() || 'No epic title';
+  const totalSp = group.items.reduce((sum, item) => sum + (Number(item?.ticket?.storyPoints) || 0), 0);
+  const totalSpLabel = totalSp > 0 ? formatStoryPointsDisplay(totalSp) : '';
+  const indexLabel = `${(lead?.ticketIndex ?? 0) + 1}->`;
+
+  return `
+    <article class="sprint-ticket-card" style="--ticket-status-color:${STATUS_COLOR[leadTicket.status] || '#64748b'};">
+      <div class="sprint-ticket-card__top">
+        <div class="sprint-ticket-preview">
+          <div class="sprint-ticket-preview__epic">
+            <span class="sprint-ticket-preview__index">${escapeHtml(indexLabel)}</span>
+            ${epicHref
+              ? `<a class="sprint-ticket-preview__epic-link" href="${escapeHtml(epicHref)}" target="_blank" rel="noopener noreferrer">${escapeHtml(epicTitle)}</a>`
+              : `<span class="sprint-ticket-preview__epic-text">${escapeHtml(epicTitle)}</span>`}
+            ${totalSpLabel ? `<span class="sprint-ticket-preview__sp">(${escapeHtml(totalSpLabel)} sp)</span>` : ''}
+          </div>
+          <ul class="sprint-ticket-preview__list">
+            ${group.items.map(({ ticket, ticketIndex }) => {
+              const jiraHref = resolveJiraHref(ticket);
+              const ticketLabel = String(ticket.jiraId || ticket.title || '').trim() || 'No ticket';
+              const storyPointsLabel = formatStoryPointsDisplay(ticket.storyPoints);
+              return `
+                <li class="sprint-ticket-preview__list-item">
+                  <div class="sprint-ticket-preview__line">
+                    <span class="sprint-ticket-preview__main">
+                      ${jiraHref
+                        ? `<a class="sprint-ticket-preview__ticket-link" href="${escapeHtml(jiraHref)}" target="_blank" rel="noopener noreferrer">${escapeHtml(ticketLabel)}</a>`
+                        : `<span class="sprint-ticket-preview__ticket-text">${escapeHtml(ticketLabel)}</span>`}
+                      ${storyPointsLabel ? `<span class="sprint-ticket-preview__ticket-sp">(${escapeHtml(storyPointsLabel)})</span>` : ''}
+                      <select class="status-select status-select--inline" name="status" data-action="update-sprint-ticket-status" data-sprint-index="${sprintIndex}" data-ticket-index="${ticketIndex}">
+                        ${TICKET_STATUSES.map((status) => `<option value="${status}" ${ticket.status === status ? 'selected' : ''}>${formatStatus(status)}</option>`).join('')}
+                      </select>
+                    </span>
+                    <div class="sprint-ticket-actions sprint-ticket-actions--inline">
+                      <button class="btn-icon btn-icon--edit" type="button" data-action="edit-sprint-ticket" data-sprint-index="${sprintIndex}" data-ticket-index="${ticketIndex}" title="Edit ticket">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                      </button>
+                      <button class="btn-icon" type="button" data-action="remove-sprint-ticket" data-sprint-index="${sprintIndex}" data-ticket-index="${ticketIndex}" title="Delete ticket">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 6l-1.4 14H6.4L5 6M10 11v6M14 11v6M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/></svg>
+                      </button>
+                    </div>
+                  </div>
+                </li>
+              `;
+            }).join('')}
+          </ul>
+        </div>
+      </div>
+    </article>
+  `;
+}
+
+function groupSprintTicketsByEpic(items) {
+  const groups = new Map();
+
+  items.forEach((item) => {
+    const ticket = item?.ticket || {};
+    const epicTitle = String(ticket.epicTitle || '').trim();
+    const epicUrl = String(ticket.epicUrl || '').trim();
+    const key = epicTitle || epicUrl || `ticket:${String(ticket.id || item.ticketIndex || '')}`;
+    if (!groups.has(key)) {
+      groups.set(key, { key, items: [] });
+    }
+    groups.get(key).items.push(item);
+  });
+
+  return Array.from(groups.values());
 }
 
 function resolveJiraHref(ticket) {
@@ -573,6 +647,23 @@ function resolveJiraHref(ticket) {
   return '';
 }
 
+function resolveEpicHref(ticket) {
+  const directUrl = String(ticket?.epicUrl || '').trim();
+  if (/^https?:\/\//i.test(directUrl)) {
+    return directUrl;
+  }
+
+  return '';
+}
+
+function formatStoryPointsDisplay(value) {
+  const parsed = Number(value);
+  if (Number.isNaN(parsed) || parsed < 0) {
+    return '';
+  }
+  return Number.isInteger(parsed) ? String(parsed) : String(parsed);
+}
+
 function normalizePriority(value) {
   const normalized = String(value || '').trim().toLowerCase();
   if (normalized === 'high') return 'High';
@@ -581,28 +672,37 @@ function normalizePriority(value) {
   return 'Medium';
 }
 
-function groupSprintTicketsByAssignee(tickets, sprintMembers) {
+function getSprintColumnAssignees(sprint, sprintMembers) {
+  const fromSprint = Array.isArray(sprint?.columnAssignees) ? sprint.columnAssignees : [];
+  const fromMembers = Array.isArray(sprintMembers) ? sprintMembers.map((member) => String(member?.name || '').trim()) : [];
+  const seed = fromSprint.length ? fromSprint : fromMembers;
+  const seen = new Set();
+
+  return seed
+    .map((name) => String(name || '').trim())
+    .filter((name) => {
+      if (!name) return false;
+      const key = name.toLowerCase();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+}
+
+function groupSprintTicketsByAssignee(tickets, columnAssignees) {
   const grouped = {};
-  
-  // Initialize with all team members
-  sprintMembers.forEach((member) => {
-    grouped[member.name] = [];
+
+  columnAssignees.forEach((assignee) => {
+    grouped[assignee] = [];
   });
-  
-  // Add unassigned bucket
-  grouped['Unassigned'] = [];
 
   tickets.forEach((ticket, ticketIndex) => {
     const assignee = ticket?.assignee?.trim() || '';
-    const key = assignee && grouped.hasOwnProperty(assignee) ? assignee : 'Unassigned';
-    grouped[key].push({ ticket, ticketIndex });
-  });
-
-  // Remove empty members to avoid clutter (except unassigned if it has items)
-  Object.keys(grouped).forEach((key) => {
-    if (key !== 'Unassigned' && grouped[key].length === 0) {
-      delete grouped[key];
+    const key = assignee || 'Unassigned';
+    if (!grouped[key]) {
+      grouped[key] = [];
     }
+    grouped[key].push({ ticket, ticketIndex });
   });
 
   return grouped;
@@ -667,6 +767,9 @@ export function getSprintMembers(rawMembers) {
 }
 
 export function renderGlobalTicketEditModal(sprintIndex, ticketIndex, ticket, sprintMembers) {
+  const ticketUrl = String(ticket.jiraUrl || '').trim();
+  const epicUrl = String(ticket.epicUrl || '').trim();
+
   return `
     <article class="sprint-ticket-edit-modal" data-form="sprint-ticket-edit-modal" data-sprint-index="${sprintIndex}" data-ticket-index="${ticketIndex}">
       <div class="modal-overlay"></div>
@@ -680,16 +783,48 @@ export function renderGlobalTicketEditModal(sprintIndex, ticketIndex, ticket, sp
         <div class="modal-body">
           <form class="ticket-edit-form">
             <div class="form-group">
-              <label>Title</label>
-              <input class="field-input" name="title" type="text" value="${escapeHtml(ticket.title || '')}" placeholder="Ticket title" />
-            </div>
-            
-            <div class="form-group">
               <label>Assignee</label>
               <select class="field-input" name="assignee">
                 <option value="">Unassigned</option>
                 ${sprintMembers.map((member) => `<option value="${escapeHtml(member.name)}" ${ticket.assignee === member.name ? 'selected' : ''}>${escapeHtml(member.name)}</option>`).join('')}
               </select>
+            </div>
+
+            <div class="form-group">
+              <label>Epic Title</label>
+              <div class="inline-link-field">
+                <input class="field-input" name="epicTitle" type="text" value="${escapeHtml(ticket.epicTitle || '')}" placeholder="TESTING in EA DS" />
+                <button class="button button--secondary button--sm" type="button" data-action="set-epic-link">Link</button>
+              </div>
+              <input class="field-input sprint-link-inline-input" name="epicUrl" type="url" value="${escapeHtml(epicUrl)}" placeholder="https://jira/..." />
+            </div>
+
+            <div class="form-group">
+              <label>Ticket ID</label>
+              <div class="inline-link-field">
+                <input class="field-input" name="jiraId" type="text" value="${escapeHtml(ticket.jiraId || '')}" placeholder="DP-3333" />
+                <button class="button button--secondary button--sm" type="button" data-action="set-ticket-link">Link</button>
+              </div>
+              <input class="field-input sprint-link-inline-input" name="jiraUrl" type="url" value="${escapeHtml(ticketUrl)}" placeholder="https://jira/..." />
+            </div>
+
+            <div class="form-group">
+              <label>More Tickets</label>
+              <div class="ticket-links-list" data-ticket-links-list>
+                <div class="ticket-link-row" data-ticket-link-row>
+                  <div class="inline-link-field">
+                    <input class="field-input" name="jiraId" type="text" placeholder="DP-9999" />
+                    <button class="button button--secondary button--sm" type="button" data-action="set-ticket-link">Link</button>
+                  </div>
+                  <input class="field-input sprint-link-inline-input" name="jiraUrl" type="url" value="" placeholder="https://jira/..." />
+                  <div class="ticket-link-row__meta">
+                    <button class="btn-icon" type="button" data-action="remove-ticket-link-row" title="Remove ticket">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 6l-1.4 14H6.4L5 6M10 11v6M14 11v6M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/></svg>
+                    </button>
+                  </div>
+                </div>
+              </div>
+              <button class="button button--secondary button--sm" type="button" data-action="add-ticket-link-row">Add ticket</button>
             </div>
 
             <div class="form-group">
@@ -700,25 +835,8 @@ export function renderGlobalTicketEditModal(sprintIndex, ticketIndex, ticket, sp
             </div>
 
             <div class="form-group">
-              <label>Priority</label>
-              <select class="field-input" name="priority">
-                ${PRIORITY_OPTIONS.map((priority) => `<option value="${priority}" ${normalizePriority(ticket.priority) === priority ? 'selected' : ''}>${priority}</option>`).join('')}
-              </select>
-            </div>
-
-            <div class="form-group">
-              <label>Ticket ID</label>
-              <input class="field-input" name="jiraId" type="text" value="${escapeHtml(ticket.jiraId || '')}" placeholder="Ticket ID" />
-            </div>
-
-            <div class="form-group">
-              <label>EPIC ID</label>
-              <input class="field-input" name="epicId" type="text" value="${escapeHtml(ticket.epicId || '')}" placeholder="EPIC ID" />
-            </div>
-
-            <div class="form-group">
-              <label>Jira URL</label>
-              <input class="field-input" name="jiraUrl" type="url" value="${escapeHtml(ticket.jiraUrl || '')}" placeholder="Jira URL" />
+              <label>Story Points</label>
+              <input class="field-input" name="storyPoints" type="number" min="0" step="0.5" value="${escapeHtml(String(ticket.storyPoints || ''))}" placeholder="0" />
             </div>
 
             <div class="form-group">
@@ -730,6 +848,84 @@ export function renderGlobalTicketEditModal(sprintIndex, ticketIndex, ticket, sp
         <div class="modal-footer">
           <button class="button button--secondary" type="button" data-action="cancel-edit-sprint-ticket" data-sprint-index="${sprintIndex}" data-ticket-index="${ticketIndex}">Cancel</button>
           <button class="button button--primary" type="button" data-action="save-edit-sprint-ticket" data-sprint-index="${sprintIndex}" data-ticket-index="${ticketIndex}">Save</button>
+        </div>
+      </div>
+    </article>
+  `;
+}
+
+export function renderSprintTicketCreateModal(sprintIndex, defaultAssignee, sprintMembers) {
+  const selectedAssignee = String(defaultAssignee || '').trim();
+
+  return `
+    <article class="sprint-ticket-edit-modal" data-form="sprint-ticket-create-modal" data-sprint-index="${sprintIndex}">
+      <div class="modal-overlay"></div>
+      <div class="modal-card">
+        <div class="modal-header">
+          <h2>Add Ticket</h2>
+          <button class="btn-icon" type="button" data-action="cancel-create-sprint-ticket" data-sprint-index="${sprintIndex}" title="Close">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+          </button>
+        </div>
+        <div class="modal-body">
+          <form class="ticket-edit-form">
+            <div class="form-group">
+              <label>Assignee</label>
+              <select class="field-input" name="assignee">
+                <option value="">Unassigned</option>
+                ${sprintMembers.map((member) => `<option value="${escapeHtml(member.name)}" ${member.name === selectedAssignee ? 'selected' : ''}>${escapeHtml(member.name)}</option>`).join('')}
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label>Epic Title</label>
+              <div class="inline-link-field">
+                <input class="field-input" name="epicTitle" type="text" placeholder="TESTING in EA DS" />
+                <button class="button button--secondary button--sm" type="button" data-action="set-epic-link">Link</button>
+              </div>
+              <input class="field-input sprint-link-inline-input" name="epicUrl" type="url" value="" placeholder="https://jira/..." />
+            </div>
+
+            <div class="form-group">
+              <label>Tickets</label>
+              <div class="ticket-links-list" data-ticket-links-list>
+                <div class="ticket-link-row" data-ticket-link-row>
+                  <div class="inline-link-field">
+                    <input class="field-input" name="jiraId" type="text" placeholder="DP-3333" />
+                    <button class="button button--secondary button--sm" type="button" data-action="set-ticket-link">Link</button>
+                  </div>
+                  <input class="field-input sprint-link-inline-input" name="jiraUrl" type="url" value="" placeholder="https://jira/..." />
+                  <div class="ticket-link-row__meta">
+                    <button class="btn-icon" type="button" data-action="remove-ticket-link-row" title="Remove ticket">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 6l-1.4 14H6.4L5 6M10 11v6M14 11v6M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/></svg>
+                    </button>
+                  </div>
+                </div>
+              </div>
+              <button class="button button--secondary button--sm" type="button" data-action="add-ticket-link-row">Add ticket</button>
+            </div>
+
+            <div class="form-group">
+              <label>Status</label>
+              <select class="field-input" name="status">
+                ${TICKET_STATUSES.map((status) => `<option value="${status}">${formatStatus(status)}</option>`).join('')}
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label>Story Points</label>
+              <input class="field-input" name="storyPoints" type="number" min="0" step="0.5" placeholder="0" />
+            </div>
+
+            <div class="form-group">
+              <label>Notes</label>
+              <textarea class="field-input" name="notes" placeholder="Notes"></textarea>
+            </div>
+          </form>
+        </div>
+        <div class="modal-footer">
+          <button class="button button--secondary" type="button" data-action="cancel-create-sprint-ticket" data-sprint-index="${sprintIndex}">Cancel</button>
+          <button class="button button--primary" type="button" data-action="save-create-sprint-ticket" data-sprint-index="${sprintIndex}">Add</button>
         </div>
       </div>
     </article>
