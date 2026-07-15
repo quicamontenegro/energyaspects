@@ -89,6 +89,7 @@ export function createDashboardApp(root, initialSnapshot, persistence) {
       </main>
       ${modal}
     `;
+    syncStatusSelectThemes(root);
   }
 
   function updateState(mutator, options = {}) {
@@ -149,7 +150,7 @@ export function createDashboardApp(root, initialSnapshot, persistence) {
       return;
     }
 
-    handleClickAction(trigger, updateState, root, uiState, render);
+    handleClickAction(trigger, updateState, root, uiState, render, () => store.getState());
   });
 
   root.addEventListener('change', (event) => {
@@ -461,7 +462,7 @@ function resetForm(root, selector) {
   }
 }
 
-function handleClickAction(trigger, updateState, root, uiState, render) {
+function handleClickAction(trigger, updateState, root, uiState, render, getState) {
   const projectIndex = Number(trigger.dataset.projectIndex);
   const memberIndex = Number(trigger.dataset.memberIndex);
   const teamIndex = Number(trigger.dataset.teamIndex);
@@ -1180,6 +1181,68 @@ function handleClickAction(trigger, updateState, root, uiState, render) {
     return;
   }
 
+  if (trigger.dataset.action === 'duplicate-sprint-epic' && Number.isInteger(sprintIndex)) {
+    const assignee = String(trigger.dataset.assignee || '').trim();
+    const epicKey = String(trigger.dataset.epicKey || '').trim();
+    if (!assignee || !epicKey) return;
+
+    const state = typeof getState === 'function' ? getState() : null;
+    const sprintOptions = (state.spData || [])
+      .map((sprint, index) => ({
+        value: String(index),
+        label: `${String(sprint?.name || `Sprint ${index + 1}`)}${index === sprintIndex ? ' (current)' : ''}`,
+      }));
+
+    if (sprintOptions.length <= 1) {
+      window.alert('Nao existem outros sprints para duplicar este epic.');
+      return;
+    }
+
+    openSelectPopup({
+      title: 'Duplicate epic to sprint',
+      options: sprintOptions,
+      initialValue: String(sprintIndex),
+      onConfirm: (selectedValue) => {
+        const targetSprintIndex = Number(selectedValue);
+        if (!Number.isInteger(targetSprintIndex) || targetSprintIndex === sprintIndex) {
+          window.alert('Seleciona um sprint diferente do atual para duplicar este epic.');
+          return false;
+        }
+
+        updateState((nextState) => {
+          const sourceSprint = nextState.spData[sprintIndex];
+          const targetSprint = nextState.spData[targetSprintIndex];
+          if (!sourceSprint || !targetSprint || !Array.isArray(sourceSprint.tickets)) return;
+
+          const sourceTickets = sourceSprint.tickets.filter((ticket) => {
+            return getTicketAssigneeKey(ticket) === assignee && getTicketEpicKey(ticket) === epicKey;
+          });
+          if (!sourceTickets.length) return;
+
+          if (!Array.isArray(targetSprint.tickets)) {
+            targetSprint.tickets = [];
+          }
+          if (!Array.isArray(targetSprint.columnAssignees)) {
+            targetSprint.columnAssignees = [];
+          }
+          if (assignee && !targetSprint.columnAssignees.includes(assignee)) {
+            targetSprint.columnAssignees.push(assignee);
+          }
+
+          sourceTickets.forEach((ticket) => {
+            targetSprint.tickets.push({
+              ...ticket,
+              id: createId('sprint-ticket'),
+            });
+          });
+        }, { waitForSync: true });
+
+        return true;
+      },
+    });
+    return;
+  }
+
   if (trigger.dataset.action === 'remove-sprint-epic' && Number.isInteger(sprintIndex)) {
     const assignee = String(trigger.dataset.assignee || '').trim();
     const epicKey = String(trigger.dataset.epicKey || '').trim();
@@ -1519,6 +1582,86 @@ function openLinkInputPopup({ title, initialValue, onConfirm }) {
   }, 0);
 }
 
+function openSelectPopup({ title, options, initialValue, onConfirm }) {
+  const safeOptions = Array.isArray(options) ? options : [];
+  const overlay = document.createElement('div');
+  overlay.className = 'link-input-popup-overlay';
+  overlay.innerHTML = `
+    <div class="link-input-popup" role="dialog" aria-modal="true" aria-label="${String(title || 'Select option')}">
+      <h3>${String(title || 'Select')}</h3>
+      <select class="field-input"></select>
+      <div class="link-input-popup__actions">
+        <button class="button button--secondary button--sm" type="button" data-popup-action="cancel">Cancel</button>
+        <button class="button button--primary button--sm" type="button" data-popup-action="save">Save</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+
+  const select = overlay.querySelector('select');
+  const cancelBtn = overlay.querySelector('[data-popup-action="cancel"]');
+  const saveBtn = overlay.querySelector('[data-popup-action="save"]');
+  if (!(select instanceof HTMLSelectElement)) {
+    overlay.remove();
+    return;
+  }
+
+  safeOptions.forEach((option, index) => {
+    const optionNode = document.createElement('option');
+    optionNode.value = String(option?.value ?? index);
+    optionNode.textContent = String(option?.label ?? option?.value ?? 'Option');
+    select.appendChild(optionNode);
+  });
+  if (typeof initialValue !== 'undefined') {
+    select.value = String(initialValue);
+  }
+
+  const close = () => {
+    overlay.remove();
+  };
+
+  const submit = () => {
+    if (typeof onConfirm === 'function') {
+      const ok = onConfirm(select.value);
+      if (ok === false) return;
+    }
+    close();
+  };
+
+  overlay.addEventListener('click', (event) => {
+    if (event.target === overlay) {
+      close();
+    }
+  });
+
+  cancelBtn?.addEventListener('click', close);
+  saveBtn?.addEventListener('click', submit);
+  select.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      submit();
+      return;
+    }
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      close();
+    }
+  });
+
+  setTimeout(() => {
+    select.focus();
+  }, 0);
+}
+
+function syncStatusSelectThemes(root) {
+  if (!(root instanceof Element)) return;
+  root.querySelectorAll('.status-select').forEach((select) => {
+    if (select instanceof HTMLSelectElement) {
+      select.dataset.status = String(select.value || '').trim().toLowerCase();
+    }
+  });
+}
+
 function clearSprintDragClasses(root) {
   if (!(root instanceof Element)) return;
   root.querySelectorAll('.sprint-ticket-preview__list-item.is-drag-over').forEach((node) => {
@@ -1731,6 +1874,9 @@ function handleChangeAction(field, updateState, uiState, render) {
   }
 
   if (action === 'update-de-status') {
+    if (field instanceof HTMLSelectElement) {
+      field.dataset.status = String(field.value || 'inprogress').trim().toLowerCase();
+    }
     const taskId = field.dataset.taskId;
     updateState((state) => {
       const task = state.deTasks.find((item) => item.id === taskId);
@@ -1762,6 +1908,9 @@ function handleChangeAction(field, updateState, uiState, render) {
   }
 
   if (action === 'update-milestone-task-status' && Number.isInteger(milestoneIndex) && Number.isInteger(taskIndex)) {
+    if (field instanceof HTMLSelectElement) {
+      field.dataset.status = String(field.value || 'notstarted').trim().toLowerCase();
+    }
     updateState((state) => {
       state.msData[milestoneIndex].tasks[taskIndex].status = String(field.value || 'notstarted');
     });
@@ -1769,6 +1918,9 @@ function handleChangeAction(field, updateState, uiState, render) {
   }
 
   if (action === 'update-rpde-status' && Number.isInteger(ticketIndex)) {
+    if (field instanceof HTMLSelectElement) {
+      field.dataset.status = String(field.value || 'todo').trim().toLowerCase();
+    }
     updateState((state) => {
       state.rpdeTickets[ticketIndex].status = String(field.value || 'todo');
     });
@@ -1790,6 +1942,9 @@ function handleChangeAction(field, updateState, uiState, render) {
   }
 
   if (action === 'update-sprint-ticket-status' && Number.isInteger(sprintIndex) && Number.isInteger(ticketIndex)) {
+    if (field instanceof HTMLSelectElement) {
+      field.dataset.status = String(field.value || 'todo').trim().toLowerCase();
+    }
     updateState((state) => {
       state.spData[sprintIndex].tickets[ticketIndex].status = String(field.value || 'todo');
     });

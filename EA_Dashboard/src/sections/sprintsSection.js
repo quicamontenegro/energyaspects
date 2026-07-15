@@ -550,7 +550,7 @@ function renderSprintTicket(sprintIndex, ticketIndex, ticket, sprintMembers, uiS
       </div>
       ${hasNotes ? `<p class="sprint-ticket-note-preview">${escapeHtml(ticketNotes)}</p>` : ''}
       <div class="sprint-ticket-card__meta">
-        <select class="status-select" name="status" data-action="update-sprint-ticket-status" data-sprint-index="${sprintIndex}" data-ticket-index="${ticketIndex}">
+        <select class="status-select" name="status" data-status="${escapeHtml(String(ticket.status || 'todo'))}" data-action="update-sprint-ticket-status" data-sprint-index="${sprintIndex}" data-ticket-index="${ticketIndex}">
           ${TICKET_STATUSES.map((status) => `<option value="${status}" ${ticket.status === status ? 'selected' : ''}>${formatStatus(status)}</option>`).join('')}
         </select>
       </div>
@@ -599,7 +599,7 @@ function renderSprintEpicCard(sprintIndex, assignee, group, sprintMembers, uiSta
                         ? `<a class="sprint-ticket-preview__ticket-link" href="${escapeHtml(jiraHref)}" target="_blank" rel="noopener noreferrer">${escapeHtml(ticketLabel)}</a>`
                         : `<span class="sprint-ticket-preview__ticket-text">${escapeHtml(ticketLabel)}</span>`}
                       ${storyPointsLabel ? `<span class="sprint-ticket-preview__ticket-sp">(${escapeHtml(storyPointsLabel)})</span>` : ''}
-                      <select class="status-select status-select--inline" name="status" data-action="update-sprint-ticket-status" data-sprint-index="${sprintIndex}" data-ticket-index="${ticketIndex}">
+                      <select class="status-select status-select--inline" name="status" data-status="${escapeHtml(String(ticket.status || 'todo'))}" data-action="update-sprint-ticket-status" data-sprint-index="${sprintIndex}" data-ticket-index="${ticketIndex}">
                         ${TICKET_STATUSES.map((status) => `<option value="${status}" ${ticket.status === status ? 'selected' : ''}>${formatStatus(status)}</option>`).join('')}
                       </select>
                     </span>
@@ -612,6 +612,9 @@ function renderSprintEpicCard(sprintIndex, assignee, group, sprintMembers, uiSta
           </ul>
         </div>
         <div class="sprint-ticket-actions sprint-ticket-actions--epic">
+          <button class="btn-icon" type="button" data-action="duplicate-sprint-epic" data-sprint-index="${sprintIndex}" data-assignee="${escapeHtml(assignee)}" data-epic-key="${escapeHtml(String(group.key || ''))}" title="Duplicate epic to another sprint">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V6a2 2 0 012-2h9"/></svg>
+          </button>
           <button class="btn-icon btn-icon--edit" type="button" data-action="edit-sprint-epic" data-sprint-index="${sprintIndex}" data-ticket-index="${leadTicketIndex}" title="Edit epic">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
           </button>

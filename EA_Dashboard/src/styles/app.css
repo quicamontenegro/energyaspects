@@ -2395,18 +2395,34 @@ button {
   width: 100%;
   padding: 5px 8px;
   border-radius: 8px;
-  border: 1px solid rgba(15, 23, 42, 0.1);
-  background: rgba(255, 255, 255, 0.6);
+  border: 1px solid transparent;
+  background: #6b7280;
   font-size: 11px;
   font-weight: 600;
-  color: var(--muted);
+  color: #ffffff;
   cursor: pointer;
   outline: none;
   appearance: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 10 10'%3E%3Cpath fill='%2364748b' d='M5 7L1 3h8z'/%3E%3C/svg%3E");
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 10 10'%3E%3Cpath fill='%23ffffff' d='M5 7L1 3h8z'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
   background-position: right 8px center;
   padding-right: 22px;
+}
+
+.status-select[data-status="todo"] {
+  background-color: #6b7280;
+}
+
+.status-select[data-status="inprogress"] {
+  background-color: #eab308;
+}
+
+.status-select[data-status="inreview"] {
+  background-color: #2563eb;
+}
+
+.status-select[data-status="done"] {
+  background-color: #16a34a;
 }
 
 .status-select.status-select--inline {
@@ -2422,12 +2438,11 @@ button {
 }
 
 .status-select:hover {
-  border-color: rgba(15, 23, 42, 0.2);
-  background-color: rgba(255, 255, 255, 0.9);
+  filter: brightness(0.96);
 }
 
 .status-select:focus {
-  border-color: rgba(15, 118, 110, 0.4);
+  border-color: rgba(255, 255, 255, 0.5);
 }
 
 /* ── task-line flex layout ────────────────────────── */
