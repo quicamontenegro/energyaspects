@@ -562,6 +562,10 @@ function renderSprintEpicCard(sprintIndex, assignee, group, sprintMembers, uiSta
   const lead = group.items[0];
   const leadTicket = lead?.ticket || {};
   const leadTicketIndex = Number(lead?.ticketIndex);
+  const epicTicketIds = group.items
+    .map(({ ticket }) => String(ticket?.id || '').trim())
+    .filter(Boolean)
+    .join(',');
   const epicHref = resolveEpicHref(leadTicket);
   const epicTitle = String(leadTicket.epicTitle || '').trim() || 'No epic title';
   const totalSp = group.items.reduce((sum, item) => sum + (Number(item?.ticket?.storyPoints) || 0), 0);
@@ -618,7 +622,7 @@ function renderSprintEpicCard(sprintIndex, assignee, group, sprintMembers, uiSta
           <button class="btn-icon btn-icon--edit" type="button" data-action="edit-sprint-epic" data-sprint-index="${sprintIndex}" data-ticket-index="${leadTicketIndex}" title="Edit epic">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
           </button>
-          <button class="btn-icon" type="button" data-action="remove-sprint-epic" data-sprint-index="${sprintIndex}" data-assignee="${escapeHtml(assignee)}" data-epic-key="${escapeHtml(String(group.key || ''))}" title="Delete epic">
+          <button class="btn-icon" type="button" data-action="remove-sprint-epic" data-sprint-index="${sprintIndex}" data-assignee="${escapeHtml(assignee)}" data-epic-key="${escapeHtml(String(group.key || ''))}" data-epic-ticket-ids="${escapeHtml(epicTicketIds)}" title="Delete epic">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 6l-1.4 14H6.4L5 6M10 11v6M14 11v6M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/></svg>
           </button>
         </div>
@@ -786,11 +790,15 @@ export function renderGlobalTicketEditModal(sprintIndex, ticketIndex, ticket, sp
       const relatedUrl = String(relatedTicket?.jiraUrl || '').trim();
       return `
         <div class="ticket-link-row" data-ticket-link-row>
-          <div class="inline-link-field">
+          <div class="inline-link-field inline-link-field--with-delete">
             <input class="field-input" name="jiraId" type="text" value="${escapeHtml(String(relatedTicket?.jiraId || relatedTicket?.title || ''))}" placeholder="DP-9999" />
             <button class="button button--secondary button--sm" type="button" data-action="set-ticket-link">Link</button>
+            <button class="btn-icon" type="button" data-action="remove-ticket-link-row" title="Delete ticket">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 6l-1.4 14H6.4L5 6M10 11v6M14 11v6M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/></svg>
+            </button>
           </div>
           <input name="existingTicketIndex" type="hidden" value="${escapeHtml(String(relatedTicketIndex))}" />
+          <input name="existingTicketId" type="hidden" value="${escapeHtml(String(relatedTicket?.id || ''))}" />
           <input name="jiraUrl" type="hidden" value="${escapeHtml(relatedUrl)}" />
           <input class="field-input" name="storyPoints" type="number" min="0" step="0.5" value="${escapeHtml(String(relatedTicket?.storyPoints ?? ''))}" placeholder="Story points" />
           <input class="field-input" name="notes" type="text" value="${escapeHtml(String(relatedTicket?.notes || relatedTicket?.desc || ''))}" placeholder="Notes" />
@@ -800,11 +808,15 @@ export function renderGlobalTicketEditModal(sprintIndex, ticketIndex, ticket, sp
     }).join('')
     : `
       <div class="ticket-link-row" data-ticket-link-row>
-        <div class="inline-link-field">
+        <div class="inline-link-field inline-link-field--with-delete">
           <input class="field-input" name="jiraId" type="text" placeholder="DP-9999" />
           <button class="button button--secondary button--sm" type="button" data-action="set-ticket-link">Link</button>
+          <button class="btn-icon" type="button" data-action="remove-ticket-link-row" title="Delete ticket">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 6l-1.4 14H6.4L5 6M10 11v6M14 11v6M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/></svg>
+          </button>
         </div>
         <input name="existingTicketIndex" type="hidden" value="" />
+        <input name="existingTicketId" type="hidden" value="" />
         <input name="jiraUrl" type="hidden" value="" />
         <input class="field-input" name="storyPoints" type="number" min="0" step="0.5" value="" placeholder="Story points" />
         <input class="field-input" name="notes" type="text" value="" placeholder="Notes" />
@@ -921,9 +933,12 @@ export function renderSprintTicketCreateModal(sprintIndex, defaultAssignee, spri
               <label>Tickets</label>
               <div class="ticket-links-list" data-ticket-links-list>
                 <div class="ticket-link-row" data-ticket-link-row>
-                  <div class="inline-link-field">
+                  <div class="inline-link-field inline-link-field--with-delete">
                     <input class="field-input" name="jiraId" type="text" placeholder="DP-3333" />
                     <button class="button button--secondary button--sm" type="button" data-action="set-ticket-link">Link</button>
+                    <button class="btn-icon" type="button" data-action="remove-ticket-link-row" title="Delete ticket">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 6l-1.4 14H6.4L5 6M10 11v6M14 11v6M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/></svg>
+                    </button>
                   </div>
                   <input name="jiraUrl" type="hidden" value="" />
                   <input class="field-input" name="storyPoints" type="number" min="0" step="0.5" value="" placeholder="Story points" />

@@ -422,6 +422,7 @@ function getRemovalConfirmMessage(action, trigger) {
     'remove-sprint-ticket': 'Remove this ticket from the sprint?',
     'remove-sprint-epic': 'Remove this epic and all tickets under it?',
     'remove-sprint-ticket-in-form': 'Remove this ticket from the sprint?',
+    'remove-ticket-link-row': 'Remove this ticket from More Tickets?',
   };
   return messages[action] || `Remove this item?\n\nThis action cannot be undone.`;
 }
@@ -549,11 +550,15 @@ function handleClickAction(trigger, updateState, root, uiState, render, getState
     row.className = 'ticket-link-row';
     row.setAttribute('data-ticket-link-row', 'true');
     row.innerHTML = `
-      <div class="inline-link-field">
+      <div class="inline-link-field inline-link-field--with-delete">
         <input class="field-input" name="jiraId" type="text" placeholder="DP-3333" />
         <button class="button button--secondary button--sm" type="button" data-action="set-ticket-link">Link</button>
+        <button class="btn-icon" type="button" data-action="remove-ticket-link-row" title="Delete ticket">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 6l-1.4 14H6.4L5 6M10 11v6M14 11v6M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/></svg>
+        </button>
       </div>
       <input name="existingTicketIndex" type="hidden" value="" />
+      <input name="existingTicketId" type="hidden" value="" />
       <input name="jiraUrl" type="hidden" value="" />
       <input class="field-input" name="storyPoints" type="number" min="0" step="0.5" value="" placeholder="Story points" />
       <input class="field-input" name="notes" type="text" value="" placeholder="Notes" />
@@ -573,10 +578,12 @@ function handleClickAction(trigger, updateState, root, uiState, render, getState
     if (rows.length <= 1) {
       const idInput = row.querySelector('input[name="jiraId"]');
       const urlInput = row.querySelector('input[name="jiraUrl"]');
+      const existingIdInput = row.querySelector('input[name="existingTicketId"]');
       const spInput = row.querySelector('input[name="storyPoints"]');
       const notesInput = row.querySelector('input[name="notes"]');
       if (idInput instanceof HTMLInputElement) idInput.value = '';
       if (urlInput instanceof HTMLInputElement) urlInput.value = '';
+      if (existingIdInput instanceof HTMLInputElement) existingIdInput.value = '';
       if (spInput instanceof HTMLInputElement) spInput.value = '';
       if (notesInput instanceof HTMLInputElement) notesInput.value = '';
       updateLinkPreview(row, 'jiraUrl', '');
@@ -1235,7 +1242,7 @@ function handleClickAction(trigger, updateState, root, uiState, render, getState
               id: createId('sprint-ticket'),
             });
           });
-        }, { waitForSync: true });
+        });
 
         return true;
       },
@@ -1246,15 +1253,24 @@ function handleClickAction(trigger, updateState, root, uiState, render, getState
   if (trigger.dataset.action === 'remove-sprint-epic' && Number.isInteger(sprintIndex)) {
     const assignee = String(trigger.dataset.assignee || '').trim();
     const epicKey = String(trigger.dataset.epicKey || '').trim();
+    const epicTicketIds = String(trigger.dataset.epicTicketIds || '')
+      .split(',')
+      .map((value) => String(value || '').trim())
+      .filter(Boolean);
     if (!assignee || !epicKey) return;
 
     updateState((state) => {
       const sprint = state.spData[sprintIndex];
       if (!sprint || !Array.isArray(sprint.tickets)) return;
+      const idSet = new Set(epicTicketIds);
       sprint.tickets = sprint.tickets.filter((ticket) => {
+        const ticketId = String(ticket?.id || '').trim();
+        if (ticketId && idSet.has(ticketId)) {
+          return false;
+        }
         return !(getTicketAssigneeKey(ticket) === assignee && getTicketEpicKey(ticket) === epicKey);
       });
-    }, { waitForSync: true });
+    });
 
     if (uiState.editingTicket && uiState.editingTicket.sprintIndex === sprintIndex) {
       uiState.editingTicket = null;
@@ -1331,7 +1347,7 @@ function handleClickAction(trigger, updateState, root, uiState, render, getState
   if (trigger.dataset.action === 'remove-sprint-ticket' && Number.isInteger(sprintIndex) && Number.isInteger(ticketIndex)) {
     updateState((state) => {
       state.spData[sprintIndex].tickets.splice(ticketIndex, 1);
-    }, { waitForSync: true });
+    });
   }
 
   if (trigger.dataset.action === 'toggle-delete-sprint-ticket-in-form' && Number.isInteger(sprintIndex) && Number.isInteger(ticketIndex)) {
@@ -1367,7 +1383,7 @@ function handleClickAction(trigger, updateState, root, uiState, render, getState
     if (shouldDelete) {
       updateState((state) => {
         state.spData[sprintIndex].tickets.splice(ticketIndex, 1);
-      }, { waitForSync: true });
+      });
       uiState.editingTicket = null;
       render();
       return;
@@ -1381,68 +1397,112 @@ function handleClickAction(trigger, updateState, root, uiState, render, getState
     const epicTitle = String(formData.get('epicTitle') || '').trim();
     const epicUrl = normalizeUrl(String(formData.get('epicUrl') || ''));
     updateState((state) => {
-      const ticket = state.spData[sprintIndex].tickets[ticketIndex];
       const sprint = state.spData[sprintIndex];
-      if (!ticket || !sprint) return;
-      ticket.title = jiraId;
-      ticket.assignee = String(formData.get('assignee') || '').trim();
-      ticket.status = String(formData.get('status') || 'todo').trim();
-      ticket.priority = String(formData.get('priority') || 'Medium').trim() || 'Medium';
-      ticket.jiraId = jiraId;
-      ticket.jiraUrl = normalizeUrl(String(formData.get('jiraUrl') || ''));
-      ticket.epicUrl = epicUrl;
-      ticket.epicTitle = epicTitle;
-      ticket.storyPoints = normalizeStoryPoints(mainStoryPointsInput instanceof HTMLInputElement ? mainStoryPointsInput.value : '');
+      const ticket = sprint?.tickets?.[ticketIndex];
+      if (!ticket || !sprint || !Array.isArray(sprint.tickets)) return;
+
+      // Snapshot the original epic group for deterministic replace-on-save behavior.
+      const originalAssigneeKey = getTicketAssigneeKey(ticket);
+      const originalEpicKey = getTicketEpicKey(ticket);
+      const originalGroupIndexes = sprint.tickets
+        .map((item, index) => ({ item, index }))
+        .filter(({ item }) => getTicketAssigneeKey(item) === originalAssigneeKey && getTicketEpicKey(item) === originalEpicKey)
+        .map(({ index }) => index)
+        .sort((a, b) => a - b);
+      if (!originalGroupIndexes.length) return;
+
+      const desiredAssignee = String(formData.get('assignee') || '').trim();
+      const desiredStatus = String(formData.get('status') || 'todo').trim() || 'todo';
+      const desiredPriority = String(formData.get('priority') || 'Medium').trim() || 'Medium';
+      const mainJiraUrl = normalizeUrl(String(formData.get('jiraUrl') || ''));
+      const mainStoryPoints = normalizeStoryPoints(mainStoryPointsInput instanceof HTMLInputElement ? mainStoryPointsInput.value : '');
       const notes = mainNotesInput instanceof HTMLInputElement ? String(mainNotesInput.value || '').trim() : '';
-      ticket.notes = notes;
-      ticket.desc = notes;
+
+      const oldTicketById = new Map(
+        sprint.tickets
+          .map((item) => [String(item?.id || '').trim(), item])
+          .filter(([id]) => Boolean(id))
+      );
+      const idsReferencedByForm = new Set([String(ticket?.id || '').trim()].filter(Boolean));
+
+      const desiredRows = [
+        {
+          isMain: true,
+          jiraId,
+          jiraUrl: mainJiraUrl,
+          storyPoints: mainStoryPoints,
+          notes,
+          existingTicketId: String(ticket?.id || '').trim(),
+        },
+      ];
 
       const extraRows = Array.from(modal.querySelectorAll('[data-ticket-link-row]'));
       extraRows.forEach((row) => {
         const idInput = row.querySelector('input[name="jiraId"]');
-        const existingIndexInput = row.querySelector('input[name="existingTicketIndex"]');
+        const existingIdInput = row.querySelector('input[name="existingTicketId"]');
         const urlInput = row.querySelector('input[name="jiraUrl"]');
         const storyPointsInput = row.querySelector('input[name="storyPoints"]');
         const notesInput = row.querySelector('input[name="notes"]');
         const extraId = idInput instanceof HTMLInputElement ? String(idInput.value || '').trim() : '';
-        const extraNotes = notesInput instanceof HTMLInputElement ? String(notesInput.value || '').trim() : '';
-        const existingIndex = existingIndexInput instanceof HTMLInputElement && String(existingIndexInput.value || '').trim() !== ''
-          ? Number(existingIndexInput.value)
-          : NaN;
-
-        if (Number.isInteger(existingIndex) && existingIndex >= 0 && existingIndex !== ticketIndex) {
-          const existingTicket = sprint.tickets[existingIndex];
-          if (!existingTicket || !extraId) return;
-          existingTicket.title = extraId;
-          existingTicket.jiraId = extraId;
-          existingTicket.jiraUrl = urlInput instanceof HTMLInputElement ? normalizeUrl(String(urlInput.value || '')) : '';
-          existingTicket.epicUrl = epicUrl;
-          existingTicket.epicTitle = epicTitle;
-          existingTicket.assignee = ticket.assignee;
-          existingTicket.storyPoints = normalizeStoryPoints(storyPointsInput instanceof HTMLInputElement ? storyPointsInput.value : '');
-          existingTicket.notes = extraNotes;
-          existingTicket.desc = extraNotes;
-          return;
-        }
-
         if (!extraId || extraId === jiraId) return;
-
-        sprint.tickets.push({
-          id: createId('sprint-ticket'),
-          title: extraId,
+        const extraNotes = notesInput instanceof HTMLInputElement ? String(notesInput.value || '').trim() : '';
+        const existingTicketId = existingIdInput instanceof HTMLInputElement
+          ? String(existingIdInput.value || '').trim()
+          : '';
+        if (existingTicketId) {
+          idsReferencedByForm.add(existingTicketId);
+        }
+        desiredRows.push({
+          isMain: false,
           jiraId: extraId,
-          epicId: '',
           jiraUrl: urlInput instanceof HTMLInputElement ? normalizeUrl(String(urlInput.value || '')) : '',
-          epicUrl,
-          epicTitle,
-          desc: extraNotes,
-          notes: extraNotes,
-          assignee: ticket.assignee,
           storyPoints: normalizeStoryPoints(storyPointsInput instanceof HTMLInputElement ? storyPointsInput.value : ''),
-          priority: ticket.priority,
-          status: ticket.status,
+          notes: extraNotes,
+          existingTicketId,
         });
       });
+
+      const rebuiltGroup = desiredRows.map((row) => {
+        const reused = row.existingTicketId ? oldTicketById.get(row.existingTicketId) : null;
+        const ticketId = row.existingTicketId || (row.isMain ? String(ticket?.id || '').trim() : '') || createId('sprint-ticket');
+        return {
+          ...(reused || {}),
+          id: ticketId,
+          title: row.jiraId,
+          jiraId: row.jiraId,
+          epicId: '',
+          jiraUrl: row.jiraUrl,
+          epicUrl,
+          epicTitle,
+          desc: row.notes,
+          notes: row.notes,
+          assignee: desiredAssignee,
+          storyPoints: row.storyPoints,
+          priority: desiredPriority,
+          status: desiredStatus,
+        };
+      });
+
+      const desiredEpicKey = (epicTitle || epicUrl || `ticket:${String(ticket?.id || '').trim()}`).trim();
+      const removalIndexes = sprint.tickets
+        .map((item, index) => ({ item, index }))
+        .filter(({ item, index }) => {
+          if (originalGroupIndexes.includes(index)) return true;
+          const itemId = String(item?.id || '').trim();
+          if (itemId && idsReferencedByForm.has(itemId)) return true;
+          const itemAssigneeKey = getTicketAssigneeKey(item);
+          const itemEpicKey = getTicketEpicKey(item);
+          const matchesOriginalGroup = itemAssigneeKey === originalAssigneeKey && itemEpicKey === originalEpicKey;
+          const matchesDesiredGroup = itemAssigneeKey === (desiredAssignee || 'Unassigned') && itemEpicKey === desiredEpicKey;
+          return matchesOriginalGroup || matchesDesiredGroup;
+        })
+        .map(({ index }) => index)
+        .sort((a, b) => a - b);
+
+      const insertAt = removalIndexes.length ? removalIndexes[0] : originalGroupIndexes[0];
+      const removalIndexSet = new Set(removalIndexes);
+      sprint.tickets = sprint.tickets.filter((_, index) => !removalIndexSet.has(index));
+      sprint.tickets.splice(insertAt, 0, ...rebuiltGroup);
     });
     uiState.editingTicket = null;
     render();

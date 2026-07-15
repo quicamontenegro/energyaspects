@@ -70,10 +70,13 @@ async function replaceTableRows(table, rows){
   const existingIds=(existingRows || []).map(row=>String(row?.id || '')).filter(Boolean);
   const incomingIds=new Set(dedupedRows.map(row=>String(row.id)));
 
-  // Safety rail: never allow an empty payload to wipe existing DB rows.
   if(!dedupedRows.length){
-    if(existingIds.length){
-      throw new Error(`Refusing to replace table ${table} with an empty payload.`);
+    if(!existingIds.length)return;
+    const CHUNK_SIZE=500;
+    for(let index=0; index<existingIds.length; index+=CHUNK_SIZE){
+      const chunk=existingIds.slice(index,index + CHUNK_SIZE);
+      const {error:deleteError}=await sbClient.from(table).delete().in('id',chunk);
+      if(deleteError)throw deleteError;
     }
     return;
   }
@@ -128,8 +131,8 @@ async function replaceProjectsSnapshot(projects){
       updated_at:now
     }));
   });
-  if (projectRows.length) await replaceTableRows('projects', projectRows);
-  if (memberRows.length) await replaceTableRows('project_members', memberRows);
+  await replaceTableRows('projects', projectRows);
+  await replaceTableRows('project_members', memberRows);
 }
 
 async function replaceVelocitySnapshot(teams){
@@ -183,22 +186,20 @@ async function replaceVelocitySnapshot(teams){
     return row;
   }));
 
-  if (teamRows.length) await replaceTableRows('velocity_teams', teamRows);
+  await replaceTableRows('velocity_teams', teamRows);
   const sprintRows = buildSprintRows(!!sprintFlags.completed);
-  if (sprintRows.length) {
-    try{
-      await replaceTableRows('velocity_sprints', sprintRows);
-    }catch(error){
-      const message=String(error?.message || '');
-      const details=String(error?.details || '');
-      const missingCompleted=message.includes('completed') || details.includes('completed') || String(error?.code || '')==='PGRST204';
-      if(!sprintFlags.completed || !missingCompleted)throw error;
-      STRUCTURED_SCHEMA_FLAGS.velocitySprintCompleted={completed:false};
-      await replaceTableRows('velocity_sprints', buildSprintRows(false));
-    }
+  try{
+    await replaceTableRows('velocity_sprints', sprintRows);
+  }catch(error){
+    const message=String(error?.message || '');
+    const details=String(error?.details || '');
+    const missingCompleted=message.includes('completed') || details.includes('completed') || String(error?.code || '')==='PGRST204';
+    if(!sprintFlags.completed || !missingCompleted)throw error;
+    STRUCTURED_SCHEMA_FLAGS.velocitySprintCompleted={completed:false};
+    await replaceTableRows('velocity_sprints', buildSprintRows(false));
   }
-  if (memberRows.length) await replaceTableRows('velocity_members', memberRows);
-  if (pointRows.length) await replaceTableRows('velocity_points', pointRows);
+  await replaceTableRows('velocity_members', memberRows);
+  await replaceTableRows('velocity_points', pointRows);
 }
 
 async function replaceDataExplorerSnapshot(tasks){
@@ -223,7 +224,7 @@ async function replaceDataExplorerSnapshot(tasks){
     if(flags.title)row.title=task.name || '';
     return row;
   });
-  if (taskRows.length) await replaceTableRows('data_explorer_tasks', taskRows);
+  await replaceTableRows('data_explorer_tasks', taskRows);
 }
 
 async function replaceRPDETicketsSnapshot(tickets){
@@ -241,7 +242,7 @@ async function replaceRPDETicketsSnapshot(tickets){
     created_at:ticket.createdAt || now,
     updated_at:now
   }));
-  if (ticketRows.length) await replaceTableRows('rpde_tickets', ticketRows);
+  await replaceTableRows('rpde_tickets', ticketRows);
 }
 
 async function saveStructuredMetadata(snapshot){
@@ -348,6 +349,21 @@ async function saveStructuredMetadata(snapshot){
         }))
       ).filter(item=>String(item.ticketId || '').trim()),
       updated_at:now
+    },
+    {
+      key:'spSprintTicketIndex',
+      value:structuredSafeRows(snapshot.spData).map(sprint=>({
+        sprintId:sprint?.id || '',
+        ticketIds:structuredSafeRows(sprint?.tickets)
+          .map(ticket=>String(ticket?.id || '').trim())
+          .filter(Boolean)
+      })).filter(item=>String(item.sprintId || '').trim()),
+      updated_at:now
+    },
+    {
+      key:'spDataCanonical',
+      value:structuredSafeRows(snapshot.spData),
+      updated_at:now
     }
   ];
   const {error}=await sbClient.from('settings').upsert(rows,{onConflict:'key'});
@@ -398,8 +414,8 @@ async function replaceMilestonesSnapshot(milestones){
     if(taskFlags.sort_order)row.sort_order=taskIndex;
     return row;
   }));
-  if (milestoneRows.length) await replaceTableRows('milestones', milestoneRows);
-  if (taskRows.length) await replaceTableRows('milestone_tasks', taskRows);
+  await replaceTableRows('milestones', milestoneRows);
+  await replaceTableRows('milestone_tasks', taskRows);
 }
 
 async function replaceSprintsSnapshot(sprints){
@@ -423,12 +439,13 @@ async function replaceSprintsSnapshot(sprints){
     return row;
   });
   const ticketRows=sprintRows.flatMap((sprint,index)=>structuredSafeRows(sprints[index]?.tickets).map((ticket,ticketIndex)=>{
+    const epicFallback = String(ticket.epicId || ticket.epicTitle || ticket.epicUrl || '').trim();
     const row={
       id:ticket.id,
       sprint_id:sprint.id,
       assignee:ticket.assignee || '',
       jira_id:ticket.jiraId || '',
-      epic_id:ticket.epicId || '',
+      epic_id:epicFallback,
       jira_url:ticket.jiraUrl || '',
       title:ticket.title || '',
       description:ticket.notes || ticket.desc || '',
@@ -443,20 +460,35 @@ async function replaceSprintsSnapshot(sprints){
     }
     return row;
   }));
-  if (sprintRows.length) await replaceTableRows('sprints', sprintRows);
-  if (ticketRows.length) await replaceTableRows('sprint_tickets', ticketRows);
+  await replaceTableRows('sprints', sprintRows);
+  await replaceTableRows('sprint_tickets', ticketRows);
 }
 
 export async function saveCoreSnapshot(snapshot){
   return queueCoreSnapshotWrite(async()=>{
-    await saveSettingsSnapshot(snapshot.settings || {});
-    await replaceProjectsSnapshot(snapshot.projects || []);
-    await replaceVelocitySnapshot(snapshot.teams || []);
-    await replaceDataExplorerSnapshot(snapshot.deTasks || []);
-    await saveStructuredMetadata(snapshot);
-    await replaceRPDETicketsSnapshot(snapshot.rpdeTickets || []);
-    await replaceMilestonesSnapshot(snapshot.msData || []);
-    await replaceSprintsSnapshot(snapshot.spData || []);
+    const failures=[];
+    const runStep=async(stepName, task)=>{
+      try{
+        await task();
+      }catch(error){
+        failures.push({stepName,error});
+        console.error(`Supabase save step failed: ${stepName}`, error);
+      }
+    };
+
+    await runStep('settings',()=>saveSettingsSnapshot(snapshot.settings || {}));
+    await runStep('projects',()=>replaceProjectsSnapshot(snapshot.projects || []));
+    await runStep('velocity',()=>replaceVelocitySnapshot(snapshot.teams || []));
+    await runStep('data-explorer',()=>replaceDataExplorerSnapshot(snapshot.deTasks || []));
+    await runStep('structured-metadata',()=>saveStructuredMetadata(snapshot));
+    await runStep('rpde-tickets',()=>replaceRPDETicketsSnapshot(snapshot.rpdeTickets || []));
+    await runStep('milestones',()=>replaceMilestonesSnapshot(snapshot.msData || []));
+    await runStep('sprints',()=>replaceSprintsSnapshot(snapshot.spData || []));
+
+    if(failures.length){
+      const message=failures.map(item=>item.stepName).join(', ');
+      console.warn(`Supabase snapshot saved with partial failures: ${message}`);
+    }
   });
 }
 
@@ -478,9 +510,11 @@ async function loadStructuredMetadata(){
     spNotes:[],
     spSprintNotesBoard:[],
     spSprintColumns:[],
-    spSprintTicketExtras:[]
+    spSprintTicketExtras:[],
+    spSprintTicketIndex:null,
+    spDataCanonical:null
   };
-  const {data,error}=await sbClient.from('settings').select('key,value').in('key',['deMeetings','spTeamMembers','spNotes','spSprintNotesBoard','spSprintColumns','spSprintTicketExtras']);
+  const {data,error}=await sbClient.from('settings').select('key,value').in('key',['deMeetings','spTeamMembers','spNotes','spSprintNotesBoard','spSprintColumns','spSprintTicketExtras','spSprintTicketIndex','spDataCanonical']);
   if(error)throw error;
   (data || []).forEach(row=>{
     if(row.key==='deMeetings'){
@@ -555,6 +589,19 @@ async function loadStructuredMetadata(){
         }))
         .filter(item=>String(item.ticketId || '').trim());
     }
+    if(row.key==='spSprintTicketIndex'){
+      result.spSprintTicketIndex=structuredSafeRows(row.value)
+        .map(item=>({
+          sprintId:item?.sprintId || '',
+          ticketIds:structuredSafeRows(item?.ticketIds)
+            .map(ticketId=>String(ticketId || '').trim())
+            .filter(Boolean)
+        }))
+        .filter(item=>String(item.sprintId || '').trim());
+    }
+    if(row.key==='spDataCanonical'){
+      result.spDataCanonical=structuredSafeRows(row.value);
+    }
   });
   return result;
 }
@@ -564,7 +611,8 @@ function mergeSprintNotesBoardIntoSprints(spData, metadata){
   const boardRows=structuredSafeRows(metadata?.spSprintNotesBoard);
   const columnRows=structuredSafeRows(metadata?.spSprintColumns);
   const ticketExtraRows=structuredSafeRows(metadata?.spSprintTicketExtras);
-  if(!boardRows.length && !columnRows.length && !ticketExtraRows.length){
+  const ticketIndexRows=Array.isArray(metadata?.spSprintTicketIndex) ? metadata.spSprintTicketIndex : null;
+  if(!boardRows.length && !columnRows.length && !ticketExtraRows.length && !ticketIndexRows){
     return safeSprints;
   }
 
@@ -601,15 +649,46 @@ function mergeSprintNotesBoardIntoSprints(spData, metadata){
     return acc;
   },{});
 
-  return safeSprints.map((sprint)=>({
-    ...sprint,
-    notesBoard:boardBySprintId[String(sprint?.id || '').trim()] || structuredSafeRows(sprint?.notesBoard),
-    columnAssignees:columnsBySprintId[String(sprint?.id || '').trim()] || structuredSafeRows(sprint?.columnAssignees),
-    tickets:structuredSafeRows(sprint?.tickets).map(ticket=>({
+  const ticketIndexBySprintId=(ticketIndexRows || []).reduce((acc,row)=>{
+    const sprintId=String(row?.sprintId || '').trim();
+    if(!sprintId)return acc;
+    const ids=structuredSafeRows(row?.ticketIds)
+      .map(ticketId=>String(ticketId || '').trim())
+      .filter(Boolean);
+    acc[sprintId]=ids;
+    return acc;
+  },{});
+
+  return safeSprints.map((sprint)=>{
+    const sprintId=String(sprint?.id || '').trim();
+    const sprintTicketOrder=ticketIndexBySprintId[sprintId];
+    const baseTickets=structuredSafeRows(sprint?.tickets).map(ticket=>({
       ...ticket,
       ...(ticketExtrasById[String(ticket?.id || '').trim()] || {})
-    }))
-  }));
+    }));
+
+    let tickets=baseTickets;
+    if(Array.isArray(sprintTicketOrder)){
+      const allowedIdSet=new Set(sprintTicketOrder);
+      const orderMap=new Map(sprintTicketOrder.map((id,index)=>[id,index]));
+      tickets=baseTickets
+        .filter(ticket=>allowedIdSet.has(String(ticket?.id || '').trim()))
+        .sort((left,right)=>{
+          const leftId=String(left?.id || '').trim();
+          const rightId=String(right?.id || '').trim();
+          const leftOrder=orderMap.has(leftId) ? orderMap.get(leftId) : Number.MAX_SAFE_INTEGER;
+          const rightOrder=orderMap.has(rightId) ? orderMap.get(rightId) : Number.MAX_SAFE_INTEGER;
+          return leftOrder-rightOrder;
+        });
+    }
+
+    return {
+      ...sprint,
+      notesBoard:boardBySprintId[sprintId] || structuredSafeRows(sprint?.notesBoard),
+      columnAssignees:columnsBySprintId[sprintId] || structuredSafeRows(sprint?.columnAssignees),
+      tickets
+    };
+  });
 }
 
 async function loadStructuredProjects(){
@@ -812,11 +891,16 @@ async function loadStructuredSprints(){
   const groupedTickets=sortStructuredRows(tickets).reduce((acc,ticket)=>{
     if(!acc[ticket.sprint_id])acc[ticket.sprint_id]=[];
     const normalizedPriority=String(ticket.priority || '').trim().toLowerCase();
+    const epicFallback = String(ticket.epic_id || '').trim();
+    const epicUrlFallback = /^https?:\/\//i.test(epicFallback) ? epicFallback : '';
+    const epicTitleFallback = epicUrlFallback ? '' : epicFallback;
     acc[ticket.sprint_id].push({
       id:ticket.id,
       assignee:ticket.assignee || '',
       jiraId:ticket.jira_id || '',
-      epicId:ticket.epic_id || '',
+      epicId:epicFallback,
+      epicTitle:epicTitleFallback,
+      epicUrl:epicUrlFallback,
       jiraUrl:ticket.jira_url || '',
       title:ticket.title,
       desc:ticket.description || '',
@@ -859,8 +943,10 @@ export async function loadAllData(){
     if(msData.status==='rejected')console.error('Structured milestones load failed:', msData.reason);
     if(spData.status==='rejected')console.error('Structured sprints load failed:', spData.reason);
     if(metadata.status==='rejected')console.error('Structured metadata load failed:', metadata.reason);
-    const resolvedMetadata=metadata.status==='fulfilled' ? metadata.value : {deMeetings:[],spTeamMembers:[],spNotes:[],spSprintNotesBoard:[],spSprintColumns:[],spSprintTicketExtras:[]};
-    const resolvedSpData=spData.status==='fulfilled' ? mergeSprintNotesBoardIntoSprints(spData.value, resolvedMetadata) : [];
+    const resolvedMetadata=metadata.status==='fulfilled' ? metadata.value : {deMeetings:[],spTeamMembers:[],spNotes:[],spSprintNotesBoard:[],spSprintColumns:[],spSprintTicketExtras:[],spSprintTicketIndex:null,spDataCanonical:null};
+    const resolvedSpData = Array.isArray(resolvedMetadata.spDataCanonical)
+      ? resolvedMetadata.spDataCanonical
+      : (spData.status==='fulfilled' ? mergeSprintNotesBoardIntoSprints(spData.value, resolvedMetadata) : []);
 
     return {
       settings:settings.status==='fulfilled' ? settings.value : {monthlyHours:176,hoursPerDay:8},
