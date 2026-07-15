@@ -1,6 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 
-import { setSupabaseClient, loadAllData, saveCoreSnapshot } from '../../supabase-data-layer.js';
+import { setSupabaseClient, loadAllData, saveCoreSnapshot, saveSprintsCanonical } from '../../supabase-data-layer.js';
 import { cloneState, createDefaultSnapshot, mergeSnapshot } from '../state/defaults.js';
 
 function getMetaValue(name) {
@@ -75,7 +75,17 @@ export function createDashboardPersistence(canSync) {
     },
     schedule(nextState) {
       latestState = cloneState(nextState);
-      return flush();
+      // Save canonical sprint data first (fast, single DB call) so refresh
+      // always sees the latest sprint state even if full sync is still in flight.
+      const spData = Array.isArray(nextState.spData) ? nextState.spData : [];
+      const canonical = saveSprintsCanonical(spData).catch((err) => {
+        console.error('Sprint canonical save failed.', err);
+      });
+      // Full sync runs in background — don't block the caller.
+      flush().catch((err) => {
+        console.error('Background full sync failed.', err);
+      });
+      return canonical;
     },
     flush,
     canSync,

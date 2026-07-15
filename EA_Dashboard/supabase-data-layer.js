@@ -464,6 +464,16 @@ async function replaceSprintsSnapshot(sprints){
   await replaceTableRows('sprint_tickets', ticketRows);
 }
 
+export async function saveSprintsCanonical(spData){
+  if(!sbClient)return;
+  const now=new Date().toISOString();
+  const {error}=await sbClient.from('settings').upsert(
+    [{key:'spDataCanonical',value:structuredSafeRows(spData),updated_at:now}],
+    {onConflict:'key'}
+  );
+  if(error)throw error;
+}
+
 export async function saveCoreSnapshot(snapshot){
   return queueCoreSnapshotWrite(async()=>{
     const failures=[];
