@@ -474,12 +474,18 @@ function renderAssigneeColumn(sprintIndex, assignee, items, sprintMembers, uiSta
   const member = sprintMembers.find((m) => m.name === assignee);
   const memberInitials = member ? initials(member.name) : '?';
   const epicGroups = groupSprintTicketsByEpic(items);
+  const totalStoryPoints = items.reduce((sum, item) => {
+    const points = Number(item?.ticket?.storyPoints);
+    return Number.isFinite(points) && points > 0 ? sum + points : sum;
+  }, 0);
+  const totalStoryPointsLabel = formatStoryPointsDisplay(totalStoryPoints);
 
   return `
     <section class="sprint-column" data-assignee="${escapeHtml(assignee)}">
       <header class="sprint-column__head">
         <div class="av-sm" style="background: linear-gradient(135deg, var(--accent), var(--indigo));">${memberInitials}</div>
         <span class="sprint-column__title">${escapeHtml(assignee || 'Unassigned')}</span>
+        ${totalStoryPointsLabel ? `<span class="sprint-column__sp">(${escapeHtml(totalStoryPointsLabel)} sp)</span>` : ''}
         <button class="btn-icon sprint-add-ticket-btn" type="button" data-action="open-add-sprint-ticket-modal" data-sprint-index="${sprintIndex}" data-assignee="${escapeHtml(assignee)}" title="Add ticket">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
         </button>
