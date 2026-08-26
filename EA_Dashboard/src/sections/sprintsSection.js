@@ -258,6 +258,7 @@ function sanitizeRichTextHtml(value) {
   html = html.replace(/<\/?(script|style)[^>]*>/gi, '');
   html = html.replace(/\son\w+=("[^"]*"|'[^']*'|[^\s>]+)/gi, '');
   html = html.replace(/\sstyle=("[^"]*"|'[^']*'|[^\s>]+)/gi, '');
+  html = html.replace(/\s(?:color|bgcolor)=("[^"]*"|'[^']*'|[^\s>]+)/gi, '');
   html = html.replace(/javascript:/gi, '');
   return html;
 }
@@ -486,7 +487,7 @@ function renderAssigneeColumn(sprintIndex, assignee, items, sprintMembers, uiSta
       <header class="sprint-column__head">
         <div class="av-sm" style="background: linear-gradient(135deg, var(--accent), var(--indigo));">${memberInitials}</div>
         <span class="sprint-column__title">${escapeHtml(assignee || 'Unassigned')}</span>
-        ${totalStoryPointsLabel ? `<span class="sprint-column__sp story-points-total">(${escapeHtml(totalStoryPointsLabel)} sp)</span>` : ''}
+        ${totalStoryPointsLabel ? `<span class="sprint-column__sp story-points-user-total">(${escapeHtml(totalStoryPointsLabel)} sp)</span>` : ''}
         <button class="btn-icon sprint-add-ticket-btn" type="button" data-action="open-add-sprint-ticket-modal" data-sprint-index="${sprintIndex}" data-assignee="${escapeHtml(assignee)}" title="Add ticket">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
         </button>
