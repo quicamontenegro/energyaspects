@@ -542,7 +542,7 @@ function renderSprintTicket(sprintIndex, ticketIndex, ticket, sprintMembers, uiS
               ${jiraHref
                 ? `<a class="sprint-ticket-preview__ticket-link" href="${escapeHtml(jiraHref)}" target="_blank" rel="noopener noreferrer">${escapeHtml(ticketLabel)}</a>`
                 : `<span class="sprint-ticket-preview__ticket-text">${escapeHtml(ticketLabel)}</span>`}
-              ${storyPointsLabel ? `<span class="sprint-ticket-preview__ticket-sp story-points-total">(${escapeHtml(storyPointsLabel)} sp)</span>` : ''}
+              ${storyPointsLabel ? `<span class="sprint-ticket-preview__ticket-sp">(${escapeHtml(storyPointsLabel)} sp)</span>` : ''}
             </li>
           </ul>
         </div>
@@ -609,7 +609,7 @@ function renderSprintEpicCard(sprintIndex, assignee, group, sprintMembers, uiSta
                       ${jiraHref
                         ? `<a class="sprint-ticket-preview__ticket-link" href="${escapeHtml(jiraHref)}" target="_blank" rel="noopener noreferrer">${escapeHtml(ticketLabel)}</a>`
                         : `<span class="sprint-ticket-preview__ticket-text">${escapeHtml(ticketLabel)}</span>`}
-                      ${storyPointsLabel ? `<span class="sprint-ticket-preview__ticket-sp story-points-total">(${escapeHtml(storyPointsLabel)} sp)</span>` : ''}
+                      ${storyPointsLabel ? `<span class="sprint-ticket-preview__ticket-sp">(${escapeHtml(storyPointsLabel)} sp)</span>` : ''}
                       <select class="status-select status-select--inline" name="status" data-status="${escapeHtml(String(ticket.status || 'todo'))}" data-action="update-sprint-ticket-status" data-sprint-index="${sprintIndex}" data-ticket-index="${ticketIndex}">
                         ${TICKET_STATUSES.map((status) => `<option value="${status}" ${ticket.status === status ? 'selected' : ''}>${formatStatus(status)}</option>`).join('')}
                       </select>

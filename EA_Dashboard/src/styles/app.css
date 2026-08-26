@@ -1282,6 +1282,7 @@ button {
 
 .sprint-ticket-preview__ticket-sp {
   color: #334155;
+  font-weight: 700;
 }
 
 .story-points-total {
@@ -2764,7 +2765,7 @@ button {
 }
 
 :root[data-theme='dark'] .sprint-ticket-preview__ticket-sp {
-  color: #92400e;
+  color: #cbd5e1;
   font-weight: 700;
 }
 
