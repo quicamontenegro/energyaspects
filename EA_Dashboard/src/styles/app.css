@@ -1156,7 +1156,8 @@ button {
 
 .sprint-ticket-preview__epic-link,
 .sprint-ticket-preview__epic-text {
-  background: #fef08a;
+  background: #e5e7eb;
+  color: #1f2937;
   padding: 1px 3px;
   box-decoration-break: clone;
   -webkit-box-decoration-break: clone;
@@ -1281,6 +1282,25 @@ button {
 
 .sprint-ticket-preview__ticket-sp {
   color: #334155;
+}
+
+.story-points-total {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: #fef3c7;
+  color: #92400e;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.mini-card strong.story-points-total {
+  margin-top: 10px;
+  font-size: 11px;
 }
 
 .sprint-ticket-note-preview {
@@ -2727,8 +2747,8 @@ button {
 
 :root[data-theme='dark'] .sprint-ticket-preview__epic-link,
 :root[data-theme='dark'] .sprint-ticket-preview__epic-text {
-  background: #a16207;
-  color: #fff7ed;
+  background: #475569;
+  color: #f1f5f9;
 }
 
 :root[data-theme='dark'] .sprint-ticket-preview__ticket-link {
@@ -2740,12 +2760,17 @@ button {
 }
 
 :root[data-theme='dark'] .sprint-ticket-preview__sp {
-  color: #fbbf24;
+  color: #92400e;
 }
 
 :root[data-theme='dark'] .sprint-ticket-preview__ticket-sp {
-  color: #fbbf24;
+  color: #92400e;
   font-weight: 700;
+}
+
+:root[data-theme='dark'] .story-points-total {
+  background: #fbbf24;
+  color: #451a03;
 }
 
 :root[data-theme='dark'] .empty-column,
