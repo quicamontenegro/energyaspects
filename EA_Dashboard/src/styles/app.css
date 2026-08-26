@@ -2740,7 +2740,12 @@ button {
 }
 
 :root[data-theme='dark'] .sprint-ticket-preview__sp {
-  color: #fca5a5;
+  color: #fbbf24;
+}
+
+:root[data-theme='dark'] .sprint-ticket-preview__ticket-sp {
+  color: #fbbf24;
+  font-weight: 700;
 }
 
 :root[data-theme='dark'] .empty-column,
