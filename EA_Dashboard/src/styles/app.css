@@ -1124,7 +1124,7 @@ button {
 .sprint-ticket-preview {
   min-width: 0;
   display: grid;
-  gap: 4px;
+  gap: 10px;
 }
 
 .sprint-ticket-preview__epic {
