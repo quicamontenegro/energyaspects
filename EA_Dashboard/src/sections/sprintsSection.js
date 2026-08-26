@@ -250,17 +250,39 @@ function renderSprintNoteEditorHtml(value) {
 }
 
 function isRichTextHtml(value) {
-  return /<(p|br|strong|b|em|i|code|ul|ol|li|a)(\s|>)/i.test(String(value || ''));
+  return /<(p|br|strong|b|em|i|code|ul|ol|li|a|span|font|div|h[1-6]|u|s)(\s|\/|>)/i.test(String(value || ''));
 }
 
 function sanitizeRichTextHtml(value) {
   let html = String(value || '');
-  html = html.replace(/<\/?(script|style)[^>]*>/gi, '');
-  html = html.replace(/\son\w+=("[^"]*"|'[^']*'|[^\s>]+)/gi, '');
-  html = html.replace(/\sstyle=("[^"]*"|'[^']*'|[^\s>]+)/gi, '');
-  html = html.replace(/\s(?:color|bgcolor)=("[^"]*"|'[^']*'|[^\s>]+)/gi, '');
-  html = html.replace(/javascript:/gi, '');
+  html = html.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
+  html = html.replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, '');
+  html = html.replace(/\s+on\w+=("[^"]*"|'[^']*'|[^\s>]+)/gi, '');
+  html = html.replace(/\s+(?:bgcolor|background)=("[^"]*"|'[^']*'|[^\s>]+)/gi, '');
+  html = html.replace(/\s+style=("[^"]*"|'[^']*'|[^\s>]+)/gi, (match, styleContent) => {
+    const rawStyle = styleContent.replace(/^["']|["']$/g, '');
+    const cleanStyle = sanitizeInlineStyle(rawStyle);
+    return cleanStyle ? ` style="${escapeHtml(cleanStyle)}"` : '';
+  });
+  html = html.replace(/href=["']\s*javascript:[^"']*["']/gi, 'href="#"');
   return html;
+}
+
+function sanitizeInlineStyle(styleString) {
+  if (!styleString) return '';
+  const declarations = styleString.split(';');
+  const safeDeclarations = [];
+  const allowedProps = new Set(['color', 'text-decoration', 'font-weight', 'font-style']);
+  for (const decl of declarations) {
+    const parts = decl.split(':');
+    if (parts.length < 2) continue;
+    const prop = parts[0].trim().toLowerCase();
+    const val = parts.slice(1).join(':').trim();
+    if (allowedProps.has(prop) && !/javascript:|url\(|expression\(/i.test(val)) {
+      safeDeclarations.push(`${prop}: ${val}`);
+    }
+  }
+  return safeDeclarations.join('; ');
 }
 
 function linkifyUrlsInHtml(html) {

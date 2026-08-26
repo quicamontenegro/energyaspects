@@ -806,6 +806,11 @@ button {
   color: var(--text);
 }
 
+.sprint-note-item__text *:not(code) {
+  background-color: transparent !important;
+  background: transparent !important;
+}
+
 .sprint-note-item__text p {
   margin: 0 0 6px;
 }

@@ -167,6 +167,13 @@ export function createDashboardApp(root, initialSnapshot, persistence) {
     handleClickAction(trigger, updateState, root, uiState, render, () => store.getState());
   });
 
+  root.addEventListener('mousedown', (event) => {
+    const toolBtn = event.target instanceof Element ? event.target.closest('.sprint-note-tool, .note-color-swatch') : null;
+    if (toolBtn) {
+      event.preventDefault();
+    }
+  });
+
   root.addEventListener('change', (event) => {
     const field = event.target.closest('[data-action]');
     if (!field) {
@@ -1865,10 +1872,21 @@ function applySprintNoteTextColor(editorRoot, color) {
   const normalizedColor = String(color || '').trim().toLowerCase();
   editable.focus();
 
+  const selection = window.getSelection();
+  const hasSelectionInEditable = selection && selection.rangeCount > 0 &&
+    editable.contains(selection.anchorNode) && !selection.isCollapsed;
+
+  if (!hasSelectionInEditable && editable.textContent.trim().length > 0) {
+    const range = document.createRange();
+    range.selectNodeContents(editable);
+    selection.removeAllRanges();
+    selection.addRange(range);
+  }
+
   if (/^#[0-9a-f]{6}$/i.test(normalizedColor)) {
     document.execCommand('foreColor', false, normalizedColor);
   } else {
-    document.execCommand('foreColor', false, '#0f172a');
+    document.execCommand('removeFormat');
   }
 
   syncSprintNoteEditorValue(editorRoot);
