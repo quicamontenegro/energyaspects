@@ -7,7 +7,7 @@ const root = document.querySelector('#app');
 const THEME_STORAGE_KEY = 'ea-dashboard-theme';
 
 function initializeTheme() {
-  let theme = 'light';
+  let theme = 'dark';
   try {
     const storedTheme = window.localStorage.getItem(THEME_STORAGE_KEY);
     if (storedTheme === 'dark' || storedTheme === 'light') {
