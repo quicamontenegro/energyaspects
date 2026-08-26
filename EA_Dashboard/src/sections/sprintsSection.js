@@ -486,7 +486,7 @@ function renderAssigneeColumn(sprintIndex, assignee, items, sprintMembers, uiSta
       <header class="sprint-column__head">
         <div class="av-sm" style="background: linear-gradient(135deg, var(--accent), var(--indigo));">${memberInitials}</div>
         <span class="sprint-column__title">${escapeHtml(assignee || 'Unassigned')}</span>
-        ${totalStoryPointsLabel ? `<span class="sprint-column__sp">(${escapeHtml(totalStoryPointsLabel)} sp)</span>` : ''}
+        ${totalStoryPointsLabel ? `<span class="sprint-column__sp story-points-total">(${escapeHtml(totalStoryPointsLabel)} sp)</span>` : ''}
         <button class="btn-icon sprint-add-ticket-btn" type="button" data-action="open-add-sprint-ticket-modal" data-sprint-index="${sprintIndex}" data-assignee="${escapeHtml(assignee)}" title="Add ticket">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
         </button>
@@ -535,14 +535,14 @@ function renderSprintTicket(sprintIndex, ticketIndex, ticket, sprintMembers, uiS
             ${epicHref
               ? `<a class="sprint-ticket-preview__epic-link" href="${escapeHtml(epicHref)}" target="_blank" rel="noopener noreferrer">${escapeHtml(epicTitle)}</a>`
               : `<span class="sprint-ticket-preview__epic-text">${escapeHtml(epicTitle)}</span>`}
-            ${storyPointsLabel ? `<span class="sprint-ticket-preview__sp">(${escapeHtml(storyPointsLabel)} sp)</span>` : ''}
+            ${storyPointsLabel ? `<span class="sprint-ticket-preview__sp story-points-total">(${escapeHtml(storyPointsLabel)} sp)</span>` : ''}
           </div>
           <ul class="sprint-ticket-preview__list">
             <li>
               ${jiraHref
                 ? `<a class="sprint-ticket-preview__ticket-link" href="${escapeHtml(jiraHref)}" target="_blank" rel="noopener noreferrer">${escapeHtml(ticketLabel)}</a>`
                 : `<span class="sprint-ticket-preview__ticket-text">${escapeHtml(ticketLabel)}</span>`}
-              ${storyPointsLabel ? `<span class="sprint-ticket-preview__ticket-sp">(${escapeHtml(storyPointsLabel)})</span>` : ''}
+              ${storyPointsLabel ? `<span class="sprint-ticket-preview__ticket-sp story-points-total">(${escapeHtml(storyPointsLabel)} sp)</span>` : ''}
             </li>
           </ul>
         </div>
@@ -591,7 +591,7 @@ function renderSprintEpicCard(sprintIndex, assignee, group, sprintMembers, uiSta
             ${epicHref
               ? `<a class="sprint-ticket-preview__epic-link" href="${escapeHtml(epicHref)}" target="_blank" rel="noopener noreferrer">${escapeHtml(epicTitle)}</a>`
               : `<span class="sprint-ticket-preview__epic-text">${escapeHtml(epicTitle)}</span>`}
-            ${totalSpLabel ? `<span class="sprint-ticket-preview__sp">(${escapeHtml(totalSpLabel)} sp)</span>` : ''}
+            ${totalSpLabel ? `<span class="sprint-ticket-preview__sp story-points-total">(${escapeHtml(totalSpLabel)} sp)</span>` : ''}
           </div>
           <ul class="sprint-ticket-preview__list">
             ${group.items.map(({ ticket, ticketIndex }) => {
@@ -609,7 +609,7 @@ function renderSprintEpicCard(sprintIndex, assignee, group, sprintMembers, uiSta
                       ${jiraHref
                         ? `<a class="sprint-ticket-preview__ticket-link" href="${escapeHtml(jiraHref)}" target="_blank" rel="noopener noreferrer">${escapeHtml(ticketLabel)}</a>`
                         : `<span class="sprint-ticket-preview__ticket-text">${escapeHtml(ticketLabel)}</span>`}
-                      ${storyPointsLabel ? `<span class="sprint-ticket-preview__ticket-sp">(${escapeHtml(storyPointsLabel)})</span>` : ''}
+                      ${storyPointsLabel ? `<span class="sprint-ticket-preview__ticket-sp story-points-total">(${escapeHtml(storyPointsLabel)} sp)</span>` : ''}
                       <select class="status-select status-select--inline" name="status" data-status="${escapeHtml(String(ticket.status || 'todo'))}" data-action="update-sprint-ticket-status" data-sprint-index="${sprintIndex}" data-ticket-index="${ticketIndex}">
                         ${TICKET_STATUSES.map((status) => `<option value="${status}" ${ticket.status === status ? 'selected' : ''}>${formatStatus(status)}</option>`).join('')}
                       </select>

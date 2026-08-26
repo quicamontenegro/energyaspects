@@ -35,7 +35,7 @@ function renderTeam(team, teamIndex) {
           <p>${metrics.members} members · ${metrics.completedCount}/${metrics.sprintCount} completed sprints</p>
         </div>
         <div class="team-card__badges">
-          <span class="badge">Avg ${metrics.displayAverage} pts</span>
+          <span class="badge story-points-total">Avg ${metrics.displayAverage} pts</span>
           <span class="badge">Top ${escapeHtml(metrics.topMember?.name || 'No data')}</span>
           <button class="button button--ghost-danger" type="button" data-action="remove-team" data-team-index="${teamIndex}">Remove</button>
         </div>
@@ -45,7 +45,7 @@ function renderTeam(team, teamIndex) {
           ${metrics.totals.map((total, sprintIndex) => `
             <article class="mini-card">
               <span>${escapeHtml(team.sprints?.[sprintIndex] || `Sprint ${sprintIndex + 1}`)}</span>
-              <strong>${formatNumber(total)}</strong>
+              <strong class="story-points-total">${formatNumber(total)}</strong>
               <small>${team.sprintCompleted?.[sprintIndex] ? 'Completed' : 'Open'}</small>
             </article>
           `).join('')}
@@ -65,7 +65,7 @@ function renderTeam(team, teamIndex) {
                 <tr>
                   <td>${escapeHtml(member.name || '')}</td>
                   ${(team.sprints || []).map((_, sprintIndex) => `<td class="col-num"><input class="num-cell" type="number" min="0" data-action="update-team-points" data-team-index="${teamIndex}" data-member-index="${memberIndex}" data-sprint-index="${sprintIndex}" value="${Number(member.sp?.[sprintIndex]) || 0}" /></td>`).join('')}
-                  <td class="col-num col-total">${formatNumber((member.sp || []).reduce((sum, value) => sum + (Number(value) || 0), 0))}</td>
+                  <td class="col-num col-total"><span class="story-points-total">${formatNumber((member.sp || []).reduce((sum, value) => sum + (Number(value) || 0), 0))}</span></td>
                   <td><button class="button button--ghost-danger btn-xs" type="button" data-action="remove-team-member" data-team-index="${teamIndex}" data-member-index="${memberIndex}">✕</button></td>
                 </tr>
               `).join('')}
