@@ -257,6 +257,7 @@ function sanitizeRichTextHtml(value) {
   let html = String(value || '');
   html = html.replace(/<\/?(script|style)[^>]*>/gi, '');
   html = html.replace(/\son\w+=("[^"]*"|'[^']*'|[^\s>]+)/gi, '');
+  html = html.replace(/\sstyle=("[^"]*"|'[^']*'|[^\s>]+)/gi, '');
   html = html.replace(/javascript:/gi, '');
   return html;
 }

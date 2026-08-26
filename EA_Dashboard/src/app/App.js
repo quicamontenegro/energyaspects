@@ -9,6 +9,7 @@ import { normalizeProjectMember } from '../utils/dashboard.js';
 import { createId, slugify } from '../utils/format.js';
 
 const TAB_ORDER = ['invoicing', 'velocity', 'data-explorer', 'milestones', 'sprints'];
+const THEME_STORAGE_KEY = 'ea-dashboard-theme';
 
 export function createDashboardApp(root, initialSnapshot, persistence) {
   const store = createStore(initialSnapshot || createDefaultSnapshot());
@@ -81,6 +82,7 @@ export function createDashboardApp(root, initialSnapshot, persistence) {
           <nav class="app-tabs">
             ${TAB_ORDER.map((tab) => `<button class="app-tabs__button ${uiState.tab === tab ? 'is-active' : ''}" type="button" data-action="switch-tab" data-tab="${tab}">${getTabLabel(tab)}</button>`).join('')}
           </nav>
+          <button class="theme-toggle" type="button" data-action="toggle-theme" title="${getThemeToggleLabel()}" aria-label="${getThemeToggleLabel()}">${getThemeIcon()}</button>
           <div class="sync-indicator ${persistence.canSync ? 'is-live' : 'is-local'}">${persistence.canSync ? '● Supabase' : '○ Local'}</div>
         </header>
         <section class="app-content">
@@ -134,6 +136,18 @@ export function createDashboardApp(root, initialSnapshot, persistence) {
     if (action === 'switch-tab') {
       uiState.tab = trigger.dataset.tab;
       window.location.hash = uiState.tab;
+      render();
+      return;
+    }
+
+    if (action === 'toggle-theme') {
+      const nextTheme = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
+      document.documentElement.dataset.theme = nextTheme;
+      try {
+        window.localStorage.setItem(THEME_STORAGE_KEY, nextTheme);
+      } catch (error) {
+        console.warn('Could not save dashboard theme.', error);
+      }
       render();
       return;
     }
@@ -403,6 +417,14 @@ function getTabLabel(tab) {
     sprints: 'Sprints',
   };
   return labels[tab] || tab;
+}
+
+function getThemeToggleLabel() {
+  return document.documentElement.dataset.theme === 'dark' ? 'Use light mode' : 'Use dark mode';
+}
+
+function getThemeIcon() {
+  return document.documentElement.dataset.theme === 'dark' ? '&#9788;' : '&#9790;';
 }
 
 function getRemovalConfirmMessage(action, trigger) {
