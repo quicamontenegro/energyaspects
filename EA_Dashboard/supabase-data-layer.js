@@ -953,6 +953,9 @@ export async function loadAllData(){
     if(msData.status==='rejected')console.error('Structured milestones load failed:', msData.reason);
     if(spData.status==='rejected')console.error('Structured sprints load failed:', spData.reason);
     if(metadata.status==='rejected')console.error('Structured metadata load failed:', metadata.reason);
+    if([settings,projects,teams,deTasks,rpdeTickets,msData,spData,metadata].some(result=>result.status==='rejected')){
+      return null;
+    }
     const resolvedMetadata=metadata.status==='fulfilled' ? metadata.value : {deMeetings:[],spTeamMembers:[],spNotes:[],spSprintNotesBoard:[],spSprintColumns:[],spSprintTicketExtras:[],spSprintTicketIndex:null,spDataCanonical:null};
     const resolvedSpData = Array.isArray(resolvedMetadata.spDataCanonical)
       ? resolvedMetadata.spDataCanonical
