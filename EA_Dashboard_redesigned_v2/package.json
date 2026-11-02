@@ -1,0 +1,27 @@
+{
+  "name": "ea_dashboard",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Este dashboard agora suporta sincronizacao de estado com Supabase.",
+  "scripts": {
+    "dev": "vite --port 5173 --strictPort",
+    "build": "vite build",
+    "preview": "vite preview",
+    "backup:db": "node scripts/backup-supabase.mjs",
+    "backup:dump": "bash scripts/pgdump-supabase.sh",
+    "backup:dump:plain": "bash scripts/pgdump-supabase.sh --plain",
+    "backup:dump:nightly": "bash scripts/pgdump-nightly.sh",
+    "backup:dump:combined": "bash scripts/pgdump-nightly-combined.sh"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "vite": "^7.1.11"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.105.3",
+    "dotenv": "^16.4.5",
+    "lucide": "^1.66.0"
+  }
+}

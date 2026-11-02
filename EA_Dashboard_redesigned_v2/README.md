@@ -1,0 +1,387 @@
+# EA Dashboard + Supabase
+
+Guia passo a passo para correr este projeto noutro Mac.
+
+## O que este projeto faz
+
+Este dashboard corre em HTML + JavaScript com Vite e guarda o estado no Supabase.
+
+Atualmente sincroniza para a BD:
+- invoicing
+- RP Team
+- IA Team
+- Data Explorer
+- RP & DE Team
+- Milestones
+- Sprints
+
+Os dados ficam guardados em tabelas estruturadas do Supabase.
+
+O snapshot legado `dashboard_state` deixou de ser o source of truth da app e serve apenas como origem para migrações antigas, quando necessario.
+
+## 1) First step: o que instalar no outro Mac
+
+Num Mac novo, instala isto primeiro:
+- Node.js 20 ou superior
+- npm
+- Git
+
+Nota: normalmente o `npm` vem junto com a instalacao do Node.js.
+
+### Opcao recomendada
+
+Instala:
+1. Homebrew
+2. Node.js
+3. Git
+
+Se o Homebrew ainda nao existir:
+
+```bash
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+```
+
+Depois instala Node e Git:
+
+```bash
+brew install node git
+```
+
+Isto instala:
+- `node`
+- `npm`
+- `git`
+
+Confirma:
+
+```bash
+node -v
+npm -v
+git --version
+```
+
+### Opcao alternativa
+
+Podes instalar Node diretamente por aqui:
+- https://nodejs.org/
+
+Ao instalar o Node por esse metodo, o `npm` tambem fica instalado.
+
+E Git por aqui:
+- https://git-scm.com/download/mac
+
+### Se o comando npm nao existir
+
+Se `npm -v` der erro, instala ou reinstala o Node.js.
+
+Com Homebrew:
+
+```bash
+brew install node
+```
+
+Ou, se ja tens Node mal instalado e queres atualizar:
+
+```bash
+brew upgrade node
+```
+
+Depois confirma de novo:
+
+```bash
+npm -v
+```
+
+## 2) Copiar o projeto para o outro Mac
+
+Podes fazer de duas formas.
+
+Opcao A: via Git
+
+```bash
+git clone <URL_DO_REPOSITORIO>
+cd energyaspects/EA_Dashboard
+```
+
+Opcao B: copiar a pasta manualmente
+
+Depois entra na pasta:
+
+```bash
+cd /caminho/para/EA_Dashboard
+```
+
+## 3) Instalar dependencias
+
+```bash
+npm install
+```
+
+Isto instala o Vite definido em [package.json](package.json#L1).
+
+## 4) Supabase
+
+A base de dados ja esta criada.
+
+Por isso, no outro Mac so precisas de:
+1. ter acesso ao projeto Supabase
+2. copiar a URL e a anon key
+
+## 5) Configurar as chaves do Supabase
+
+Cria ou edita o ficheiro `.env.local` na pasta do projeto.
+
+Podes copiar de [.env.example](.env.example) e preencher assim:
+
+```bash
+cp .env.example .env.local
+```
+
+Conteudo esperado:
+
+```env
+VITE_SUPABASE_URL=https://SEU-PROJETO.supabase.co
+VITE_SUPABASE_ANON_KEY=SUA_ANON_KEY
+```
+
+Onde encontrar estes valores no Supabase:
+1. Entra no projeto
+2. Vai a Settings
+3. Vai a API
+4. Copia:
+- Project URL
+- anon public key
+
+O ficheiro `.env.local` esta no `.gitignore`, por isso as credenciais nao vao para o Git.
+
+Se deixares estes valores vazios, o dashboard abre, mas sem sincronizacao remota.
+
+## 6) Arrancar o projeto localmente
+
+```bash
+npm run dev
+```
+
+Por defeito, o Vite vai abrir algo como:
+
+```bash
+http://localhost:5173/
+```
+
+## 7) Abrir a app
+
+URL principal:
+
+```text
+http://localhost:5173/
+```
+
+Para abrir diretamente o separador de sprints:
+
+```text
+/#sprints
+```
+
+Outras rotas uteis:
+- `http://localhost:5173/#sprints`
+
+## 8) Confirmar se a BD esta a receber dados
+
+Faz isto:
+1. Abre a app
+2. Altera um valor editavel
+3. Vai ao Supabase
+4. Abre Table Editor
+5. Verifica a tabela `dashboard_state`
+
+Deves ver pelo menos uma linha com um `id` como:
+- `invoicing_dashboard`
+
+O estado fica dentro da coluna `state`.
+
+## 9) Correr noutra maquina da mesma rede
+
+Se quiseres abrir a app a partir de outro dispositivo na mesma rede, arranca o Vite com host publico:
+
+```bash
+npm run dev -- --host 0.0.0.0 --port 5173
+```
+
+Depois descobre o IP local do Mac:
+
+```bash
+ipconfig getifaddr en0
+```
+
+Ou, se necessario:
+
+```bash
+ipconfig getifaddr en1
+```
+
+Depois abre noutro dispositivo:
+
+```text
+http://IP_DO_MAC:5173/
+```
+
+Exemplo:
+
+```text
+http://192.168.1.236:5173/
+```
+
+## 10) Build de producao
+
+Se quiseres gerar build estatico:
+
+```bash
+npm run build
+```
+
+## 11) Backup da BD com pg_dump
+
+Para backup de disaster recovery (schema + dados), usa o fluxo por `pg_dump`.
+
+Cria o ficheiro `.env.pgdump` na raiz do projeto:
+
+```bash
+cat > .env.pgdump <<'EOF'
+SUPABASE_DB_HOST=db.<your-project-ref>.supabase.co
+SUPABASE_DB_PORT=5432
+SUPABASE_DB_NAME=postgres
+SUPABASE_DB_USER=postgres
+SUPABASE_DB_PASSWORD=<your-db-password>
+BACKUP_DIR=$HOME/projects/backups/db
+EOF
+```
+
+Executar backup manual:
+
+```bash
+npm run backup:dump
+```
+
+Opcional (SQL plain):
+
+```bash
+npm run backup:dump:plain
+```
+
+Executar o wrapper noturno (com retenção dos ultimos 14 ficheiros):
+
+```bash
+npm run backup:dump:nightly
+```
+
+Executar backup combinado (EA_Dashboard + personal-hub) em paralelo, com uma unica mensagem Telegram:
+
+```bash
+npm run backup:dump:combined
+```
+
+Por omissao, o script combinado procura o outro projeto em:
+
+```text
+$HOME/projects/personal-hub
+```
+
+Para usar outro caminho:
+
+```bash
+OTHER_PROJECT_DIR=/caminho/personal-hub npm run backup:dump:combined
+```
+
+Exemplo de cron igual ao servidor do outro projeto:
+
+```cron
+15 3 * * * cd ~/projects/energyaspects/EA_Dashboard && ./scripts/pgdump-nightly.sh >> ~/projects/backups/db/cron.log 2>&1
+```
+
+Exemplo de cron unico para os dois projetos (recomendado quando queres uma unica notificacao):
+
+```cron
+15 3 * * * cd ~/projects/energyaspects/EA_Dashboard && OTHER_PROJECT_DIR=~/projects/personal-hub ./scripts/pgdump-nightly-combined.sh >> ~/projects/backups/db/cron.log 2>&1
+```
+
+Nota: se existir `scripts/notify-telegram-backup.sh`, o wrapper envia notificacao em caso de sucesso/erro.
+
+Para testar a build:
+
+```bash
+npm run preview
+```
+
+## Estrutura importante
+
+Ficheiros principais:
+- [index.html](index.html)
+- [.env.example](.env.example)
+- [supabase-schema.sql](supabase-schema.sql)
+- [package.json](package.json)
+
+## Resolucao de problemas
+
+### A app abre mas nao grava na BD
+
+Verifica:
+1. se `.env.local` tem URL e key corretas
+2. se a tabela `dashboard_state` existe
+3. se as policies permitem `select`, `insert` e `update`
+
+### O porto 5173 esta ocupado
+
+Arranca com outro porto:
+
+```bash
+npm run dev -- --port 3001
+```
+
+### O outro dispositivo nao consegue abrir
+
+Verifica:
+1. se arrancaste com `--host 0.0.0.0`
+2. se ambos os dispositivos estao na mesma rede
+3. se o firewall do macOS nao esta a bloquear o Node
+
+## Nota de seguranca
+
+As policies atuais em [supabase-schema.sql](supabase-schema.sql) estao abertas para setup rapido.
+
+Antes de usar em producao, o ideal e restringir acesso com autenticacao e policies mais especificas.
+
+
+## Sprint + Velocity workspace update
+
+This version adds:
+- A reusable Global Epics library (stored in the existing `settings` table as `spEpics`).
+- A manual Velocity metrics register stored in `settings` as `velocityReportSprints`.
+- Sprint Delivery, Productivity, DEV, QA, and Work Distribution metrics.
+- Calculated Sprint Predictability, Carry Over %, and Bug Ratio.
+- A comparison table for the current sprint and the last three completed sprints.
+- Historical charts for up to the last seven completed sprints.
+- A Confluence-ready Markdown report generated from the last three completed sprints.
+- Responsive styling for the updated Velocity workspace.
+
+### Important data and calculation notes
+
+- No Jira API integration is required; all Velocity values are entered manually.
+- The current sprint is excluded from the three-sprint reporting window until marked Completed.
+- Missing values are not used as zero in averages when they are blank; enter `0` only when zero is the actual result.
+- The calculated metrics currently use:
+  - Predictability = Completed SP / Planned SP × 100
+  - Carry Over (%) = Carry Over SP / Planned SP × 100
+  - Bug Ratio (%) = Bugs Fixed / Work Items Completed × 100
+- Please compare these formulas with the source Excel definitions before relying on the output for official reporting. The workbook itself was not included in the source ZIP supplied for this code update, so Excel-specific formula validation still needs to be completed.
+- New fields are saved in the existing `settings` table. No additional database table migration is required.
+
+### Run
+
+```bash
+npm install
+cp .env.example .env.local
+# Fill in VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY
+npm run dev
+```
+
+Never share or commit `.env.local`, database dumps, or service-role keys.

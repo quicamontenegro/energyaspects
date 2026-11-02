@@ -1,0 +1,7 @@
+import { ChartNoAxesColumnIncreasing, Rocket, Receipt, Database, Flag, Sun, Moon, Download, FileText, Plus, Layers, Users, Target, Zap, Bug, TrendingUp, ArrowDown, ArrowUp, CalendarDays, ChevronLeft, ChevronRight, History, Settings, ListChecks, Trash2, Pencil, Bold, Italic, Code, Link, List } from 'lucide';
+
+const icons = { velocity: ChartNoAxesColumnIncreasing, sprints: Rocket, invoicing: Receipt, 'data-explorer': Database, milestones: Flag, sun: Sun, moon: Moon, download: Download, report: FileText, plus: Plus, layers: Layers, users: Users, target: Target, zap: Zap, bug: Bug, trend: TrendingUp, down: ArrowDown, up: ArrowUp, calendar: CalendarDays, left: ChevronLeft, right: ChevronRight, history: History, settings: Settings, analysis: ListChecks, remove: Trash2, edit: Pencil, bold: Bold, italic: Italic, code: Code, link: Link, list: List };
+
+export function icon(name) {
+  return `<svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${(icons[name] || icons.analysis).map(([tag, attributes]) => `<${tag} ${Object.entries(attributes).map(([key, value]) => `${key}="${value}"`).join(' ')} />`).join('')}</svg>`;
+}
