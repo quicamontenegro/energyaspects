@@ -2,13 +2,14 @@ import { renderDataExplorerSection, renderDataExplorerTaskEditModal } from '../s
 import { renderInvoicingSection } from '../sections/invoicingSection.js';
 import { renderMilestonesSection } from '../sections/milestonesSection.js';
 import { renderSprintsSection, renderGlobalTicketEditModal, renderSprintTicketCreateModal, getSprintMembers } from '../sections/sprintsSection.js';
-import { renderVelocitySection } from '../sections/velocitySection.js';
+import { renderVelocitySection, buildConfluenceReport, getVelocitySelection } from '../sections/velocitySection.js';
 import { cloneState, createDefaultSnapshot } from '../state/defaults.js';
 import { createStore } from '../state/store.js';
 import { normalizeProjectMember } from '../utils/dashboard.js';
 import { createId, slugify } from '../utils/format.js';
+import { icon } from '../utils/icons.js';
 
-const TAB_ORDER = ['invoicing', 'velocity', 'data-explorer', 'milestones', 'sprints'];
+const TAB_ORDER = ['sprints', 'velocity', 'milestones', 'invoicing'];
 const THEME_STORAGE_KEY = 'ea-dashboard-theme';
 
 export function createDashboardApp(root, initialSnapshot, persistence) {
@@ -18,10 +19,20 @@ export function createDashboardApp(root, initialSnapshot, persistence) {
   const uiState = {
     tab: resolveTabFromHash(),
     velocityGroup: 'rp',
+    velocityTeam: 'all',
+    velocitySprint: '',
+    velocityComparison: 3,
+    velocityHistory: 7,
+    velocityView: 'analysis',
+    selectedSprintIndex: null,
+    sprintView: 'board',
+    sharedNotesQuery: '',
+    invoicingQuery: '',
+    sharedNoteDrafts: new Map(),
+    sharedNoteTitleDrafts: new Map(),
     deWeekFilter: 'all',
     editingMeetingId: null,
     editingDeTaskId: null,
-    milestoneTeam: 'rp',
     milestoneStatus: 'all',
     editingTicket: null,
     creatingSprintTicket: null,
@@ -37,14 +48,46 @@ export function createDashboardApp(root, initialSnapshot, persistence) {
     assignee: '',
     epicKey: '',
   };
+  let modalReturnAction = null;
+  let modalWasOpen = false;
 
   function persist(snapshot) {
     persistence.setSnapshot(snapshot);
     return persistence.schedule(snapshot);
   }
 
+  function filterSharedNotes() {
+    const query = uiState.sharedNotesQuery.trim().toLocaleLowerCase();
+    const entries = Array.from(root.querySelectorAll('.shared-note-entry'));
+    let visible = 0;
+    entries.forEach(entry => {
+      const body = entry.querySelector('.sprint-note-item__text, [contenteditable="true"]');
+      const date = entry.querySelector('.shared-note-date, .shared-note-heading');
+      const title = entry.querySelector('.shared-note-identity h3, [name="title"]');
+      const text = `${title?.value || title?.textContent || ''} ${body?.textContent || ''} ${date?.textContent || ''}`.toLocaleLowerCase();
+      entry.hidden = Boolean(query && !text.includes(query) && !entry.classList.contains('sprint-note-item--editing'));
+      if (!entry.hidden) visible++;
+    });
+    const result = root.querySelector('[data-shared-notes-results]');
+    if (result) result.textContent = query ? `${visible} of ${entries.length} notes` : `${entries.length} notes`;
+    const empty = root.querySelector('[data-shared-notes-no-results]');
+    if (empty) empty.hidden = !entries.length || visible > 0;
+  }
+
+  function filterInvoicingProjects() {
+    const query = uiState.invoicingQuery.trim().toLocaleLowerCase();
+    const projects = Array.from(root.querySelectorAll('[data-invoicing-project]'));
+    projects.forEach(project => {
+      project.hidden = !project.dataset.projectSearch.toLocaleLowerCase().includes(query);
+    });
+    const empty = root.querySelector('[data-invoicing-no-results]');
+    if (empty) empty.hidden = !projects.length || projects.some(project => !project.hidden);
+  }
+
   function render() {
     const state = store.getState();
+    const panelStates = new Map(Array.from(root.querySelectorAll('details[data-sprint-panel], details[data-ui-panel]'), panel =>
+      [panel.dataset.sprintPanel || panel.dataset.uiPanel, panel.open]));
     let modal = '';
     
     if (uiState.editingTicket) {
@@ -76,22 +119,52 @@ export function createDashboardApp(root, initialSnapshot, persistence) {
     }
     
     root.innerHTML = `
-      <main class="app-shell">
-        <header class="app-header">
+      <main class="app-shell redesigned-shell">
+        <aside class="app-header app-sidebar">
           <span class="app-logo">Energy<strong>Aspects</strong></span>
-          <nav class="app-tabs">
-            ${TAB_ORDER.map((tab) => `<button class="app-tabs__button ${uiState.tab === tab ? 'is-active' : ''}" type="button" data-action="switch-tab" data-tab="${tab}">${getTabLabel(tab)}</button>`).join('')}
+          <nav class="app-tabs" aria-label="Main navigation">
+            ${TAB_ORDER.map((tab) => `<button class="app-tabs__button ${uiState.tab === tab ? 'is-active' : ''}" type="button" data-action="switch-tab" data-tab="${tab}" aria-label="${getTabLabel(tab)}" title="${getTabLabel(tab)}" ${uiState.tab === tab ? 'aria-current="page"' : ''}>${icon(tab)}<span>${getTabLabel(tab)}</span></button>`).join('')}
           </nav>
-          <button class="theme-toggle" type="button" data-action="toggle-theme" title="${getThemeToggleLabel()}" aria-label="${getThemeToggleLabel()}">${getThemeIcon()}</button>
-          <div class="sync-indicator ${persistence.canSync ? 'is-live' : 'is-local'}">${persistence.canSync ? '● Supabase' : '○ Local'}</div>
-        </header>
+          <div class="sidebar-footer"><button class="theme-toggle" type="button" data-action="toggle-theme" title="${getThemeToggleLabel()}" aria-label="${getThemeToggleLabel()}">${icon(document.documentElement.dataset.theme === 'dark' ? 'sun' : 'moon')}</button>
+          <div class="sync-indicator ${persistence.canSync ? 'is-live' : 'is-local'}">${persistence.canSync ? '● Supabase' : '○ Local'}</div></div>
+        </aside>
         <section class="app-content">
           ${renderCurrentTab(state, uiState)}
         </section>
       </main>
       ${modal}
     `;
+    root.querySelectorAll('details[data-sprint-panel], details[data-ui-panel]').forEach(panel => {
+      const key = panel.dataset.sprintPanel || panel.dataset.uiPanel;
+      if (panelStates.has(key)) panel.open = panelStates.get(key);
+    });
     syncStatusSelectThemes(root);
+    root.querySelectorAll('.shared-note-entry').forEach(entry => {
+      const body = entry.querySelector('.sprint-note-item__text');
+      const expansion = entry.querySelector('.shared-note-expand');
+      if (body && expansion) expansion.hidden = body.scrollHeight <= 321;
+    });
+    filterSharedNotes();
+    filterInvoicingProjects();
+    const dialog = root.querySelector('.modal-card');
+    root.querySelector('.app-shell').inert = Boolean(dialog);
+    if (dialog) {
+      dialog.setAttribute('role', 'dialog');
+      dialog.setAttribute('aria-modal', 'true');
+      dialog.tabIndex = -1;
+      const heading = dialog.querySelector('h2');
+      if (heading) {
+        heading.id = 'dashboard-dialog-title';
+        dialog.setAttribute('aria-labelledby', heading.id);
+      }
+      const initialField = dialog.querySelector('.modal-body input:not([type="hidden"]), .modal-body select, .modal-body textarea');
+      (initialField || dialog).focus();
+    } else if (modalWasOpen && modalReturnAction) {
+      const trigger = Array.from(root.querySelectorAll('[data-action]')).find(element =>
+        element.getClientRects().length > 0 && Object.entries(modalReturnAction).every(([key, value]) => element.dataset[key] === value));
+      trigger?.focus();
+    }
+    modalWasOpen = Boolean(dialog);
   }
 
   function updateState(mutator, options = {}) {
@@ -124,6 +197,9 @@ export function createDashboardApp(root, initialSnapshot, persistence) {
     }
 
     const action = trigger.dataset.action;
+    if (['edit-de-task', 'edit-sprint-ticket', 'open-add-sprint-ticket-modal'].includes(action)) {
+      modalReturnAction = { ...trigger.dataset };
+    }
 
     // Require confirmation for destructive actions
     if (action.includes('remove')) {
@@ -137,6 +213,7 @@ export function createDashboardApp(root, initialSnapshot, persistence) {
       uiState.tab = trigger.dataset.tab;
       window.location.hash = uiState.tab;
       render();
+      window.scrollTo({ top: 0 });
       return;
     }
 
@@ -158,13 +235,99 @@ export function createDashboardApp(root, initialSnapshot, persistence) {
       return;
     }
 
-    if (action === 'switch-milestone-team') {
-      uiState.milestoneTeam = trigger.dataset.team || 'rp';
+    if (action === 'velocity-view' || action === 'sprint-view') {
+      uiState[action === 'velocity-view' ? 'velocityView' : 'sprintView'] = trigger.dataset.view;
       render();
       return;
     }
 
+    if (action === 'select-sprint') {
+      uiState.selectedSprintIndex = Number(trigger.dataset.index);
+      uiState.editingSprintIndex = null;
+      uiState.reorderingSprintIndex = null;
+      render();
+      return;
+    }
+
+    if (action === 'open-sprint-panel') {
+      const panel = root.querySelector(`[data-sprint-panel="${trigger.dataset.panel}"]`);
+      if (panel) {
+        panel.open = !panel.open;
+        if (panel.open) panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+      return;
+    }
+
+    if (action === 'open-shared-note-create' || action === 'cancel-shared-note-create') {
+      const panel = root.querySelector('[data-ui-panel="shared-note-create"]');
+      if (panel) {
+        panel.open = action === 'open-shared-note-create';
+        const editor = panel.querySelector('[contenteditable="true"]');
+        if (panel.open) panel.querySelector('[name="title"]')?.focus();
+        else {
+          uiState.sharedNoteDrafts.delete('create');
+          uiState.sharedNoteTitleDrafts.delete('create');
+          panel.querySelector('[name="title"]').value = '';
+          if (editor) editor.innerHTML = '';
+          panel.querySelector('[name="text"]').value = '';
+          root.querySelector('[data-action="open-shared-note-create"]')?.focus();
+        }
+      }
+      return;
+    }
+
+    if (action === 'open-invoicing-create') {
+      const panel = root.querySelector('[data-ui-panel="invoicing-create"]');
+      if (panel) {
+        panel.open = true;
+        panel.querySelector('[name="name"]')?.focus();
+      }
+      return;
+    }
+
+    if (action === 'open-milestone-create') {
+      const panel = root.querySelector('[data-ui-panel="milestone-create"]');
+      if (panel) {
+        panel.open = true;
+        panel.querySelector('[name="name"]')?.focus();
+      }
+      return;
+    }
+
     handleClickAction(trigger, updateState, root, uiState, render, () => store.getState());
+  });
+
+  root.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter' && event.target instanceof HTMLInputElement && event.target.closest('.invoicing-workspace')) {
+      const form = event.target.closest('[data-form="project-create"], [data-form="member-create"]');
+      if (form) {
+        event.preventDefault();
+        form.querySelector('button[data-action]')?.click();
+        return;
+      }
+    }
+    const dialog = root.querySelector('.modal-card');
+    if (!dialog || document.querySelector('.link-input-popup-overlay')) return;
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      uiState.editingTicket = null;
+      uiState.creatingSprintTicket = null;
+      uiState.editingDeTaskId = null;
+      render();
+      return;
+    }
+    if (event.key !== 'Tab') return;
+    const fields = Array.from(dialog.querySelectorAll('button:not([disabled]), a[href], input:not([type="hidden"]):not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex="0"]'))
+      .filter(element => element.getClientRects().length > 0);
+    const first = fields[0];
+    const last = fields[fields.length - 1];
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last?.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first?.focus();
+    }
   });
 
   root.addEventListener('mousedown', (event) => {
@@ -180,6 +343,21 @@ export function createDashboardApp(root, initialSnapshot, persistence) {
       return;
     }
 
+    if (field.dataset.action === 'velocity-filter') {
+      uiState[field.dataset.field] = field.value;
+      if (field.dataset.field === 'velocityTeam') uiState.velocitySprint = '';
+      render();
+      return;
+    }
+
+    if (field.dataset.action === 'select-sprint') {
+      uiState.selectedSprintIndex = Number(field.value);
+      uiState.editingSprintIndex = null;
+      uiState.reorderingSprintIndex = null;
+      render();
+      return;
+    }
+
     handleChangeAction(field, updateState, uiState, render);
   });
 
@@ -189,6 +367,9 @@ export function createDashboardApp(root, initialSnapshot, persistence) {
       if (richEditor) {
         const editorRoot = richEditor.closest('[data-note-editor]');
         syncSprintNoteEditorValue(editorRoot);
+        if (richEditor.closest('.shared-notes-workspace')) {
+          uiState.sharedNoteDrafts.set(editorRoot.dataset.noteEditor, editorRoot.querySelector('[name="text"]').value);
+        }
         return;
       }
     }
@@ -200,6 +381,20 @@ export function createDashboardApp(root, initialSnapshot, persistence) {
 
     // Handle input events for textarea and text fields
     const action = field.dataset.action;
+    if (action === 'search-invoicing') {
+      uiState.invoicingQuery = field.value;
+      filterInvoicingProjects();
+      return;
+    }
+    if (action === 'draft-shared-note-title') {
+      uiState.sharedNoteTitleDrafts.set(field.dataset.noteId, field.value);
+      return;
+    }
+    if (action === 'search-shared-notes') {
+      uiState.sharedNotesQuery = field.value;
+      filterSharedNotes();
+      return;
+    }
     if (action === 'update-sprint-ticket-notes') {
       handleChangeAction(field, updateState, uiState, render);
     }
@@ -501,6 +696,89 @@ function handleClickAction(trigger, updateState, root, uiState, render, getState
   const milestoneIndex = Number(trigger.dataset.milestoneIndex);
   const ticketIndex = Number(trigger.dataset.ticketIndex);
 
+  if (trigger.dataset.action === 'add-global-epic') {
+    const form = readForm(root, '[data-form="global-epic-create"]');
+    const title = String(form?.get('title') || '').trim();
+    const url = String(form?.get('url') || '').trim();
+    if (!title) return;
+    updateState((draft) => {
+      draft.spEpics = Array.isArray(draft.spEpics) ? draft.spEpics : [];
+      const duplicate = draft.spEpics.some((epic) => String(epic.title || '').trim().toLowerCase() === title.toLowerCase());
+      if (!duplicate) draft.spEpics.push({ id: createId('epic'), title, url, createdAt: new Date().toISOString() });
+    });
+    resetForm(root, '[data-form="global-epic-create"]');
+    return;
+  }
+
+  if (trigger.dataset.action === 'remove-global-epic') {
+    const id = trigger.dataset.epicId;
+    updateState((draft) => { draft.spEpics = (draft.spEpics || []).filter((epic) => epic.id !== id); });
+    return;
+  }
+
+  if (trigger.dataset.action === 'add-velocity-sprint') {
+    const state = getState();
+    const existing = Array.isArray(state.velocityReportSprints) ? state.velocityReportSprints : [];
+    const nextNumber = existing.length + 1;
+    const now = new Date();
+    const date = now.toISOString().slice(0, 10);
+    updateState((draft) => {
+      draft.velocityReportSprints = Array.isArray(draft.velocityReportSprints) ? draft.velocityReportSprints : [];
+      draft.velocityReportSprints.push({
+        id: createId('velocity'), label: `Sprint ${nextNumber}`, startDate: date, completed: false,
+        plannedSP: '', completedSP: '', carryOverSP: '', workItemsCompleted: '', scopeChange: '',
+        bugsFixed: '', devCompletedSP: '', devAverage: '', qaCompletedSP: '', qaAverage: '',
+        distribution: { notStarted: '', inProgress: '', codeReview: '', readyForQA: '', inQA: '', blocked: '' },
+        createdAt: now.toISOString()
+      });
+    });
+    return;
+  }
+
+  if (trigger.dataset.action === 'remove-velocity-sprint') {
+    const id = trigger.dataset.sprintId;
+    updateState((draft) => { draft.velocityReportSprints = (draft.velocityReportSprints || []).filter((item) => item.id !== id); });
+    return;
+  }
+
+  if (trigger.dataset.action === 'generate-confluence-report' || trigger.dataset.action === 'export-velocity-report') {
+    const state = getState();
+    const selected = getVelocitySelection(state, uiState);
+    const current = selected.find(sprint => sprint.id === uiState.velocitySprint) || [...selected].reverse().find(sprint => !sprint.completed);
+    const completed = selected.filter(sprint => sprint.completed && sprint.id !== current?.id && (!current?.startDate || !sprint.startDate || sprint.startDate <= current.startDate));
+    const report = buildConfluenceReport(completed, Number(uiState.velocityComparison) || 3);
+    if (trigger.dataset.action === 'export-velocity-report') {
+      const url = URL.createObjectURL(new Blob([report], { type: 'text/markdown;charset=utf-8' }));
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = 'sprint-velocity-report.md';
+      link.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      return;
+    }
+    const output = root.querySelector('[data-report-output]');
+    const textarea = root.querySelector('[data-confluence-text]');
+    if (output && textarea) {
+      textarea.value = report;
+      output.hidden = false;
+      output.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      textarea.focus();
+      textarea.select();
+    }
+    return;
+  }
+
+  if (trigger.dataset.action === 'copy-confluence-report') {
+    const textarea = root.querySelector('[data-confluence-text]');
+    if (textarea) {
+      textarea.select();
+      if (navigator.clipboard?.writeText) navigator.clipboard.writeText(textarea.value).catch(() => document.execCommand('copy'));
+      else document.execCommand('copy');
+      trigger.textContent = 'Copied ✓';
+    }
+    return;
+  }
+
   if (trigger.dataset.action === 'format-sprint-note-text') {
     const editor = trigger.closest('[data-note-editor]');
     if (!editor) return;
@@ -642,15 +920,19 @@ function handleClickAction(trigger, updateState, root, uiState, render, getState
   }
 
   if (trigger.dataset.action === 'add-project') {
+    if (!root.querySelector('[data-form="project-create"]')?.reportValidity()) return;
     const form = readForm(root, '[data-form="project-create"]');
     const name = String(form?.get('name') || '').trim();
     if (!name) return;
     const tag = String(form?.get('tag') || '').trim();
     const color = String(form?.get('color') || '#0f766e');
+    uiState.invoicingQuery = '';
     updateState((state) => {
       state.projects.push({ id: createId(`project-${slugify(name)}`), name, tag, color, members: [] });
     });
     resetForm(root, '[data-form="project-create"]');
+    const composer = root.querySelector('[data-ui-panel="invoicing-create"]');
+    if (composer) composer.open = false;
     return;
   }
 
@@ -662,6 +944,7 @@ function handleClickAction(trigger, updateState, root, uiState, render, getState
   }
 
   if (trigger.dataset.action === 'add-project-member' && Number.isInteger(projectIndex)) {
+    if (!root.querySelector(`[data-form="member-create"][data-project-index="${projectIndex}"] [name="name"]`)?.reportValidity()) return;
     const form = readForm(root, `[data-form="member-create"][data-project-index="${projectIndex}"]`);
     const name = String(form?.get('name') || '').trim();
     if (!name) return;
@@ -877,13 +1160,14 @@ function handleClickAction(trigger, updateState, root, uiState, render, getState
   }
 
   if (trigger.dataset.action === 'add-milestone') {
+    if (!root.querySelector('[data-form="milestone-create"]')?.reportValidity()) return;
     const form = readForm(root, '[data-form="milestone-create"]');
     const name = String(form?.get('name') || '').trim();
     if (!name) return;
     updateState((state) => {
       state.msData.push({
         id: createId('milestone'),
-        team: trigger.dataset.team || 'rp',
+        team: 'rp',
         name,
         status: String(form?.get('status') || 'inprogress'),
         assignee: String(form?.get('assignee') || '').trim(),
@@ -945,14 +1229,20 @@ function handleClickAction(trigger, updateState, root, uiState, render, getState
   }
 
   if (trigger.dataset.action === 'add-sprint-note') {
+    const titleField = root.querySelector('[data-form="sprint-note-create"] [name="title"]');
+    if (!titleField?.reportValidity() || !titleField.value.trim()) return;
     syncSprintNoteEditors(root.querySelector('[data-form="sprint-note-create"]'));
     const form = readForm(root, '[data-form="sprint-note-create"]');
     const text = String(form?.get('text') || '').trim();
     if (!text) return;
+    uiState.sharedNoteDrafts.delete('create');
+    uiState.sharedNoteTitleDrafts.delete('create');
+    uiState.sharedNotesQuery = '';
     updateState((state) => {
       const notes = Array.isArray(state.spNotes) ? state.spNotes : [];
       notes.unshift({
         id: createId('sprint-note'),
+        title: titleField.value.trim(),
         text,
         link: '',
         createdAt: new Date().toISOString(),
@@ -960,16 +1250,22 @@ function handleClickAction(trigger, updateState, root, uiState, render, getState
       state.spNotes = notes;
     });
     resetForm(root, '[data-form="sprint-note-create"]');
+    const composer = root.querySelector('[data-ui-panel="shared-note-create"]');
+    if (composer) composer.open = false;
+    root.querySelector('[data-action="open-shared-note-create"]')?.focus();
     return;
   }
 
   if (trigger.dataset.action === 'edit-sprint-note') {
     uiState.editingSprintNoteId = String(trigger.dataset.noteId || '').trim() || null;
     render();
+    root.querySelector('.shared-note-entry.sprint-note-item--editing [name="title"]')?.focus();
     return;
   }
 
   if (trigger.dataset.action === 'cancel-edit-sprint-note') {
+    uiState.sharedNoteDrafts.delete(uiState.editingSprintNoteId);
+    uiState.sharedNoteTitleDrafts.delete(uiState.editingSprintNoteId);
     uiState.editingSprintNoteId = null;
     render();
     return;
@@ -978,14 +1274,19 @@ function handleClickAction(trigger, updateState, root, uiState, render, getState
   if (trigger.dataset.action === 'save-edit-sprint-note') {
     const noteId = String(trigger.dataset.noteId || '').trim();
     if (!noteId) return;
+    const titleField = root.querySelector(`[data-form="sprint-note-edit"][data-note-id="${noteId}"] [name="title"]`);
+    if (!titleField?.reportValidity() || !titleField.value.trim()) return;
     syncSprintNoteEditors(root.querySelector(`[data-form="sprint-note-edit"][data-note-id="${noteId}"]`));
     const form = readForm(root, `[data-form="sprint-note-edit"][data-note-id="${noteId}"]`);
     const text = String(form?.get('text') || '').trim();
     if (!text) return;
+    uiState.sharedNoteDrafts.delete(noteId);
+    uiState.sharedNoteTitleDrafts.delete(noteId);
     updateState((state) => {
       const notes = Array.isArray(state.spNotes) ? state.spNotes : [];
       const note = notes.find((item) => String(item?.id || '') === noteId);
       if (!note) return;
+      note.title = titleField.value.trim();
       note.text = text;
       note.link = String(note.link || '').trim();
     });
@@ -997,6 +1298,8 @@ function handleClickAction(trigger, updateState, root, uiState, render, getState
   if (trigger.dataset.action === 'remove-sprint-note') {
     const noteId = String(trigger.dataset.noteId || '').trim();
     if (!noteId) return;
+    uiState.sharedNoteDrafts.delete(noteId);
+    uiState.sharedNoteTitleDrafts.delete(noteId);
     updateState((state) => {
       const notes = Array.isArray(state.spNotes) ? state.spNotes : [];
       state.spNotes = notes.filter((note) => String(note?.id || '') !== noteId);
@@ -1125,6 +1428,8 @@ function handleClickAction(trigger, updateState, root, uiState, render, getState
     
     // Format dates as DD/MM for the sprint name
     const formattedName = formatSprintNameWithDates(name, normalizedStartDate, normalizedEndDate);
+    uiState.selectedSprintIndex = (getState().spData || []).length;
+    uiState.sprintView = 'board';
     
     updateState((state) => {
       const columnAssignees = normalizeSprintMembers(state.spTeamMembers)
@@ -1320,7 +1625,8 @@ function handleClickAction(trigger, updateState, root, uiState, render, getState
     const form = modal.querySelector('.ticket-edit-form');
     const formData = new FormData(form);
     const epicTitle = String(formData.get('epicTitle') || '').trim();
-    const epicUrl = normalizeUrl(String(formData.get('epicUrl') || ''));
+    const globalEpic = (getState().spEpics || []).find(epic => String(epic.title || '').trim() === epicTitle);
+    const epicUrl = normalizeUrl(String(formData.get('epicUrl') || '')) || normalizeUrl(globalEpic?.url || '');
     const status = String(formData.get('status') || 'todo').trim() || 'todo';
     const priority = String(formData.get('priority') || 'Medium').trim() || 'Medium';
     const assignee = String(formData.get('assignee') || '').trim();
@@ -1424,7 +1730,8 @@ function handleClickAction(trigger, updateState, root, uiState, render, getState
     const mainStoryPointsInput = form?.querySelector('input[name="mainStoryPoints"]');
     const mainNotesInput = form?.querySelector('input[name="mainNotes"]');
     const epicTitle = String(formData.get('epicTitle') || '').trim();
-    const epicUrl = normalizeUrl(String(formData.get('epicUrl') || ''));
+    const globalEpic = (getState().spEpics || []).find(epic => String(epic.title || '').trim() === epicTitle);
+    const epicUrl = normalizeUrl(String(formData.get('epicUrl') || '')) || normalizeUrl(globalEpic?.url || '');
     updateState((state) => {
       const sprint = state.spData[sprintIndex];
       const ticket = sprint?.tickets?.[ticketIndex];
@@ -1911,31 +2218,62 @@ function handleChangeAction(field, updateState, uiState, render) {
   const milestoneIndex = Number(field.dataset.milestoneIndex);
   const ticketIndex = Number(field.dataset.ticketIndex);
 
+  if (action === 'update-velocity-sprint' || action === 'update-velocity-metric' || action === 'update-velocity-distribution' || action === 'toggle-velocity-sprint-completed') {
+    const id = field.dataset.sprintId;
+    updateState((draft) => {
+      const sprint = (draft.velocityReportSprints || []).find((item) => item.id === id);
+      if (!sprint) return;
+      if (action === 'toggle-velocity-sprint-completed') {
+        sprint.completed = field.checked;
+      } else if (action === 'update-velocity-sprint') {
+        sprint[field.dataset.field] = field.value;
+      } else if (action === 'update-velocity-metric') {
+        sprint[field.dataset.field] = field.value === '' ? '' : Math.max(0, Number(field.value) || 0);
+      } else if (action === 'update-velocity-distribution') {
+        sprint.distribution = sprint.distribution || {};
+        sprint.distribution[field.dataset.field] = field.value === '' ? '' : Math.max(0, Number(field.value) || 0);
+      }
+    });
+    return;
+  }
+
+
   if (action === 'update-setting') {
     const value = Math.max(1, Number(field.value) || 1);
     updateState((state) => {
       state.settings[field.dataset.field] = value;
       state.projects = state.projects.map((project) => ({
         ...project,
-        members: (project.members || []).map((member) => normalizeProjectMember(member, state.settings.monthlyHours)),
+        members: (project.members || []).map((member) => normalizeProjectMember(member, state.settings.monthlyHours, Number(state.settings.hoursPerDay) || 8)),
       }));
     });
     return;
   }
 
   if (action === 'update-working-days') {
+    if (!field.reportValidity()) return;
     const days = Math.max(1, Number(field.value) || 1);
     updateState((state) => {
       state.settings.monthlyHours = days * (Number(state.settings.hoursPerDay) || 8);
       state.projects = state.projects.map((project) => ({
         ...project,
-        members: (project.members || []).map((member) => normalizeProjectMember(member, state.settings.monthlyHours)),
+        members: (project.members || []).map((member) => normalizeProjectMember(member, state.settings.monthlyHours, Number(state.settings.hoursPerDay) || 8)),
       }));
     });
     return;
   }
 
+  if (action === 'update-invoicing-project-field' && Number.isInteger(projectIndex)) {
+    const key = field.dataset.field;
+    if (!['name', 'tag', 'color'].includes(key) || !field.reportValidity()) return;
+    const value = String(field.value || '').trim();
+    if (key === 'name' && !value) return;
+    updateState((state) => { state.projects[projectIndex][key] = value; });
+    return;
+  }
+
   if (action === 'update-project-member-text' && Number.isInteger(projectIndex) && Number.isInteger(memberIndex)) {
+    if (!field.reportValidity() || !String(field.value || '').trim()) return;
     updateState((state) => {
       state.projects[projectIndex].members[memberIndex][field.dataset.field] = String(field.value || '');
     });
@@ -1943,10 +2281,11 @@ function handleChangeAction(field, updateState, uiState, render) {
   }
 
   if (action === 'update-project-member-number' && Number.isInteger(projectIndex) && Number.isInteger(memberIndex)) {
+    if (!field.reportValidity()) return;
     updateState((state) => {
       const member = state.projects[projectIndex].members[memberIndex];
-      member[field.dataset.field] = Number(field.value) || 0;
-      member.tl = Math.max(0, (Number(state.settings.monthlyHours) || 176) - (Number(member.hoursOff) || 0));
+      member[field.dataset.field] = Math.max(0, Number(field.value) || 0);
+      Object.assign(member, normalizeProjectMember(member, Number(state.settings.monthlyHours) || 176, Number(state.settings.hoursPerDay) || 8));
     });
     return;
   }
@@ -1997,6 +2336,17 @@ function handleChangeAction(field, updateState, uiState, render) {
   if (action === 'filter-milestone-status') {
     uiState.milestoneStatus = String(field.value || 'all');
     render();
+    return;
+  }
+
+  if (action === 'update-milestone-field' && Number.isInteger(milestoneIndex)) {
+    const key = field.dataset.field;
+    if (!['name', 'status', 'assignee', 'url'].includes(key) || !field.reportValidity()) return;
+    const value = String(field.value || '').trim();
+    if (key === 'name' && !value) return;
+    updateState((state) => {
+      state.msData[milestoneIndex][key] = value;
+    });
     return;
   }
 

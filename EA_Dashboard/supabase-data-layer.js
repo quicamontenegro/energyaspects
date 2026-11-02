@@ -307,12 +307,19 @@ async function saveStructuredMetadata(snapshot){
       key:'spNotes',
       value:structuredSafeRows(snapshot.spNotes).map(note=>({
         id:note?.id || '',
+        title:note?.title || '',
         text:note?.text || '',
         color:note?.color || '',
         link:note?.link || '',
         createdAt:note?.createdAt || ''
       })),
       updated_at:now
+    },
+    {
+      key:'spEpics', value:structuredSafeRows(snapshot.spEpics), updated_at:now
+    },
+    {
+      key:'velocityReportSprints', value:structuredSafeRows(snapshot.velocityReportSprints), updated_at:now
     },
     {
       key:'spSprintNotesBoard',
@@ -522,9 +529,11 @@ async function loadStructuredMetadata(){
     spSprintColumns:[],
     spSprintTicketExtras:[],
     spSprintTicketIndex:null,
-    spDataCanonical:null
+    spDataCanonical:null,
+    spEpics:[],
+    velocityReportSprints:[]
   };
-  const {data,error}=await sbClient.from('settings').select('key,value').in('key',['deMeetings','spTeamMembers','spNotes','spSprintNotesBoard','spSprintColumns','spSprintTicketExtras','spSprintTicketIndex','spDataCanonical']);
+  const {data,error}=await sbClient.from('settings').select('key,value').in('key',['deMeetings','spTeamMembers','spNotes','spSprintNotesBoard','spSprintColumns','spSprintTicketExtras','spSprintTicketIndex','spDataCanonical','spEpics','velocityReportSprints']);
   if(error)throw error;
   (data || []).forEach(row=>{
     if(row.key==='deMeetings'){
@@ -559,6 +568,7 @@ async function loadStructuredMetadata(){
     if(row.key==='spNotes'){
       result.spNotes=structuredSafeRows(row.value).map(note=>({
         id:note?.id || '',
+        title:note?.title || '',
         text:note?.text || '',
         color:note?.color || '',
         link:note?.link || '',
@@ -609,6 +619,8 @@ async function loadStructuredMetadata(){
         }))
         .filter(item=>String(item.sprintId || '').trim());
     }
+    if(row.key==='spEpics') result.spEpics=structuredSafeRows(row.value);
+    if(row.key==='velocityReportSprints') result.velocityReportSprints=structuredSafeRows(row.value);
     if(row.key==='spDataCanonical'){
       result.spDataCanonical=structuredSafeRows(row.value);
     }
@@ -971,7 +983,9 @@ export async function loadAllData(){
       msData:msData.status==='fulfilled' ? msData.value : [],
       spData:resolvedSpData,
       spTeamMembers:resolvedMetadata.spTeamMembers,
-      spNotes:resolvedMetadata.spNotes
+      spNotes:resolvedMetadata.spNotes,
+      spEpics:resolvedMetadata.spEpics || [],
+      velocityReportSprints:resolvedMetadata.velocityReportSprints || []
     };
   }catch(err){
     console.error('Structured load failed:', err);

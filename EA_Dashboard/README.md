@@ -1,4 +1,15 @@
-# EA Dashboard + Supabase
+# EA Dashboard v2 + Supabase
+
+Esta e a versao principal, promovida de `EA_Dashboard_redesigned_v2` em 2026-11-02.
+O desenvolvimento local usa a porta 3000; a producao usa `http://192.168.1.172:8082/`.
+
+## Estado da base de dados
+
+- `supabase-schema.sql` cria apenas o snapshot legado `dashboard_state`, que ja nao e a fonte de dados da aplicacao.
+- `supabase-schema-v2.sql` define as 13 tabelas estruturadas em `public`. Nao corresponde a uma segunda base de dados ou a um schema PostgreSQL separado.
+- Auditoria read-only de 2026-11-02: todas as tabelas e colunas esperadas existem. As colunas adicionais `title` em `data_explorer_tasks` e `milestone_tasks` sao tratadas pela camada de dados. Nao foi necessario executar migracoes ou alterar dados.
+- Shared notes, titulos e metricas de Velocity usam JSON em `settings`; nao precisam de novas colunas SQL.
+- RLS esta ativo, mas as politicas atuais permitem escrita a `anon`. Autenticacao e politicas restritivas continuam a ser um requisito de seguranca pendente. Nao executar os SQL para tentar corrigir isso automaticamente.
 
 Guia passo a passo para correr este projeto noutro Mac.
 
@@ -165,7 +176,7 @@ npm run dev
 Por defeito, o Vite vai abrir algo como:
 
 ```bash
-http://localhost:5173/
+http://localhost:3000/
 ```
 
 ## 7) Abrir a app
@@ -173,7 +184,7 @@ http://localhost:5173/
 URL principal:
 
 ```text
-http://localhost:5173/
+http://localhost:3000/
 ```
 
 Para abrir diretamente o separador de sprints:
@@ -349,3 +360,39 @@ Verifica:
 As policies atuais em [supabase-schema.sql](supabase-schema.sql) estao abertas para setup rapido.
 
 Antes de usar em producao, o ideal e restringir acesso com autenticacao e policies mais especificas.
+
+
+## Sprint + Velocity workspace update
+
+This version adds:
+- A reusable Global Epics library (stored in the existing `settings` table as `spEpics`).
+- A manual Velocity metrics register stored in `settings` as `velocityReportSprints`.
+- Sprint Delivery, Productivity, DEV, QA, and Work Distribution metrics.
+- Calculated Sprint Predictability, Carry Over %, and Bug Ratio.
+- A comparison table for the current sprint and the last three completed sprints.
+- Historical charts for up to the last seven completed sprints.
+- A Confluence-ready Markdown report generated from the last three completed sprints.
+- Responsive styling for the updated Velocity workspace.
+
+### Important data and calculation notes
+
+- No Jira API integration is required; all Velocity values are entered manually.
+- The current sprint is excluded from the three-sprint reporting window until marked Completed.
+- Missing values are not used as zero in averages when they are blank; enter `0` only when zero is the actual result.
+- The calculated metrics currently use:
+  - Predictability = Completed SP / Planned SP × 100
+  - Carry Over (%) = Carry Over SP / Planned SP × 100
+  - Bug Ratio (%) = Bugs Fixed / Work Items Completed × 100
+- Please compare these formulas with the source Excel definitions before relying on the output for official reporting. The workbook itself was not included in the source ZIP supplied for this code update, so Excel-specific formula validation still needs to be completed.
+- New fields are saved in the existing `settings` table. No additional database table migration is required.
+
+### Run
+
+```bash
+npm install
+cp .env.example .env.local
+# Fill in VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY
+npm run dev
+```
+
+Never share or commit `.env.local`, database dumps, or service-role keys.

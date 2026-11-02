@@ -1,4 +1,5 @@
 import { escapeHtml, formatStatus, initials } from '../utils/format.js';
+import { icon } from '../utils/icons.js';
 
 const TICKET_STATUSES = ['todo', 'inprogress', 'inreview', 'testing', 'done', 'blocked', 'onhold', 'deployed'];
 const PRIORITY_OPTIONS = ['High', 'Medium', 'Low'];
@@ -54,9 +55,32 @@ export function renderSprintsSection(state, uiState) {
       return 0;
     });
   
+  const globalEpics = Array.isArray(state.spEpics) ? state.spEpics : [];
+  const today = new Date().toLocaleDateString('en-CA');
+  const active = sprintEntries.find(entry=>entry.index===uiState.selectedSprintIndex) || sprintEntries.find(({sprint})=>sprint.startDate<=today&&sprint.endDate>=today) || sprintEntries[0];
+  const activePosition = sprintEntries.indexOf(active);
+  const sprintView = uiState.sprintView || 'board';
   return `
-    <section class="panel-stack sprint-panel-stack">
-      <section class="board-card sprint-members-card">
+    <section class="panel-stack sprint-panel-stack sprint-view-${sprintView}">
+      <header class="workspace-titlebar"><h1>${icon('sprints')}Sprints</h1><button class="button button--primary" type="button" data-action="open-sprint-panel" data-panel="create">${icon('plus')}New Sprint</button></header>
+      <div class="sprint-toolbar"><div class="sprint-selector"><button class="button" type="button" data-action="select-sprint" data-index="${sprintEntries[activePosition+1]?.index??''}" ${activePosition+1>=sprintEntries.length?'disabled':''} title="Previous sprint" aria-label="Previous sprint">${icon('left')}</button><select aria-label="Sprint" data-action="select-sprint">${sprintEntries.length?sprintEntries.map(({sprint,index})=>`<option value="${index}" ${active?.index===index?'selected':''}>${escapeHtml(sprint.name||'Untitled sprint')}</option>`).join(''):'<option>No sprints</option>'}</select><button class="button" type="button" data-action="select-sprint" data-index="${sprintEntries[activePosition-1]?.index??''}" ${activePosition<=0?'disabled':''} title="Next sprint" aria-label="Next sprint">${icon('right')}</button>${active?`<span class="sprint-toolbar-date">${icon('calendar')}${escapeHtml([active.sprint.startDate,active.sprint.endDate].filter(Boolean).join(' – ')||'Dates not set')}</span><span class="sprint-state">${active.sprint.endDate&&active.sprint.endDate<today?'Completed':active.sprint.startDate&&active.sprint.startDate>today?'Planned':'In Progress'}</span>`:''}</div><div class="workspace-actions"><button class="button" type="button" data-action="open-sprint-panel" data-panel="history">${icon('history')}Sprint History</button><button class="button" type="button" data-action="open-sprint-panel" data-panel="epics">${icon('layers')}Manage Epics</button><button class="button" type="button" data-action="open-sprint-panel" data-panel="members">${icon('users')}Team</button></div></div>
+      ${active?renderSprintOverview(active.sprint):''}
+      <nav class="workspace-tabs" aria-label="Sprint views">${[['board','Team Board','users'],['notes','Sprint Notes','report']].map(([key,label,symbol])=>`<button type="button" class="${sprintView===key?'is-active':''}" data-action="sprint-view" data-view="${key}" aria-pressed="${sprintView===key}">${icon(symbol)}${label}</button>`).join('')}</nav>
+      ${active?renderSprintCard(active.index,active.sprint,sprintMembers,uiState,{isCollapsed:false,sprintKey:getSprintUiKey(active.sprint,active.index)}):'<div class="empty-card"><h3>No sprints yet</h3></div>'}
+      <details class="sprint-management-panel" data-sprint-panel="epics"><summary>Global epics · ${globalEpics.length}</summary><section class="sprint-epics-library">
+        <div class="section-header-inline">
+          <div><p class="section-kicker">Reusable library</p><h2>Global epics</h2><p class="velocity-subtitle">Create an epic once and reuse its title and Jira link across sprints.</p></div>
+          <span class="sprint-members-count">${globalEpics.length} epics</span>
+        </div>
+        <datalist id="global-epic-options">${globalEpics.map(epic => `<option value="${escapeHtml(epic.title || '')}"></option>`).join('')}</datalist>
+        <div class="global-epics-list">${globalEpics.map(epic => `<div class="global-epic-chip"><span>${escapeHtml(epic.title || '')}</span>${epic.url ? `<a href="${escapeHtml(epic.url)}" target="_blank" rel="noopener noreferrer">Open Jira ↗</a>` : ''}<button class="btn-icon" type="button" data-action="remove-global-epic" data-epic-id="${escapeHtml(epic.id || '')}" title="Remove epic">×</button></div>`).join('') || '<p class="velocity-subtitle">No global epics yet. Add your first epic below.</p>'}</div>
+        <div class="global-epic-form" data-form="global-epic-create">
+          <input class="field-input field-input--sm" name="title" placeholder="Epic name (e.g. Global Search V2)" required />
+          <input class="field-input field-input--sm" name="url" type="url" placeholder="Jira epic URL (optional)" />
+          <button class="button button--secondary button--sm" type="button" data-action="add-global-epic">Add epic</button>
+        </div>
+      </section></details>
+      <details class="sprint-management-panel" data-sprint-panel="members"><summary>Team members · ${sprintMembers.length}</summary><section class="sprint-members-card">
         <div class="section-header-inline">
           <div>
             <p class="section-kicker">Team Members</p>
@@ -83,30 +107,29 @@ export function renderSprintsSection(state, uiState) {
           <input name="role" class="field-input field-input--sm" type="text" placeholder="Role" />
           <button class="button button--secondary button--sm" type="button" data-action="add-sprint-member">Add member</button>
         </div>
-      </section>
+      </section></details>
 
-      <section class="board-card sprint-notes-card">
-        <div class="section-header-inline">
-          <div>
-            <p class="section-kicker">Sprint Notes</p>
-            <h2>Notes board</h2>
+      <details class="sprint-management-panel shared-notes-panel" data-sprint-panel="notes"><summary>Shared notes · ${sprintNotes.length}</summary><section class="shared-notes-workspace" aria-label="Shared notes">
+        <div class="shared-notes-toolbar">
+          <h2>Shared notes <span>${sprintNotes.length}</span></h2>
+          <button class="button button--primary" type="button" data-action="open-shared-note-create" aria-controls="shared-note-create">${icon('plus')}New note</button>
+        </div>
+        <details class="shared-note-compose" id="shared-note-create" data-ui-panel="shared-note-create">
+          <summary>New shared note</summary>
+          <div data-form="sprint-note-create">
+            ${renderSharedNoteTitle(uiState.sharedNoteTitleDrafts?.get('create') || '', 'create')}
+            ${renderSprintNoteEditor({ noteId: 'create', text: uiState.sharedNoteDrafts?.get('create') || '', placeholder: 'Write a shared note...' })}
+            <div class="sprint-note-item__actions"><button class="button" type="button" data-action="cancel-shared-note-create">Cancel</button><button class="button button--primary" type="button" data-action="add-sprint-note">Save note</button></div>
           </div>
-          <div class="sprint-members-count">${sprintNotes.length} notes</div>
+        </details>
+        <div class="shared-notes-search"><input class="field-input" type="search" placeholder="Search notes..." aria-label="Search shared notes" data-action="search-shared-notes" value="${escapeHtml(uiState.sharedNotesQuery || '')}" /><output data-shared-notes-results aria-live="polite">${sprintNotes.length} notes</output></div>
+        <div class="shared-notes-list">
+          ${sprintNotes.length ? sprintNotes.map(note => renderSprintNoteItem(note, uiState)).join('') : `<div class="shared-notes-empty">${icon('report')}<h3>No shared notes yet</h3></div>`}
         </div>
-        <div class="sprint-notes-grid">
-          ${sprintNotes.length ? sprintNotes.map((note) => renderSprintNoteItem(note, uiState)).join('') : '<article class="empty-card"><h3>No notes yet</h3><p>Add an internal note for sprint planning decisions.</p></article>'}
-        </div>
-        <div class="sprint-notes-form" data-form="sprint-note-create">
-          ${renderSprintNoteEditor({
-            noteId: 'create',
-            text: '',
-            placeholder: 'Add sprint note...'
-          })}
-          <button class="button button--secondary button--sm" type="button" data-action="add-sprint-note">Add note</button>
-        </div>
-      </section>
+        <div class="shared-notes-empty" data-shared-notes-no-results hidden><h3>No matching notes</h3></div>
+      </section></details>
 
-      <section class="board-card sprint-backlog-card">
+      <details class="sprint-management-panel" data-sprint-panel="create" ${!sprints.length?'open':''}><summary>Create sprint</summary><section class="sprint-backlog-card">
         <div class="section-header-inline">
           <div>
             <p class="section-kicker">Sprint Plans</p>
@@ -122,18 +145,8 @@ export function renderSprintsSection(state, uiState) {
           <input name="endDate" class="field-input field-input--sm" type="date" />
           <button class="button button--secondary button--sm" type="button" data-action="add-sprint-plan">Add sprint</button>
         </div>
-        <div class="stack-list sprint-list">
-          ${sprintEntries.length ? sprintEntries.map(({ sprint, index }, orderIndex) => {
-            const sprintKey = getSprintUiKey(sprint, index);
-            const persistedCollapse = state?.spCollapsedByKey?.[sprintKey];
-            const isCollapsed = typeof persistedCollapse === 'boolean' ? persistedCollapse : orderIndex !== 0;
-            return renderSprintCard(index, sprint, getSprintMembers(state.spTeamMembers), uiState, {
-              isCollapsed,
-              sprintKey,
-            });
-          }).join('') : '<article class="empty-card"><h3>No sprint plans</h3><p>Create a sprint inline and start assigning tickets.</p></article>'}
-        </div>
-      </section>
+      </section></details>
+      <details class="sprint-management-panel" data-sprint-panel="history"><summary>Sprint history · ${sprints.length}</summary><div class="sprint-history-list">${sprintEntries.map(({sprint,index})=>`<button type="button" class="button ${active?.index===index?'button--primary':''}" data-action="select-sprint" data-index="${index}">${escapeHtml(sprint.name||'Untitled sprint')}<span>${escapeHtml(sprint.startDate||'')}</span></button>`).join('')}</div></details>
     </section>
   `;
 }
@@ -153,7 +166,8 @@ function getSprintUiKey(sprint, sprintIndex) {
 
 function renderSprintNoteItem(note, uiState) {
   const noteId = escapeHtml(note?.id || '');
-  const noteTextRaw = String(note?.text || '');
+  const title = String(note?.title || '').trim() || 'Untitled note';
+  const noteTextRaw = uiState.sharedNoteDrafts?.get(String(note?.id || '')) ?? String(note?.text || '');
   const noteDate = formatNoteDate(note?.createdAt);
   const noteLinkValue = String(note?.link || '').trim();
   const noteLinkHref = resolveNoteHref(noteLinkValue);
@@ -161,8 +175,10 @@ function renderSprintNoteItem(note, uiState) {
 
   if (isEditing) {
     return `
-      <article class="sprint-note-item sprint-note-item--editing">
+      <article class="sprint-note-item shared-note-entry sprint-note-item--editing" data-shared-note-id="${noteId}">
+        <div class="shared-note-heading"><span>${icon('calendar')}${escapeHtml(noteDate)}</span><strong>Editing note</strong></div>
         <form class="sprint-note-edit-form" data-form="sprint-note-edit" data-note-id="${noteId}">
+          ${renderSharedNoteTitle(uiState.sharedNoteTitleDrafts?.get(String(note?.id || '')) ?? String(note?.title || ''), note?.id || '')}
           ${renderSprintNoteEditor({
             noteId,
             text: noteTextRaw,
@@ -171,29 +187,34 @@ function renderSprintNoteItem(note, uiState) {
         </form>
         <div class="sprint-note-item__actions">
           <button class="button button--secondary button--sm" type="button" data-action="cancel-edit-sprint-note" data-note-id="${noteId}">Cancel</button>
-          <button class="button button--primary button--sm" type="button" data-action="save-edit-sprint-note" data-note-id="${noteId}">Save</button>
+          <button class="button button--primary button--sm" type="button" data-action="save-edit-sprint-note" data-note-id="${noteId}">Save changes</button>
         </div>
       </article>
     `;
   }
 
   return `
-    <article class="sprint-note-item">
+    <article class="sprint-note-item shared-note-entry" data-shared-note-id="${noteId}">
       <div class="sprint-note-item__meta">
-        <span class="sprint-date-range">${escapeHtml(noteDate)}</span>
+        <div class="shared-note-identity"><h3>${escapeHtml(title)}</h3><span class="shared-note-date">${icon('calendar')}${escapeHtml(noteDate)}</span></div>
         <div class="sprint-note-item__action-icons">
-          <button class="btn-icon btn-icon--edit" type="button" data-action="edit-sprint-note" data-note-id="${noteId}" title="Edit note">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+          <button class="button" type="button" data-action="edit-sprint-note" data-note-id="${noteId}" title="Edit note" aria-label="Edit ${escapeHtml(title)}">
+            ${icon('edit')}
           </button>
-          <button class="btn-icon" type="button" data-action="remove-sprint-note" data-note-id="${noteId}" title="Delete note">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 6l-1.4 14H6.4L5 6M10 11v6M14 11v6M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/></svg>
+          <button class="button shared-note-delete" type="button" data-action="remove-sprint-note" data-note-id="${noteId}" title="Delete note" aria-label="Delete ${escapeHtml(title)}">
+            ${icon('remove')}
           </button>
         </div>
       </div>
       <div class="sprint-note-item__text">${renderSprintNoteBody(note?.text || '')}</div>
       ${noteLinkHref ? `<a class="sprint-note-link" href="${escapeHtml(noteLinkHref)}" target="_blank" rel="noopener noreferrer">${escapeHtml(noteLinkValue)}</a>` : ''}
+      <details class="shared-note-expand" data-ui-panel="shared-note-reading-${noteId}"><summary><span class="shared-note-read-more">Read full note ${icon('down')}</span><span class="shared-note-read-less">Show less ${icon('up')}</span></summary></details>
     </article>
   `;
+}
+
+function renderSharedNoteTitle(value, noteId) {
+  return `<label class="shared-note-title-field">Title<input class="field-input" type="text" name="title" placeholder="Note title" value="${escapeHtml(value)}" data-action="draft-shared-note-title" data-note-id="${escapeHtml(noteId)}" required /></label>`;
 }
 
 function renderSprintNoteEditor({ noteId, text, placeholder }) {
@@ -203,17 +224,13 @@ function renderSprintNoteEditor({ noteId, text, placeholder }) {
   return `
     <div class="sprint-note-editor" data-note-editor="${escapeHtml(String(noteId || ''))}">
       <div class="sprint-note-toolbar" role="group" aria-label="Note formatting">
-        <button class="sprint-note-tool" type="button" data-action="format-sprint-note-text" data-format="bold" title="Bold">B</button>
-        <button class="sprint-note-tool" type="button" data-action="format-sprint-note-text" data-format="italic" title="Italic">I</button>
-        <button class="sprint-note-tool" type="button" data-action="format-sprint-note-text" data-format="code" title="Code">&lt;/&gt;</button>
-        <button class="sprint-note-tool" type="button" data-action="format-sprint-note-text" data-format="link" title="Link">Link</button>
-        <button class="sprint-note-tool" type="button" data-action="format-sprint-note-text" data-format="list" title="Bullet list">List</button>
+        ${[['bold','Bold'],['italic','Italic'],['code','Code'],['link','Link'],['list','Bullet list']].map(([format,label]) => `<button class="sprint-note-tool" type="button" data-action="format-sprint-note-text" data-format="${format}" title="${label}" aria-label="${label}">${icon(format)}</button>`).join('')}
       </div>
       <input type="hidden" name="text" value="${escapeHtml(rawValue)}" />
       <div class="sprint-note-color-row" role="group" aria-label="Note color">
         ${NOTE_COLORS.map((swatchColor) => renderNoteColorSwatch(swatchColor)).join('')}
       </div>
-      <div class="field-input field-input--sm sprint-note-editor__input" contenteditable="true" data-placeholder="${escapeHtml(placeholder)}">${initialHtml}</div>
+      <div class="field-input field-input--sm sprint-note-editor__input" contenteditable="true" role="textbox" aria-multiline="true" aria-label="${escapeHtml(placeholder)}" data-placeholder="${escapeHtml(placeholder)}">${initialHtml}</div>
     </div>
   `;
 }
@@ -396,9 +413,6 @@ function renderSprintCard(sprintIndex, sprint, sprintMembers, uiState, options =
         <div class="sprint-card__head">
           <h3 class="sprint-card__title">${escapeHtml(sprint.name || 'Untitled sprint')}</h3>
           <div class="sprint-card__actions">
-            <button class="btn-icon sprint-card__collapse-toggle ${isCollapsed ? 'is-collapsed' : ''}" type="button" data-action="toggle-sprint-collapse" data-sprint-key="${escapeHtml(sprintKey)}" data-collapsed="${isCollapsed ? 'true' : 'false'}" title="${collapseLabel}" aria-label="${collapseLabel}" aria-expanded="${isCollapsed ? 'false' : 'true'}">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>
-            </button>
             <button class="btn-icon ${isReorderingTickets ? 'is-active' : ''}" type="button" data-action="toggle-sprint-ticket-reorder-mode" data-sprint-index="${sprintIndex}" title="Reorder tickets" aria-label="Reorder tickets">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 6h11M8 12h11M8 18h11"/><path d="M4 8l2-2 2 2M6 6v12M4 16l2 2 2-2"/></svg>
             </button>
@@ -422,7 +436,7 @@ function renderSprintCard(sprintIndex, sprint, sprintMembers, uiState, options =
             : '<div class="sprint-board__empty">No sprint members configured yet.</div>'}
         </div>
 
-        <div class="sprint-card-notesboard">
+        <div class="sprint-lower-grid"><div class="sprint-card-notesboard">
           <div class="sprint-card-notesboard__head">
             <h4>Sprint notes</h4>
             <span class="sprint-members-count">${sprintBoardNotes.length} notes</span>
@@ -442,10 +456,37 @@ function renderSprintCard(sprintIndex, sprint, sprintMembers, uiState, options =
             })}
             <button class="button button--secondary button--sm" type="button" data-action="add-sprint-board-note" data-sprint-index="${sprintIndex}">Add note</button>
           </div>
-        </div>
+        </div><aside class="sprint-quick-links"><h3>${icon('layers')}Quick Links</h3>${getSprintLinks(sprint).map(([label,url])=>`<a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(label)}${icon('right')}</a>`).join('')||'<p>No linked tickets or epics.</p>'}</aside></div>
       </div>
     </article>
   `;
+}
+
+function renderSprintOverview(sprint) {
+  const tickets = Array.isArray(sprint?.tickets) ? sprint.tickets : [];
+  const totalSP = tickets.reduce((sum, ticket) => {
+    const points = Number(ticket?.storyPoints);
+    return sum + (Number.isFinite(points) && points > 0 ? points : 0);
+  }, 0);
+  const completedTickets = tickets.filter(ticket=>['done','deployed'].includes(String(ticket.status||'').toLowerCase()));
+  const completedSP = completedTickets.reduce((sum,ticket)=>sum+Math.max(0,Number(ticket.storyPoints)||0),0);
+  const progress = totalSP ? Math.round(completedSP/totalSP*100) : 0;
+  const members = getSprintColumnAssignees(sprint,[]).filter(Boolean).length;
+  return `
+    <section class="sprint-summary-band"><div class="sprint-summary-intro"><h2>${escapeHtml(sprint.name||'Untitled sprint')}</h2><div class="sprint-goal">${icon('target')}<div><strong>Sprint goal</strong><p>${escapeHtml(sprint.goal||sprint.description||'No sprint goal set')}</p></div></div></div><div class="sprint-summary-metric">${icon('layers')}<div><strong>${tickets.length}</strong><span>Tickets</span></div></div><div class="sprint-summary-metric">${icon('users')}<div><strong>${members}</strong><span>Team members</span></div></div><div class="sprint-summary-metric">${icon('zap')}<div><strong>${formatStoryPointsDisplay(totalSP)||'0'} SP</strong><span>Assigned</span></div></div><div class="sprint-summary-metric sprint-summary-progress">${icon('target')}<div><strong>${progress}%</strong><span>Progress</span></div><progress max="${totalSP||1}" value="${completedSP}" aria-label="Completed story points"></progress><small>${formatStoryPointsDisplay(completedSP)||0} / ${formatStoryPointsDisplay(totalSP)||0} SP</small></div>
+    </section>
+  `;
+}
+
+function getSprintLinks(sprint) {
+  const links = new Map();
+  (sprint.tickets||[]).forEach(ticket=>{
+    const epic = resolveEpicHref(ticket);
+    const jira = resolveJiraHref(ticket);
+    if(epic) links.set(epic,ticket.epicTitle||'Epic');
+    if(jira) links.set(jira,ticket.jiraId||ticket.title||'Ticket');
+  });
+  return [...links].slice(0,5).map(([url,label])=>[label,url]);
 }
 
 function renderSprintBoardNoteItem(note, sprintIndex, uiState) {
@@ -503,20 +544,23 @@ function renderAssigneeColumn(sprintIndex, assignee, items, sprintMembers, uiSta
     return Number.isFinite(points) && points > 0 ? sum + points : sum;
   }, 0);
   const totalStoryPointsLabel = formatStoryPointsDisplay(totalStoryPoints);
+  const completedSP = items.filter(item=>['done','deployed'].includes(item.ticket.status)).reduce((sum,item)=>sum+Math.max(0,Number(item.ticket.storyPoints)||0),0);
 
   return `
     <section class="sprint-column" data-assignee="${escapeHtml(assignee)}">
       <header class="sprint-column__head">
         <div class="av-sm" style="background: linear-gradient(135deg, var(--accent), var(--indigo));">${memberInitials}</div>
-        <span class="sprint-column__title">${escapeHtml(assignee || 'Unassigned')}</span>
+        <span class="sprint-column__title">${escapeHtml(assignee || 'Unassigned')}<small>${escapeHtml(member?.role||'Team member')}</small></span>
         ${totalStoryPointsLabel ? `<span class="sprint-column__sp story-points-user-total">(${escapeHtml(totalStoryPointsLabel)} sp)</span>` : ''}
         <button class="btn-icon sprint-add-ticket-btn" type="button" data-action="open-add-sprint-ticket-modal" data-sprint-index="${sprintIndex}" data-assignee="${escapeHtml(assignee)}" title="Add ticket">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
         </button>
       </header>
+      <progress class="member-progress" max="${totalStoryPoints||1}" value="${completedSP}" aria-label="${escapeHtml(assignee)} completed story points"></progress>
       <div class="sprint-column__body">
-        ${items.length ? epicGroups.map((group) => renderSprintEpicCard(sprintIndex, assignee, group, sprintMembers, uiState)).join('') : '<div class="sprint-column__empty">No tickets assigned</div>'}
+        ${items.length ? (uiState.reorderingSprintIndex===sprintIndex?epicGroups.map(group=>renderSprintEpicCard(sprintIndex,assignee,group,sprintMembers,uiState)).join(''):items.map(({ticket,ticketIndex})=>renderSprintTicket(sprintIndex,ticketIndex,ticket,sprintMembers,uiState)).join('')) : '<div class="sprint-column__empty">No tickets assigned</div>'}
       </div>
+      <button class="sprint-add-ticket-inline" type="button" data-action="open-add-sprint-ticket-modal" data-sprint-index="${sprintIndex}" data-assignee="${escapeHtml(assignee)}">${icon('plus')}Add ticket</button>
     </section>
   `;
 }
@@ -544,46 +588,18 @@ function renderSprintTicket(sprintIndex, ticketIndex, ticket, sprintMembers, uiS
   const statusColor = STATUS_COLOR[ticket.status] || '#64748b';
   const epicTitle = String(ticket.epicTitle || '').trim() || 'No epic title';
   const ticketLabel = String(ticket.jiraId || ticket.title || '').trim() || 'No ticket';
+  const ticketKey = ticketLabel.match(/[A-Z][A-Z0-9]+-\d+/)?.[0] || 'Ticket';
   const storyPointsLabel = formatStoryPointsDisplay(ticket.storyPoints);
   const ticketNotes = String(ticket.notes || ticket.desc || ticket.description || '').trim();
   const hasNotes = ticketNotes.length > 0;
   const indexLabel = `${ticketIndex + 1}->`;
 
   return `
-    <article class="sprint-ticket-card" style="--ticket-status-color:${statusColor};">
-      <div class="sprint-ticket-card__top">
-        <div class="sprint-ticket-preview">
-          <div class="sprint-ticket-preview__epic">
-            <span class="sprint-ticket-preview__index">${escapeHtml(indexLabel)}</span>
-            ${epicHref
-              ? `<a class="sprint-ticket-preview__epic-link" href="${escapeHtml(epicHref)}" target="_blank" rel="noopener noreferrer">${escapeHtml(epicTitle)}</a>`
-              : `<span class="sprint-ticket-preview__epic-text">${escapeHtml(epicTitle)}</span>`}
-            ${storyPointsLabel ? `<span class="sprint-ticket-preview__sp story-points-total">(${escapeHtml(storyPointsLabel)} sp)</span>` : ''}
-          </div>
-          <ul class="sprint-ticket-preview__list">
-            <li>
-              ${jiraHref
-                ? `<a class="sprint-ticket-preview__ticket-link" href="${escapeHtml(jiraHref)}" target="_blank" rel="noopener noreferrer">${escapeHtml(ticketLabel)}</a>`
-                : `<span class="sprint-ticket-preview__ticket-text">${escapeHtml(ticketLabel)}</span>`}
-              ${storyPointsLabel ? `<span class="sprint-ticket-preview__ticket-sp">(${escapeHtml(storyPointsLabel)} sp)</span>` : ''}
-            </li>
-          </ul>
-        </div>
-        <div class="sprint-ticket-actions">
-          <button class="btn-icon btn-icon--edit" type="button" data-action="edit-sprint-ticket" data-sprint-index="${sprintIndex}" data-ticket-index="${ticketIndex}" title="Edit ticket">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-          </button>
-          <button class="btn-icon" type="button" data-action="remove-sprint-ticket" data-sprint-index="${sprintIndex}" data-ticket-index="${ticketIndex}" title="Delete ticket">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 6l-1.4 14H6.4L5 6M10 11v6M14 11v6M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/></svg>
-          </button>
-        </div>
-      </div>
-      ${hasNotes ? `<p class="sprint-ticket-note-preview">${escapeHtml(ticketNotes)}</p>` : ''}
-      <div class="sprint-ticket-card__meta">
-        <select class="status-select" name="status" data-status="${escapeHtml(String(ticket.status || 'todo'))}" data-action="update-sprint-ticket-status" data-sprint-index="${sprintIndex}" data-ticket-index="${ticketIndex}">
-          ${TICKET_STATUSES.map((status) => `<option value="${status}" ${ticket.status === status ? 'selected' : ''}>${formatStatus(status)}</option>`).join('')}
-        </select>
-      </div>
+    <article class="sprint-ticket-card compact-ticket" style="--ticket-status-color:${statusColor};">
+      <div class="compact-ticket-top">${jiraHref?`<a href="${escapeHtml(jiraHref)}" target="_blank" rel="noopener noreferrer">${escapeHtml(ticketKey)}</a>`:`<span>${escapeHtml(ticketKey)}</span>`}<select aria-label="Status for ${escapeHtml(ticketLabel)}" class="status-select" name="status" data-status="${escapeHtml(String(ticket.status||'todo'))}" data-action="update-sprint-ticket-status" data-sprint-index="${sprintIndex}" data-ticket-index="${ticketIndex}">${TICKET_STATUSES.map(status=>`<option value="${status}" ${ticket.status===status?'selected':''}>${formatStatus(status)}</option>`).join('')}</select></div>
+      <button class="compact-ticket-title" type="button" data-action="edit-sprint-ticket" data-sprint-index="${sprintIndex}" data-ticket-index="${ticketIndex}" title="Edit ticket">${escapeHtml(ticket.title||ticket.jiraId||'Untitled ticket')}</button>
+      <div class="compact-ticket-footer">${epicHref?`<a class="compact-epic" href="${escapeHtml(epicHref)}" target="_blank" rel="noopener noreferrer">${escapeHtml(epicTitle)}</a>`:`<span class="compact-epic">${escapeHtml(epicTitle)}</span>`}<span class="compact-points">${escapeHtml(storyPointsLabel||'0')} SP</span><button class="btn-icon" type="button" data-action="remove-sprint-ticket" data-sprint-index="${sprintIndex}" data-ticket-index="${ticketIndex}" title="Delete ticket" aria-label="Delete ${escapeHtml(ticketKey)}">${icon('remove')}</button></div>
+      ${hasNotes?`<p class="sprint-ticket-note-preview">${escapeHtml(ticketNotes)}</p>`:''}
     </article>
   `;
 }
@@ -952,7 +968,7 @@ export function renderSprintTicketCreateModal(sprintIndex, defaultAssignee, spri
             <div class="form-group">
               <label>Epic Title</label>
               <div class="inline-link-field">
-                <input class="field-input" name="epicTitle" type="text" placeholder="TESTING in EA DS" />
+                <input class="field-input" name="epicTitle" list="global-epic-options" type="text" placeholder="Select or type epic title" />
                 <button class="button button--secondary button--sm" type="button" data-action="set-epic-link">Link</button>
               </div>
               <input name="epicUrl" type="hidden" value="" />

@@ -82,7 +82,7 @@ run_project_backup() {
     printf 'exit_code=%q\n' "$exit_code"
     printf 'file_name=%q\n' "$file_name"
     printf 'file_size=%q\n' "$file_size"
-    printf 'error_tail=%q\n' "$(printf '%s' "$error_tail" | html_escape)"
+    printf 'error_tail=%q\n' "$(printf '%s' "${error_tail:0:500}" | html_escape)"
   } > "$TMP_DIR/$project_key.status"
 }
 
@@ -117,37 +117,39 @@ hub_file_name="$file_name"
 hub_file_size="$file_size"
 hub_error_tail="$error_tail"
 
-ea_icon="✅"
-hub_icon="✅"
-if [[ "$ea_status" != "ok" ]]; then ea_icon="❌"; fi
-if [[ "$hub_status" != "ok" ]]; then hub_icon="❌"; fi
+ea_display="CONCLUIDO"
+hub_display="CONCLUIDO"
+overall_display="CONCLUIDO"
+if [[ "$ea_status" != "ok" ]]; then ea_display="FALHOU"; overall_display="COM FALHAS"; fi
+if [[ "$hub_status" != "ok" ]]; then hub_display="FALHOU"; overall_display="COM FALHAS"; fi
 
 message=$(cat <<HTML
-<b>DB Backup Summary</b>
+<b>BACKUPS | Execucao das bases de dados</b>
+Estado: <b>${overall_display}</b>
 
-<b>Server:</b> <code>${HOST_NAME}</code>
-<b>Time:</b> <code>${RUN_TIME}</code>
+Servidor: <code>${HOST_NAME}</code>
+Execucao: ${RUN_TIME}
 
-<b>${ea_label}</b> ${ea_icon}
-<b>Status:</b> <code>${ea_status}</code>
-<b>File:</b> <code>${ea_file_name}</code>
-<b>Size:</b> <code>${ea_file_size}</code>
-<b>Exit:</b> <code>${ea_exit_code}</code>
+<b>${ea_label} | ${ea_display}</b>
+Ficheiro: <code>${ea_file_name}</code>
+Tamanho: ${ea_file_size} | Codigo de saida: ${ea_exit_code}
 
-<b>${hub_label}</b> ${hub_icon}
-<b>Status:</b> <code>${hub_status}</code>
-<b>File:</b> <code>${hub_file_name}</code>
-<b>Size:</b> <code>${hub_file_size}</code>
-<b>Exit:</b> <code>${hub_exit_code}</code>
+<b>${hub_label} | ${hub_display}</b>
+Ficheiro: <code>${hub_file_name}</code>
+Tamanho: ${hub_file_size} | Codigo de saida: ${hub_exit_code}
 HTML
 )
 
 if [[ "$ea_status" != "ok" ]]; then
-  message+=$'\n\n<b>EA_Dashboard error (tail):</b>\n<pre>'"${ea_error_tail}"$'</pre>'
+  message+=$'\n\n<b>EA Dashboard | Erro:</b>\n<pre>'"${ea_error_tail}"$'</pre>'
 fi
 
 if [[ "$hub_status" != "ok" ]]; then
-  message+=$'\n\n<b>personal-hub error (tail):</b>\n<pre>'"${hub_error_tail}"$'</pre>'
+  message+=$'\n\n<b>Personal Hub | Erro:</b>\n<pre>'"${hub_error_tail}"$'</pre>'
+fi
+
+if [[ "$overall_display" != "CONCLUIDO" ]]; then
+  message+=$'\n\n<b>Acao necessaria:</b> verificar o cron.log das bases de dados e corrigir a falha. As copias anteriores nao confirmam o sucesso desta execucao.'
 fi
 
 notifier_path=""

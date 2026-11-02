@@ -44,6 +44,8 @@ export function createDefaultSnapshot() {
     spTeamMembers: [],
     spNotes: [],
     spCollapsedByKey: {},
+    spEpics: [],
+    velocityReportSprints: [],
   };
 }
 
@@ -104,6 +106,8 @@ export function mergeSnapshot(baseSnapshot, remoteSnapshot) {
   if (Array.isArray(remote.spNotes)) {
     base.spNotes = cloneState(remote.spNotes);
   }
+  if (Array.isArray(remote.spEpics)) base.spEpics = cloneState(remote.spEpics);
+  if (Array.isArray(remote.velocityReportSprints)) base.velocityReportSprints = cloneState(remote.velocityReportSprints);
   if (remote.spCollapsedByKey && typeof remote.spCollapsedByKey === 'object' && !Array.isArray(remote.spCollapsedByKey)) {
     base.spCollapsedByKey = cloneState(remote.spCollapsedByKey);
   }
