@@ -50,6 +50,12 @@ export function createDashboardApp(root, initialSnapshot, persistence) {
   };
   let modalReturnAction = null;
   let modalWasOpen = false;
+  const noteResizeObserver = new ResizeObserver(entries => {
+    entries.forEach(({ target: body }) => {
+      const expansion = body.closest('.shared-note-entry')?.querySelector('.shared-note-expand');
+      if (expansion && !expansion.open && body.clientHeight > 0) expansion.hidden = body.scrollHeight <= body.clientHeight + 1;
+    });
+  });
 
   function persist(snapshot) {
     persistence.setSnapshot(snapshot);
@@ -139,10 +145,14 @@ export function createDashboardApp(root, initialSnapshot, persistence) {
       if (panelStates.has(key)) panel.open = panelStates.get(key);
     });
     syncStatusSelectThemes(root);
+    noteResizeObserver.disconnect();
     root.querySelectorAll('.shared-note-entry').forEach(entry => {
       const body = entry.querySelector('.sprint-note-item__text');
       const expansion = entry.querySelector('.shared-note-expand');
-      if (body && expansion) expansion.hidden = body.scrollHeight <= 321;
+      if (body && expansion) {
+        if (!expansion.open && body.clientHeight > 0) expansion.hidden = body.scrollHeight <= body.clientHeight + 1;
+        noteResizeObserver.observe(body);
+      }
     });
     filterSharedNotes();
     filterInvoicingProjects();
@@ -1253,6 +1263,22 @@ function handleClickAction(trigger, updateState, root, uiState, render, getState
     const composer = root.querySelector('[data-ui-panel="shared-note-create"]');
     if (composer) composer.open = false;
     root.querySelector('[data-action="open-shared-note-create"]')?.focus();
+    return;
+  }
+
+  if (trigger.dataset.action === 'move-sprint-note') {
+    const noteId = String(trigger.dataset.noteId || '').trim();
+    const direction = trigger.dataset.direction;
+    if (!noteId || !['up', 'down'].includes(direction)) return;
+    updateState((state) => {
+      const notes = Array.isArray(state.spNotes) ? state.spNotes : [];
+      const index = notes.findIndex(note => String(note?.id || '') === noteId);
+      const targetIndex = index + (direction === 'up' ? -1 : 1);
+      if (index < 0 || targetIndex < 0 || targetIndex >= notes.length) return;
+      [notes[index], notes[targetIndex]] = [notes[targetIndex], notes[index]];
+    });
+    const movedButton = Array.from(root.querySelectorAll('[data-action="move-sprint-note"]')).find(button => button.dataset.noteId === noteId && button.dataset.direction === direction && !button.disabled);
+    movedButton?.focus();
     return;
   }
 

@@ -138,17 +138,22 @@ function renderComparisonTable(current, last3, group = 'delivery') {
 }
 function renderSprintEditor(sprints) {
   return `<div class="velocity-sprint-editor">
-    ${sprints.length ? sprints.map(s=>`<article class="velocity-sprint-edit-card">
-      <div class="velocity-sprint-edit-card__head"><div><strong>${safeText(s.label)}</strong><small>${safeText(s.startDate || 'No start date')} · ${s.completed ? 'Completed' : 'Current / in progress'}</small></div><div class="velocity-inline-actions"><label class="velocity-check"><input type="checkbox" data-action="toggle-velocity-sprint-completed" data-sprint-id="${safeText(s.id)}" ${s.completed ? 'checked' : ''}/> Completed</label><button class="button button--ghost-danger btn-xs" type="button" data-action="remove-velocity-sprint" data-sprint-id="${safeText(s.id)}">Delete</button></div></div>
+    ${sprints.length ? getOrdered(sprints).reverse().map(s=>`<details class="velocity-sprint-edit-card" data-ui-panel="velocity-sprint-${safeText(s.id)}">
+      <summary class="velocity-sprint-edit-card__head"><div><strong>${safeText(s.label)}</strong><small>${safeText(s.startDate || 'No start date')} · ${s.completed ? 'Completed' : 'Current / in progress'}</small></div>${icon('right')}</summary>
+      <div class="velocity-sprint-edit-card__actions velocity-inline-actions"><label class="velocity-check"><input type="checkbox" data-action="toggle-velocity-sprint-completed" data-sprint-id="${safeText(s.id)}" ${s.completed ? 'checked' : ''}/> Completed</label><button class="button button--ghost-danger btn-xs" type="button" data-action="remove-velocity-sprint" data-sprint-id="${safeText(s.id)}">Delete</button></div>
       <div class="velocity-edit-grid">
         <label>Sprint name<input class="field-input" data-action="update-velocity-sprint" data-sprint-id="${safeText(s.id)}" data-field="label" value="${safeText(s.label)}"/></label>
         <label>Start date<input type="date" class="field-input" data-action="update-velocity-sprint" data-sprint-id="${safeText(s.id)}" data-field="startDate" value="${safeText(s.startDate || '')}"/></label>
         <label>End date<input type="date" class="field-input" data-action="update-velocity-sprint" data-sprint-id="${safeText(s.id)}" data-field="endDate" value="${safeText(s.endDate || '')}"/></label>
         <label>Team<input class="field-input" data-action="update-velocity-sprint" data-sprint-id="${safeText(s.id)}" data-field="team" value="${safeText(s.team || '')}"/></label>
-        ${METRICS.filter(m=>!m.calculated).map(m=>`<label>${safeText(m.label)}<input type="number" min="0" step="0.1" class="field-input" data-action="update-velocity-metric" data-sprint-id="${safeText(s.id)}" data-field="${m.key}" value="${safeText(s[m.key] ?? '')}" placeholder="—"/></label>`).join('')}
-        ${DISTRIBUTION.map(([key,label])=>`<label>${safeText(label)}<input type="number" min="0" step="1" class="field-input" data-action="update-velocity-distribution" data-sprint-id="${safeText(s.id)}" data-field="${key}" value="${safeText(s.distribution?.[key] ?? '')}" placeholder="—"/></label>`).join('')}
       </div>
-    </article>`).join('') : '<div class="empty-card"><h3>No sprint metrics yet</h3><p>Add a sprint data record, then enter the metrics from your Excel report.</p></div>'}
+      ${[
+        ['Sprint Delivery', 'update-velocity-metric', [['plannedSP', 'Planned (SP)'], ['completedSP', 'Completed (SP)'], ['carryOverSP', 'Carry Over (SP)']]],
+        ['Sprint Productivity', 'update-velocity-metric', [['workItemsCompleted', 'Work Item Completed (SP)'], ['scopeChange', 'Scope Change (SP)'], ['bugsFixed', 'Bugs Fixed (Nº)']]],
+        ['Sprint Work Distribution', 'update-velocity-distribution', [['notStarted', 'Not Started (SP)'], ['inProgress', 'In Progress (SP)'], ['codeReview', 'Code Review (SP)'], ['inQA', 'QA (SP)'], ['blocked', 'Blocked / On Hold (SP)']]],
+        ['Team Performance', 'update-velocity-metric', [['devCompletedSP', 'DEV - Completed (SP)'], ['devAverage', 'DEV - AVG SP'], ['qaCompletedSP', 'QA - Completed (SP)'], ['qaAverage', 'QA - AVG SP']]],
+      ].map(([title, action, fields])=>`<section class="velocity-edit-group" aria-label="${safeText(title)}"><h4>${safeText(title)}</h4><div class="velocity-edit-grid velocity-edit-grid--${fields.length}">${fields.map(([key, label])=>`<label>${safeText(label)}<input type="number" min="0" step="${key==='bugsFixed'?'1':'0.1'}" class="field-input" data-action="${action}" data-sprint-id="${safeText(s.id)}" data-field="${key}" value="${safeText((action==='update-velocity-distribution'?s.distribution?.[key]:s[key]) ?? '')}" placeholder="—"/></label>`).join('')}</div></section>`).join('')}
+    </details>`).join('') : '<div class="empty-card"><h3>No sprint metrics yet</h3><p>Add a sprint data record, then enter the metrics from your Excel report.</p></div>'}
   </div>`;
 }
 function chartGrid(max, percent = false) {

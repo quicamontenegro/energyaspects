@@ -124,7 +124,7 @@ export function renderSprintsSection(state, uiState) {
         </details>
         <div class="shared-notes-search"><input class="field-input" type="search" placeholder="Search notes..." aria-label="Search shared notes" data-action="search-shared-notes" value="${escapeHtml(uiState.sharedNotesQuery || '')}" /><output data-shared-notes-results aria-live="polite">${sprintNotes.length} notes</output></div>
         <div class="shared-notes-list">
-          ${sprintNotes.length ? sprintNotes.map(note => renderSprintNoteItem(note, uiState)).join('') : `<div class="shared-notes-empty">${icon('report')}<h3>No shared notes yet</h3></div>`}
+          ${sprintNotes.length ? sprintNotes.map((note, index) => renderSprintNoteItem(note, uiState, index, sprintNotes.length)).join('') : `<div class="shared-notes-empty">${icon('report')}<h3>No shared notes yet</h3></div>`}
         </div>
         <div class="shared-notes-empty" data-shared-notes-no-results hidden><h3>No matching notes</h3></div>
       </section></details>
@@ -164,7 +164,7 @@ function getSprintUiKey(sprint, sprintIndex) {
   return fallback;
 }
 
-function renderSprintNoteItem(note, uiState) {
+function renderSprintNoteItem(note, uiState, noteIndex, noteCount) {
   const noteId = escapeHtml(note?.id || '');
   const title = String(note?.title || '').trim() || 'Untitled note';
   const noteTextRaw = uiState.sharedNoteDrafts?.get(String(note?.id || '')) ?? String(note?.text || '');
@@ -198,6 +198,8 @@ function renderSprintNoteItem(note, uiState) {
       <div class="sprint-note-item__meta">
         <div class="shared-note-identity"><h3>${escapeHtml(title)}</h3><span class="shared-note-date">${icon('calendar')}${escapeHtml(noteDate)}</span></div>
         <div class="sprint-note-item__action-icons">
+          <button class="button" type="button" data-action="move-sprint-note" data-note-id="${noteId}" data-direction="up" title="Move note earlier" aria-label="Move ${escapeHtml(title)} earlier" ${noteIndex===0?'disabled':''}>${icon('up')}</button>
+          <button class="button" type="button" data-action="move-sprint-note" data-note-id="${noteId}" data-direction="down" title="Move note later" aria-label="Move ${escapeHtml(title)} later" ${noteIndex===noteCount-1?'disabled':''}>${icon('down')}</button>
           <button class="button" type="button" data-action="edit-sprint-note" data-note-id="${noteId}" title="Edit note" aria-label="Edit ${escapeHtml(title)}">
             ${icon('edit')}
           </button>
@@ -208,7 +210,7 @@ function renderSprintNoteItem(note, uiState) {
       </div>
       <div class="sprint-note-item__text">${renderSprintNoteBody(note?.text || '')}</div>
       ${noteLinkHref ? `<a class="sprint-note-link" href="${escapeHtml(noteLinkHref)}" target="_blank" rel="noopener noreferrer">${escapeHtml(noteLinkValue)}</a>` : ''}
-      <details class="shared-note-expand" data-ui-panel="shared-note-reading-${noteId}"><summary><span class="shared-note-read-more">Read full note ${icon('down')}</span><span class="shared-note-read-less">Show less ${icon('up')}</span></summary></details>
+      <details class="shared-note-expand" data-ui-panel="shared-note-reading-${noteId}"><summary><span class="shared-note-read-more">Read More ${icon('down')}</span><span class="shared-note-read-less">Show Less ${icon('up')}</span></summary></details>
     </article>
   `;
 }
