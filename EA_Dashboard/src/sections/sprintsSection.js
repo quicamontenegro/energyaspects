@@ -146,7 +146,7 @@ export function renderSprintsSection(state, uiState) {
           <button class="button button--secondary button--sm" type="button" data-action="add-sprint-plan">Add sprint</button>
         </div>
       </section></details>
-      <details class="sprint-management-panel" data-sprint-panel="history"><summary>Sprint history · ${sprints.length}</summary><div class="sprint-history-list">${sprintEntries.map(({sprint,index})=>`<div class="sprint-history-item"><div><input class="field-input" type="text" data-action="update-sprint-history-name" data-sprint-id="${escapeHtml(sprint.id)}" value="${escapeHtml(sprint.name||'Untitled sprint')}" aria-label="Name of ${escapeHtml(sprint.name||'sprint')}" required /><span>${escapeHtml([sprint.startDate,sprint.endDate].filter(Boolean).join(' - '))}</span></div><button type="button" class="btn-icon ${active?.index===index?'button--primary':''}" data-action="select-sprint" data-index="${index}" title="Open ${escapeHtml(sprint.name||'sprint')}" aria-label="Open ${escapeHtml(sprint.name||'sprint')}">${icon('right')}</button></div>`).join('')}</div></details>
+      <details class="sprint-management-panel" data-sprint-panel="history"><summary>Sprint history · ${sprints.length}</summary><div class="sprint-history-list">${sprintEntries.map(({sprint,index})=>renderSprintHistoryItem(sprint,index,active?.index===index,uiState.editingHistorySprintId===sprint.id)).join('')}</div></details>
     </section>
   `;
 }
@@ -579,6 +579,15 @@ function renderSprintColumn(sprintIndex, status, items, sprintMembers, uiState) 
       </div>
     </section>
   `;
+}
+
+function renderSprintHistoryItem(sprint, index, selected, editing) {
+  const name = escapeHtml(sprint.name || 'Untitled sprint');
+  const sprintId = escapeHtml(sprint.id);
+  const dates = escapeHtml([sprint.startDate,sprint.endDate].filter(Boolean).join(' - '));
+  return `<div class="sprint-history-item ${selected ? 'is-selected' : ''}">
+    ${editing ? `<div class="sprint-history-rename" data-form="sprint-history-rename"><input class="field-input" name="name" value="${name}" aria-label="Sprint name" required /><button class="btn-icon" type="button" data-action="save-history-sprint-name" data-sprint-id="${sprintId}" title="Save name" aria-label="Save name">${icon('check')}</button><button class="btn-icon" type="button" data-action="cancel-history-sprint-name" title="Cancel" aria-label="Cancel">${icon('close')}</button></div>` : `<button type="button" class="sprint-history-open" data-action="select-sprint" data-index="${index}" ${selected ? 'aria-current="true"' : ''}><strong>${name}</strong><span>${dates || 'Dates not set'}</span><span class="sprint-history-count">${sprint.tickets?.length || 0} tickets</span>${icon('right')}</button><button class="btn-icon sprint-history-edit" type="button" data-action="edit-history-sprint-name" data-sprint-id="${sprintId}" title="Edit sprint name" aria-label="Edit ${name}">${icon('edit')}</button>`}
+  </div>`;
 }
 
 function renderSprintTicket(sprintIndex, ticketIndex, ticket, sprintMembers, uiState) {

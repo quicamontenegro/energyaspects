@@ -46,6 +46,12 @@
 - Latest `npm run test:persistence`: 18 tests passed, including canonical/structured rename and duplication round trips. Browser checks passed for rename, picker cancellation, chosen destination, fresh copy ID, preserved fields and destination visibility. Build passed.
 - All mutation checks remained isolated from the real database. No production data recovery was performed.
 
+## History usability correction
+
+- Replaced always-visible name inputs with readable sprint entries containing names, date ranges, ticket counts and a full-entry open button. Name editing is a separate always-visible pencil action with explicit save/cancel and Enter/Escape support.
+- Selecting a history entry returns to the board view and scrolls the selected sprint into view; navigating does not write data.
+- Mock browser checks passed for visible ticket content after selection, notes-to-board navigation, scroll target, cancellation without writes and name saving. Desktop/mobile checks verified layout, no page overflow and visible edit controls. Latest persistence suite: 19 tests.
+
 # UI verification - 2026-11-02
 
 ## Environment and isolation

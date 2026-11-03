@@ -402,3 +402,17 @@ test('history rename and ticket duplication persist in both canonical and struct
   assert.throws(() => duplicateSprintTicket(changed, 'sprint', original.id, 'missing'));
   assert.throws(() => duplicateSprintTicket(changed, 'sprint', 'missing', 'destination'));
 });
+
+test('sprint history stays navigable and only renders the requested rename editor', () => {
+  const snapshot = fixture();
+  const markup = renderSprintsSection(snapshot, { selectedSprintIndex: 0 });
+  const history = markup.slice(markup.indexOf('data-sprint-panel="history"'));
+  assert.ok(history.includes('class="sprint-history-open"'));
+  assert.ok(history.includes('data-action="select-sprint"'));
+  assert.ok(history.includes('1 tickets'));
+  assert.ok(history.includes('data-action="edit-history-sprint-name"'));
+  assert.ok(!history.includes('sprint-history-rename'));
+  const editing = renderSprintsSection(snapshot, { selectedSprintIndex: 0, editingHistorySprintId: 'sprint' });
+  assert.ok(editing.includes('data-action="save-history-sprint-name"'));
+  assert.ok(editing.includes('data-action="cancel-history-sprint-name"'));
+});

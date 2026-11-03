@@ -3414,13 +3414,17 @@ button {
 .sprint-management-panel>summary { cursor:pointer; font-size:12px; color:var(--muted); }
 .sprint-management-panel[open]>summary { margin-bottom:16px; color:var(--accent); }
 .redesigned-shell .sprint-management-panel section { padding:0; }
-.sprint-history-list { display:grid; gap:8px; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); }
-.sprint-history-item { display:flex; gap:8px; align-items:center; min-width:0; }
-.sprint-history-item > div { flex:1; min-width:0; }
-.sprint-history-item .field-input { width:100%; min-width:0; }
-.sprint-history-item .btn-icon { flex-shrink:0; }
-.sprint-history-list button { justify-content:space-between; flex-wrap:wrap; white-space:normal; text-align:left; }
-.sprint-history-list span { color:var(--muted); font-size:10px; }
+.sprint-history-list { display:grid; gap:0 24px; grid-template-columns:repeat(auto-fit,minmax(min(100%,320px),1fr)); }
+.sprint-history-item { display:flex; align-items:center; min-width:0; border-bottom:1px solid var(--border,var(--line,rgba(148,163,184,.16))); }
+.sprint-history-item.is-selected { background:var(--surface-raised,rgba(15,118,110,.08)); }
+.sprint-history-open { display:grid; flex:1; min-width:0; grid-template-columns:minmax(0,1fr) auto; gap:6px 12px; padding:14px 10px; background:transparent; border:0; color:var(--text); text-align:left; cursor:pointer; font:inherit; }
+.sprint-history-open strong { grid-column:1; font-size:13px; line-height:1.4; overflow-wrap:anywhere; }
+.sprint-history-open span { grid-column:1; color:var(--muted); font-size:11px; }
+.sprint-history-open .ui-icon { grid-column:2; grid-row:1 / 4; align-self:center; }
+.sprint-history-open:hover { background:var(--surface-raised,rgba(15,118,110,.08)); }
+.sprint-history-item .btn-icon { flex-shrink:0; width:32px; height:32px; margin-right:6px; opacity:1; }
+.sprint-history-rename { display:flex; align-items:center; gap:6px; width:100%; min-width:0; padding:14px 6px; }
+.sprint-history-rename .field-input { flex:1; width:100%; min-width:0; }
 .sprint-view-notes .sprint-board { display:none; }
 :root[data-theme='dark'] .redesigned-shell .app-tabs__button.is-active { color:#9cfbe9; background:#075e56; }
 :root[data-theme='dark'] .redesigned-shell .button--primary { background:#087565; color:#e7fff9; }

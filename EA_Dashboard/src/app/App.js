@@ -25,6 +25,7 @@ export function createDashboardApp(root, initialSnapshot, persistence) {
     velocityHistory: 7,
     velocityView: 'analysis',
     selectedSprintIndex: null,
+    editingHistorySprintId: null,
     sprintView: 'board',
     sharedNotesQuery: '',
     invoicingQuery: '',
@@ -283,12 +284,44 @@ export function createDashboardApp(root, initialSnapshot, persistence) {
       return;
     }
 
+    if (action === 'edit-history-sprint-name') {
+      uiState.editingHistorySprintId = trigger.dataset.sprintId;
+      render();
+      const input = root.querySelector('.sprint-history-rename input');
+      input?.focus();
+      input?.select();
+      return;
+    }
+
+    if (action === 'cancel-history-sprint-name') {
+      uiState.editingHistorySprintId = null;
+      render();
+      return;
+    }
+
+    if (action === 'save-history-sprint-name') {
+      const input = trigger.closest('.sprint-history-item').querySelector('input');
+      const name = input.value.trim();
+      input.setCustomValidity(name ? '' : 'Enter a sprint name.');
+      if (!input.reportValidity()) return;
+      const sprintId = trigger.dataset.sprintId;
+      uiState.editingHistorySprintId = null;
+      updateState(state => {
+        const sprint = state.spData.find(item => item.id === sprintId);
+        if (sprint) sprint.name = name;
+      });
+      return;
+    }
+
     if (action === 'select-sprint') {
       if (trigger instanceof HTMLSelectElement) return;
+      const fromHistory = Boolean(trigger.closest('[data-sprint-panel="history"]'));
       uiState.selectedSprintIndex = Number(trigger.dataset.index);
       uiState.editingSprintIndex = null;
       uiState.reorderingSprintIndex = null;
+      if (fromHistory) uiState.sprintView = 'board';
       render();
+      if (fromHistory) root.querySelector('.sprint-summary-band')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
       return;
     }
 
@@ -443,6 +476,13 @@ export function createDashboardApp(root, initialSnapshot, persistence) {
     if (action === 'update-sprint-ticket-notes') {
       handleChangeAction(field, updateState, uiState, render);
     }
+  });
+
+  root.addEventListener('keydown', (event) => {
+    const editor = event.target.closest('.sprint-history-rename');
+    if (!editor || !['Enter', 'Escape'].includes(event.key)) return;
+    event.preventDefault();
+    editor.querySelector(`[data-action="${event.key === 'Enter' ? 'save' : 'cancel'}-history-sprint-name"]`)?.click();
   });
 
   root.addEventListener('dragstart', (event) => {
@@ -2367,17 +2407,6 @@ function handleChangeAction(field, updateState, uiState, render) {
   const taskIndex = Number(field.dataset.taskIndex);
   const milestoneIndex = Number(field.dataset.milestoneIndex);
   const ticketIndex = Number(field.dataset.ticketIndex);
-
-  if (action === 'update-sprint-history-name') {
-    const name = String(field.value || '').trim();
-    field.setCustomValidity(name ? '' : 'Enter a sprint name.');
-    if (!field.reportValidity()) return;
-    updateState(state => {
-      const sprint = state.spData.find(item => item.id === field.dataset.sprintId);
-      if (sprint) sprint.name = name;
-    });
-    return;
-  }
 
   if (action === 'update-velocity-sprint' || action === 'update-velocity-metric' || action === 'update-velocity-distribution' || action === 'toggle-velocity-sprint-completed') {
     const id = field.dataset.sprintId;
