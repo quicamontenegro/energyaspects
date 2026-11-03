@@ -651,6 +651,7 @@ function getRemovalConfirmMessage(action, trigger) {
     'remove-sprint-member': 'Remove this member from the team?',
     'remove-sprint-note': 'Remove this sprint note?',
     'remove-sprint-board-note': 'Remove this sprint board note?',
+    'remove-sprint-quick-link': 'Remove this quick link? The original ticket will not be deleted.',
     'remove-rpde-ticket': 'Remove this queue item?',
     'remove-sprint-plan': 'Remove this sprint and all its tickets?',
     'remove-sprint-ticket': 'Remove this ticket from the sprint?',
@@ -705,6 +706,67 @@ function handleClickAction(trigger, updateState, root, uiState, render, getState
   const taskIndex = Number(trigger.dataset.taskIndex);
   const milestoneIndex = Number(trigger.dataset.milestoneIndex);
   const ticketIndex = Number(trigger.dataset.ticketIndex);
+
+  if (trigger.dataset.action === 'open-sprint-quick-link-create') {
+    const editor = trigger.closest('.sprint-quick-links').querySelector('.sprint-quick-link-create');
+    editor.open = true;
+    editor.querySelector('[name="label"]').focus();
+    return;
+  }
+
+  if (trigger.dataset.action === 'remove-sprint-quick-link') {
+    const sourceUrl = trigger.dataset.sourceUrl;
+    const linkId = trigger.dataset.linkId;
+    if (!Number.isInteger(sprintIndex) || (!sourceUrl && !linkId)) return;
+    updateState(state => {
+      const sprint = state.spData[sprintIndex];
+      if (!sprint) return;
+      if (linkId) sprint.quickLinks = (sprint.quickLinks || []).filter(link => link.id !== linkId);
+      else sprint.quickLinkOverrides = { ...sprint.quickLinkOverrides, [sourceUrl]: { ...sprint.quickLinkOverrides?.[sourceUrl], removed: true } };
+    });
+    return;
+  }
+
+  if (trigger.dataset.action === 'cancel-sprint-quick-link') {
+    const editor = trigger.closest('.sprint-quick-link-edit');
+    editor.querySelector('form').reset();
+    editor.querySelector('[name="label"]').setCustomValidity('');
+    editor.querySelector('[name="url"]').setCustomValidity('');
+    editor.open = false;
+    return;
+  }
+
+  if (trigger.dataset.action === 'save-sprint-quick-link' || trigger.dataset.action === 'add-sprint-quick-link') {
+    const editor = trigger.closest('.sprint-quick-link-edit');
+    const form = editor.querySelector('form');
+    const labelInput = form.querySelector('[name="label"]');
+    const urlInput = form.querySelector('[name="url"]');
+    const label = labelInput.value.trim();
+    const url = urlInput.value.trim();
+    let validUrl = false;
+    try { validUrl = ['http:', 'https:'].includes(new URL(url).protocol); } catch {}
+    labelInput.setCustomValidity(label ? '' : 'Enter a title.');
+    urlInput.setCustomValidity(validUrl ? '' : 'Enter an HTTP or HTTPS URL.');
+    if (!form.reportValidity()) return;
+    const sourceUrl = trigger.dataset.sourceUrl;
+    const linkId = trigger.dataset.linkId;
+    const creating = trigger.dataset.action === 'add-sprint-quick-link';
+    if (!Number.isInteger(sprintIndex) || (!creating && !sourceUrl && !linkId)) return;
+    editor.open = false;
+    updateState(state => {
+      const sprint = state.spData[sprintIndex];
+      if (!sprint) return;
+      if (creating) {
+        sprint.quickLinks = [...(sprint.quickLinks || []), { id: createId('quick-link'), label, url }];
+      } else if (linkId) {
+        const link = (sprint.quickLinks || []).find(item => item.id === linkId);
+        if (link) Object.assign(link, { label, url });
+      } else {
+        sprint.quickLinkOverrides = { ...sprint.quickLinkOverrides, [sourceUrl]: { label, url } };
+      }
+    });
+    return;
+  }
 
   if (trigger.dataset.action === 'add-global-epic') {
     const form = readForm(root, '[data-form="global-epic-create"]');

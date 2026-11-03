@@ -3392,6 +3392,19 @@ button {
 .sprint-quick-links a { display:flex; justify-content:space-between; gap:10px; align-items:center; padding:10px 0; color:var(--muted); font-size:11px; text-decoration:none; overflow-wrap:anywhere; }
 .sprint-quick-links a:hover { color:var(--accent); }
 .sprint-quick-links p { font-size:11px; color:var(--muted); }
+.sprint-quick-links__head { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:12px; }
+.sprint-quick-links__head h3 { margin:0; }
+.sprint-quick-link-row { position:relative; padding-right:64px; }
+.sprint-quick-link-edit > summary { position:absolute; top:8px; right:32px; display:flex; align-items:center; justify-content:center; width:26px; height:26px; cursor:pointer; list-style:none; border:1px solid var(--line); border-radius:4px; color:var(--muted); }
+.sprint-quick-link-delete { position:absolute; top:8px; right:0; width:26px; height:26px; color:#dc536d; }
+.sprint-quick-link-create:not([open]) { display:none; }
+.sprint-quick-link-create > summary { position:static; width:auto; height:auto; border:0; justify-content:flex-start; font-size:12px; }
+.sprint-quick-link-edit > summary::-webkit-details-marker { display:none; }
+.sprint-quick-link-edit > summary:hover { color:var(--accent); }
+.sprint-quick-link-edit form { display:grid; gap:10px; padding:8px 0 12px; }
+.sprint-quick-link-edit label { display:grid; gap:5px; min-width:0; font-size:11px; color:var(--muted); }
+.sprint-quick-link-edit input { width:100%; min-width:0; font-size:12px; }
+.sprint-quick-link-edit__actions { display:flex; flex-wrap:wrap; justify-content:flex-end; gap:8px; }
 .sprint-management-panel { padding:12px; border-top:1px solid var(--line); min-width:0; }
 .sprint-management-panel>summary { cursor:pointer; font-size:12px; color:var(--muted); }
 .sprint-management-panel[open]>summary { margin-bottom:16px; color:var(--accent); }

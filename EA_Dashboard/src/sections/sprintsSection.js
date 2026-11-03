@@ -458,7 +458,7 @@ function renderSprintCard(sprintIndex, sprint, sprintMembers, uiState, options =
             })}
             <button class="button button--secondary button--sm" type="button" data-action="add-sprint-board-note" data-sprint-index="${sprintIndex}">Add note</button>
           </div>
-        </div><aside class="sprint-quick-links"><h3>${icon('layers')}Quick Links</h3>${getSprintLinks(sprint).map(([label,url])=>`<a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(label)}${icon('right')}</a>`).join('')||'<p>No linked tickets or epics.</p>'}</aside></div>
+        </div>${renderSprintQuickLinks(sprint, sprintIndex)}</div>
       </div>
     </article>
   `;
@@ -488,7 +488,19 @@ function getSprintLinks(sprint) {
     if(epic) links.set(epic,ticket.epicTitle||'Epic');
     if(jira) links.set(jira,ticket.jiraId||ticket.title||'Ticket');
   });
-  return [...links].slice(0,5).map(([url,label])=>[label,url]);
+  const generated = [...links].filter(([url])=>!sprint.quickLinkOverrides?.[url]?.removed).slice(0,5).map(([url,label])=>{
+    const override = sprint.quickLinkOverrides?.[url];
+    return [override?.label || label, override?.url || url, url];
+  });
+  return [...generated, ...(sprint.quickLinks || []).map(link=>[link.label, link.url, '', link.id])];
+}
+
+function renderQuickLinkForm(sprintIndex, label = '', url = '', sourceUrl = '', linkId = '', creating = false) {
+  return `<form data-form="sprint-quick-link-edit"><label>Title<input class="field-input" name="label" value="${escapeHtml(label)}" required /></label><label>URL<input class="field-input" type="url" name="url" value="${escapeHtml(url)}" required /></label><div class="sprint-quick-link-edit__actions"><button class="button button--sm" type="button" data-action="cancel-sprint-quick-link">Cancel</button><button class="button button--primary button--sm" type="button" data-action="${creating?'add-sprint-quick-link':'save-sprint-quick-link'}" data-sprint-index="${sprintIndex}" data-source-url="${escapeHtml(sourceUrl)}" data-link-id="${escapeHtml(linkId)}">Save</button></div></form>`;
+}
+
+function renderSprintQuickLinks(sprint, sprintIndex) {
+  return `<aside class="sprint-quick-links"><div class="sprint-quick-links__head"><h3>${icon('layers')}Quick Links</h3><button class="btn-icon" type="button" data-action="open-sprint-quick-link-create" data-sprint-index="${sprintIndex}" title="Add link" aria-label="Add quick link">${icon('plus')}</button></div><details class="sprint-quick-link-edit sprint-quick-link-create" data-ui-panel="quick-link-create-${sprintIndex}"><summary>New link</summary>${renderQuickLinkForm(sprintIndex, '', '', '', '', true)}</details>${getSprintLinks(sprint).map(([label,url,sourceUrl,linkId])=>`<div class="sprint-quick-link-row"><a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(label)}${icon('right')}</a><details class="sprint-quick-link-edit" data-ui-panel="quick-link-${sprintIndex}-${escapeHtml(linkId || sourceUrl)}"><summary title="Edit link" aria-label="Edit ${escapeHtml(label)}">${icon('edit')}</summary>${renderQuickLinkForm(sprintIndex, label, url, sourceUrl, linkId)}</details><button class="btn-icon sprint-quick-link-delete" type="button" data-action="remove-sprint-quick-link" data-sprint-index="${sprintIndex}" data-source-url="${escapeHtml(sourceUrl)}" data-link-id="${escapeHtml(linkId || '')}" title="Delete link" aria-label="Delete ${escapeHtml(label)}">${icon('remove')}</button></div>`).join('')||'<p>No quick links yet.</p>'}</aside>`;
 }
 
 function renderSprintBoardNoteItem(note, sprintIndex, uiState) {
