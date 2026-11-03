@@ -1,3 +1,51 @@
+# Persistence verification - 2026-11-03
+
+## Scope and results
+
+- Canonical application: EA_Dashboard, port 3000. No production deployment or live data restoration performed.
+- `npm run test:persistence`: 14 automated tests passed. Tests use an in-memory Supabase query mock, never real database writes.
+- Round-trip coverage includes settings, invoicing projects/members, legacy velocity teams/sprints/points, Data Explorer tasks/meetings, RPDE tickets, milestones/tasks, sprint tickets/notes/columns/quick links, shared note titles/body, global epics, manual Velocity metrics/distribution and collapsed sprint state.
+- Failure injection covers reads and writes for every structured table, invalid metadata, retry after failure, empty tables, removal of the final team member, sparse velocity points and sprints with no members.
+- Concurrency checks cover rapid edits, ordered metadata writes, interleaved core/metadata writes, different components edited by stale windows and an unrelated successful write not hiding a failed component.
+- Browser mutation checks passed using isolated bootstrap, blocked Supabase requests and the real persistence/data-layer modules connected to an in-memory query mock: Velocity fields/distribution, focused-field refresh guard, epics, shared note title/body, note draft refresh guard, sprint notes, ticket status, RP milestone creation/inline edit, invoicing absence edits, save failure display and retry.
+- Sync indicator visible at 1440x900 and 390x844; no document/body horizontal overflow in the checked invoicing view.
+- `npm run build`: passed. Source diagnostics: no errors reported.
+
+## Corrections
+
+- Metadata has an independent ordered queue and does not wait for unrelated table synchronization.
+- Normal app persistence saves changed components only. Clean mounting, hiding or closing no longer rewrites loaded snapshots.
+- Failed components remain retryable; save errors are surfaced rather than reported as success.
+- Empty tables use column probes instead of assuming absent columns. Required task titles and optional milestone/sprint fields are preserved.
+- Velocity read errors block startup; sprint labels and sparse point positions survive loading.
+- Invalid metadata blocks a writable snapshot instead of becoming empty arrays.
+- Saving/error status is visible on desktop/mobile. Reload warns about pending saves, failed saves and unsaved drafts; a focused inline field triggers its normal change handler before the warning.
+
+## Read-only data audit
+
+- Live database: 5 shared notes with retained body text but empty titles, 15 sprint notes, 1 manual Velocity record with no numeric metrics populated and 0 global epics.
+- Other retained records: 3 projects/6 members, 14 DE tasks/5 meetings, 7 milestones/5 tasks and 15 sprints/149 tickets.
+- Existing nonempty 2026-11-03 03:15 backup has the same notes/Velocity/epic counts; restoring it is not proven to recover the missing entries. No restore was attempted.
+- Legacy dashboard_state snapshots date from May and do not contain the new notes/epics/manual Velocity collections.
+- Saved tickets contain 42 distinct epic-title recovery candidates; duplicate Jira URLs require review before recovery.
+
+## Remaining Limits
+
+- No live mutation tests or database restoration. The in-memory query mock does not reproduce every PostgreSQL constraint, RLS rule, cascade or network condition.
+- Different-component writes are isolated; simultaneous stale edits inside the same component still use last-write-wins. Database-side version checks/transactions are not implemented.
+- Structured multi-table saves are not atomic. Partial failures remain visible and retryable, but require database transactions for full atomicity.
+- Unsaved note drafts trigger a reload warning, but are not stored across reloads. No local backups were created.
+- Existing RP-only Milestones filtering remains unchanged; DE records stay in the snapshot but are not displayed in that view.
+
+## Sprint controls follow-up
+
+- Quick Links now use the global `spQuickLinks` setting. Legacy manual links and visible overrides are migrated; source-sprint deletion preserves migrated links, and explicitly empty global lists do not resurrect old links.
+- Sprint dropdown clicks no longer recreate the native select. Browser click/selection checks passed without data writes.
+- Sprint History exposes inline name editing. Renames persist in canonical metadata and the structured sprints table.
+- Individual tickets expose a copy icon and sprint destination picker. Copies retain ticket fields, receive a fresh ID and remain independent of the source; destination assignee columns are retained.
+- Latest `npm run test:persistence`: 18 tests passed, including canonical/structured rename and duplication round trips. Browser checks passed for rename, picker cancellation, chosen destination, fresh copy ID, preserved fields and destination visibility. Build passed.
+- All mutation checks remained isolated from the real database. No production data recovery was performed.
+
 # UI verification - 2026-11-02
 
 ## Environment and isolation

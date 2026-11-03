@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite --host 0.0.0.0 --port 3000 --strictPort",
     "build": "vite build",
+    "test:persistence": "node --test scripts/persistence.test.mjs",
     "preview": "vite preview",
     "backup:db": "node scripts/backup-supabase.mjs",
     "backup:dump": "bash scripts/pgdump-supabase.sh",

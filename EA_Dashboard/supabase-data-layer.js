@@ -1,3 +1,5 @@
+import { migrateSprintQuickLinks } from './src/state/defaults.js';
+
 let sbClient=null;
 
 export function setSupabaseClient(client){
@@ -22,6 +24,7 @@ const STRUCTURED_SCHEMA_FLAGS = {
 };
 
 let coreSnapshotWriteQueue=Promise.resolve();
+let metadataWriteQueue=Promise.resolve();
 
 function queueCoreSnapshotWrite(task){
   const next=coreSnapshotWriteQueue.then(task,task);
@@ -245,7 +248,7 @@ async function replaceRPDETicketsSnapshot(tickets){
   await replaceTableRows('rpde_tickets', ticketRows);
 }
 
-async function saveStructuredMetadata(snapshot){
+async function saveStructuredMetadata(snapshot, changedKeys){
   if(!sbClient)return;
   const now=new Date().toISOString();
   const sprintMembersRaw=Array.isArray(snapshot.spTeamMembers)
@@ -264,27 +267,6 @@ async function saveStructuredMetadata(snapshot){
       return true;
     });
 
-  if(!sprintMembers.length){
-    const {data:existingMemberSetting,error:existingMemberSettingError}=await sbClient
-      .from('settings')
-      .select('value')
-      .eq('key','spTeamMembers')
-      .maybeSingle();
-    if(existingMemberSettingError)throw existingMemberSettingError;
-
-    const existingValue=existingMemberSetting?.value;
-    const existingMembers=Array.isArray(existingValue)
-      ? existingValue
-      : [
-        ...structuredSafeRows(existingValue?.rp),
-        ...structuredSafeRows(existingValue?.de)
-      ];
-    if(existingMembers.length){
-      sprintMembers=existingMembers
-        .map(member=>({name:member?.name || '',role:member?.role || ''}))
-        .filter(member=>String(member.name || '').trim());
-    }
-  }
   const rows=[
     {
       key:'deMeetings',
@@ -317,6 +299,12 @@ async function saveStructuredMetadata(snapshot){
     },
     {
       key:'spEpics', value:structuredSafeRows(snapshot.spEpics), updated_at:now
+    },
+    {
+      key:'spQuickLinks', value:Array.isArray(snapshot.spQuickLinks) ? snapshot.spQuickLinks : migrateSprintQuickLinks(snapshot.spData), updated_at:now
+    },
+    {
+      key:'spCollapsedByKey', value:snapshot.spCollapsedByKey || {}, updated_at:now
     },
     {
       key:'velocityReportSprints', value:structuredSafeRows(snapshot.velocityReportSprints), updated_at:now
@@ -373,13 +361,23 @@ async function saveStructuredMetadata(snapshot){
       updated_at:now
     }
   ];
-  const {error}=await sbClient.from('settings').upsert(rows,{onConflict:'key'});
+  const sprintMetadataKeys=['spSprintNotesBoard','spSprintColumns','spSprintTicketExtras','spSprintTicketIndex','spDataCanonical'];
+  const selectedRows=changedKeys ? rows.filter(row=>changedKeys.includes(sprintMetadataKeys.includes(row.key) ? 'spData' : row.key)) : rows;
+  if(!selectedRows.length)return;
+  if(changedKeys?.includes('spData') && !changedKeys.includes('spQuickLinks')){
+    const {error:migrationError}=await sbClient.from('settings').upsert(
+      [rows.find(row=>row.key==='spQuickLinks')],{onConflict:'key',ignoreDuplicates:true}
+    );
+    if(migrationError)throw migrationError;
+  }
+  const {error}=await sbClient.from('settings').upsert(selectedRows,{onConflict:'key'});
   if(error)throw error;
 }
 
 async function detectTableColumns(table, columns){
   const checks=await Promise.all(columns.map(async column=>{
     const {error}=await sbClient.from(table).select(column).limit(1);
+    if(error && !['42703','PGRST204'].includes(String(error.code || '')))throw error;
     return [column,!error];
   }));
   return Object.fromEntries(checks);
@@ -481,8 +479,25 @@ export async function saveSprintsCanonical(spData){
   if(error)throw error;
 }
 
-export async function saveCoreSnapshot(snapshot){
-  return queueCoreSnapshotWrite(async()=>{
+export async function saveCoreSnapshot(snapshot, changedKeys=null){
+  if(!sbClient)throw new Error('Supabase client is required to save dashboard data.');
+  const includesKey=key=>!changedKeys || changedKeys.includes(key);
+  const metadataKeys=['deMeetings','spTeamMembers','spNotes','spData','spEpics','spQuickLinks','spCollapsedByKey','velocityReportSprints'];
+  const hasMetadataChanges=metadataKeys.some(includesKey);
+  const metadataWrite=hasMetadataChanges
+    ? metadataWriteQueue.then(()=>saveStructuredMetadata(snapshot,changedKeys))
+    : Promise.resolve();
+  if(hasMetadataChanges)metadataWriteQueue=metadataWrite.catch(()=>{});
+  const steps=[
+    ['settings','settings',()=>saveSettingsSnapshot(snapshot.settings || {})],
+    ['projects','projects',()=>replaceProjectsSnapshot(snapshot.projects || [])],
+    ['teams','velocity',()=>replaceVelocitySnapshot(snapshot.teams || [])],
+    ['deTasks','data-explorer',()=>replaceDataExplorerSnapshot(snapshot.deTasks || [])],
+    ['rpdeTickets','rpde-tickets',()=>replaceRPDETicketsSnapshot(snapshot.rpdeTickets || [])],
+    ['msData','milestones',()=>replaceMilestonesSnapshot(snapshot.msData || [])],
+    ['spData','sprints',()=>replaceSprintsSnapshot(snapshot.spData || [])]
+  ].filter(([key])=>includesKey(key));
+  const coreWrite=steps.length ? queueCoreSnapshotWrite(async()=>{
     const failures=[];
     const runStep=async(stepName, task)=>{
       try{
@@ -493,20 +508,16 @@ export async function saveCoreSnapshot(snapshot){
       }
     };
 
-    await runStep('settings',()=>saveSettingsSnapshot(snapshot.settings || {}));
-    await runStep('projects',()=>replaceProjectsSnapshot(snapshot.projects || []));
-    await runStep('velocity',()=>replaceVelocitySnapshot(snapshot.teams || []));
-    await runStep('data-explorer',()=>replaceDataExplorerSnapshot(snapshot.deTasks || []));
-    await runStep('structured-metadata',()=>saveStructuredMetadata(snapshot));
-    await runStep('rpde-tickets',()=>replaceRPDETicketsSnapshot(snapshot.rpdeTickets || []));
-    await runStep('milestones',()=>replaceMilestonesSnapshot(snapshot.msData || []));
-    await runStep('sprints',()=>replaceSprintsSnapshot(snapshot.spData || []));
+    for(const [,stepName,task] of steps)await runStep(stepName,task);
 
     if(failures.length){
       const message=failures.map(item=>item.stepName).join(', ');
-      console.warn(`Supabase snapshot saved with partial failures: ${message}`);
+      throw new AggregateError(failures.map(item=>item.error),`Supabase snapshot save failed: ${message}`);
     }
-  });
+  }) : Promise.resolve();
+  const results=await Promise.allSettled([metadataWrite,coreWrite]);
+  const errors=results.filter(result=>result.status==='rejected').map(result=>result.reason);
+  if(errors.length)throw new AggregateError(errors,'Dashboard changes were not fully saved.');
 }
 
 async function loadStructuredSettings(){
@@ -531,11 +542,22 @@ async function loadStructuredMetadata(){
     spSprintTicketIndex:null,
     spDataCanonical:null,
     spEpics:[],
+    spQuickLinks:null,
+    spCollapsedByKey:{},
     velocityReportSprints:[]
   };
-  const {data,error}=await sbClient.from('settings').select('key,value').in('key',['deMeetings','spTeamMembers','spNotes','spSprintNotesBoard','spSprintColumns','spSprintTicketExtras','spSprintTicketIndex','spDataCanonical','spEpics','velocityReportSprints']);
+  const {data,error}=await sbClient.from('settings').select('key,value').in('key',['deMeetings','spTeamMembers','spNotes','spSprintNotesBoard','spSprintColumns','spSprintTicketExtras','spSprintTicketIndex','spDataCanonical','spEpics','spQuickLinks','spCollapsedByKey','velocityReportSprints']);
   if(error)throw error;
   (data || []).forEach(row=>{
+    if(row.key==='spTeamMembers'){
+      const validMembers=Array.isArray(row.value) || (row.value && typeof row.value==='object'
+        && ['rp','de'].some(key=>Array.isArray(row.value[key])));
+      if(!validMembers)throw new Error('Invalid structured metadata: spTeamMembers');
+    }else if(row.key==='spCollapsedByKey'){
+      if(!row.value || typeof row.value!=='object' || Array.isArray(row.value))throw new Error('Invalid structured metadata: spCollapsedByKey');
+    }else if(Object.prototype.hasOwnProperty.call(result,row.key) && !Array.isArray(row.value)){
+      throw new Error(`Invalid structured metadata: ${row.key}`);
+    }
     if(row.key==='deMeetings'){
       result.deMeetings=structuredSafeRows(row.value).map(meeting=>({
         id:meeting?.id || '',
@@ -620,6 +642,8 @@ async function loadStructuredMetadata(){
         .filter(item=>String(item.sprintId || '').trim());
     }
     if(row.key==='spEpics') result.spEpics=structuredSafeRows(row.value);
+    if(row.key==='spQuickLinks') result.spQuickLinks=structuredSafeRows(row.value);
+    if(row.key==='spCollapsedByKey' && row.value && typeof row.value==='object' && !Array.isArray(row.value)) result.spCollapsedByKey=row.value;
     if(row.key==='velocityReportSprints') result.velocityReportSprints=structuredSafeRows(row.value);
     if(row.key==='spDataCanonical'){
       result.spDataCanonical=structuredSafeRows(row.value);
@@ -747,7 +771,7 @@ async function loadStructuredVelocity(){
     selectRowsWithOptionalOrder('velocity_points','sprint_position')
   ]);
   if(teamError)throw teamError;
-  if(sprintError)console.warn('Structured velocity_sprints load failed; using positional fallback labels.', sprintError);
+  if(sprintError)throw sprintError;
   if(memberError)throw memberError;
   if(pointError)throw pointError;
 
@@ -763,10 +787,11 @@ async function loadStructuredVelocity(){
         .filter(point=>point.member_id===member.id)
         .sort((a,b)=>(a.sprint_position||0)-(b.sprint_position||0))
     );
-    const sprintCount=memberPoints.reduce((maxCount,row)=>Math.max(maxCount,row.length),0);
     const teamSprintRows=safeSprints
       .filter(sprint=>sprint.team_id===team.id)
       .sort((a,b)=>(a.position||0)-(b.position||0));
+    const pointCount=memberPoints.flat().reduce((count,point)=>Math.max(count,(Number(point.sprint_position) || 0)+1),0);
+    const sprintCount=teamSprintRows.reduce((count,sprint)=>Math.max(count,(Number(sprint.position) || 0)+1),pointCount);
     const sprintLabels=Array.from({length:sprintCount},(_,idx)=>{
       const structuredLabel=teamSprintRows.find(row=>(row.position||0)===idx)?.label;
       return structuredLabel || `Sprint ${idx+1}`;
@@ -782,10 +807,8 @@ async function loadStructuredVelocity(){
       sprintCompleted,
       members:teamMembers.map(member=>({
         name:member.name,
-        sp:(sortedPoints || [])
-          .filter(point=>point.member_id===member.id)
-          .sort((a,b)=>(a.sprint_position||0)-(b.sprint_position||0))
-          .map(point=>Number(point.points) || 0)
+        sp:Array.from({length:sprintCount},(_,position)=>Number((sortedPoints || [])
+          .find(point=>point.member_id===member.id && Number(point.sprint_position)===position)?.points) || 0)
       }))
     };
   });
@@ -795,7 +818,7 @@ async function loadStructuredDataExplorer(){
   const {data,error}=await sbClient.from('data_explorer_tasks').select('*').order('created_at');
   if(error)throw error;
   STRUCTURED_SCHEMA_FLAGS.dataExplorerTasks={
-    title:(data || []).some(task=>Object.prototype.hasOwnProperty.call(task,'title'))
+    title:data?.length ? Object.prototype.hasOwnProperty.call(data[0],'title') : (await detectTableColumns('data_explorer_tasks',['title'])).title
   };
   return (data || []).map(task=>({
     id:task.id,
@@ -860,16 +883,16 @@ async function loadStructuredMilestones(){
   ]);
   if(milestoneError)throw milestoneError;
   if(taskError)throw taskError;
-  STRUCTURED_SCHEMA_FLAGS.milestones={
+  STRUCTURED_SCHEMA_FLAGS.milestones=milestones?.length ? {
     team:(milestones || []).some(milestone=>Object.prototype.hasOwnProperty.call(milestone,'team')),
     team_id:(milestones || []).some(milestone=>Object.prototype.hasOwnProperty.call(milestone,'team_id')),
     sort_order:(milestones || []).some(milestone=>Object.prototype.hasOwnProperty.call(milestone,'sort_order'))
-  };
-  STRUCTURED_SCHEMA_FLAGS.milestoneTasks={
+  } : await detectTableColumns('milestones',['team','team_id','sort_order']);
+  STRUCTURED_SCHEMA_FLAGS.milestoneTasks=tasks?.length ? {
     name:(tasks || []).some(task=>Object.prototype.hasOwnProperty.call(task,'name')),
     title:(tasks || []).some(task=>Object.prototype.hasOwnProperty.call(task,'title')),
     sort_order:(tasks || []).some(task=>Object.prototype.hasOwnProperty.call(task,'sort_order'))
-  };
+  } : await detectTableColumns('milestone_tasks',['name','title','sort_order']);
   const groupedTasks=sortStructuredRows(tasks).reduce((acc,task)=>{
     if(!acc[task.milestone_id])acc[task.milestone_id]=[];
     acc[task.milestone_id].push({
@@ -899,17 +922,17 @@ async function loadStructuredSprints(){
   ]);
   if(sprintError)throw sprintError;
   if(ticketError)throw ticketError;
-  STRUCTURED_SCHEMA_FLAGS.sprints={
+  STRUCTURED_SCHEMA_FLAGS.sprints=sprints?.length ? {
     team:(sprints || []).some(sprint=>Object.prototype.hasOwnProperty.call(sprint,'team')),
     team_id:(sprints || []).some(sprint=>Object.prototype.hasOwnProperty.call(sprint,'team_id')),
     sort_order:(sprints || []).some(sprint=>Object.prototype.hasOwnProperty.call(sprint,'sort_order')),
     start_date:(sprints || []).some(sprint=>Object.prototype.hasOwnProperty.call(sprint,'start_date')),
     end_date:(sprints || []).some(sprint=>Object.prototype.hasOwnProperty.call(sprint,'end_date'))
-  };
-  STRUCTURED_SCHEMA_FLAGS.sprintTickets={
+  } : await detectTableColumns('sprints',['team','team_id','sort_order','start_date','end_date']);
+  STRUCTURED_SCHEMA_FLAGS.sprintTickets=tickets?.length ? {
     priority:(tickets || []).some(ticket=>Object.prototype.hasOwnProperty.call(ticket,'priority')),
     epic_id:(tickets || []).some(ticket=>Object.prototype.hasOwnProperty.call(ticket,'epic_id'))
-  };
+  } : await detectTableColumns('sprint_tickets',['priority','epic_id']);
   const groupedTickets=sortStructuredRows(tickets).reduce((acc,ticket)=>{
     if(!acc[ticket.sprint_id])acc[ticket.sprint_id]=[];
     const normalizedPriority=String(ticket.priority || '').trim().toLowerCase();
@@ -985,6 +1008,8 @@ export async function loadAllData(){
       spTeamMembers:resolvedMetadata.spTeamMembers,
       spNotes:resolvedMetadata.spNotes,
       spEpics:resolvedMetadata.spEpics || [],
+      spQuickLinks:Array.isArray(resolvedMetadata.spQuickLinks) ? resolvedMetadata.spQuickLinks : migrateSprintQuickLinks(resolvedSpData),
+      spCollapsedByKey:resolvedMetadata.spCollapsedByKey || {},
       velocityReportSprints:resolvedMetadata.velocityReportSprints || []
     };
   }catch(err){

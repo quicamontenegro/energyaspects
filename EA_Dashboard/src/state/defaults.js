@@ -45,12 +45,30 @@ export function createDefaultSnapshot() {
     spNotes: [],
     spCollapsedByKey: {},
     spEpics: [],
+    spQuickLinks: [],
     velocityReportSprints: [],
   };
 }
 
 export function cloneState(value) {
   return JSON.parse(JSON.stringify(value));
+}
+
+export function migrateSprintQuickLinks(sprints) {
+  const links = new Map();
+  for (const [sprintIndex, sprint] of (sprints || []).entries()) {
+    const legacyLinks = [
+      ...(sprint.quickLinks || []),
+      ...Object.entries(sprint.quickLinkOverrides || {})
+        .filter(([, override]) => !override.removed)
+        .map(([sourceUrl, override]) => ({ label: override.label || 'Link', url: override.url || sourceUrl })),
+    ];
+    for (const [linkIndex, link] of legacyLinks.entries()) {
+      if (!link.url || links.has(link.url)) continue;
+      links.set(link.url, { id: `shared-${sprint.id || sprintIndex}-${link.id || linkIndex}`, label: link.label || 'Link', url: link.url });
+    }
+  }
+  return [...links.values()];
 }
 
 export function mergeSnapshot(baseSnapshot, remoteSnapshot) {
@@ -107,6 +125,7 @@ export function mergeSnapshot(baseSnapshot, remoteSnapshot) {
     base.spNotes = cloneState(remote.spNotes);
   }
   if (Array.isArray(remote.spEpics)) base.spEpics = cloneState(remote.spEpics);
+  base.spQuickLinks = Array.isArray(remote.spQuickLinks) ? cloneState(remote.spQuickLinks) : migrateSprintQuickLinks(base.spData);
   if (Array.isArray(remote.velocityReportSprints)) base.velocityReportSprints = cloneState(remote.velocityReportSprints);
   if (remote.spCollapsedByKey && typeof remote.spCollapsedByKey === 'object' && !Array.isArray(remote.spCollapsedByKey)) {
     base.spCollapsedByKey = cloneState(remote.spCollapsedByKey);

@@ -5,7 +5,7 @@ import { renderSprintsSection, renderGlobalTicketEditModal, renderSprintTicketCr
 import { renderVelocitySection, buildConfluenceReport, getVelocitySelection } from '../sections/velocitySection.js';
 import { cloneState, createDefaultSnapshot } from '../state/defaults.js';
 import { createStore } from '../state/store.js';
-import { normalizeProjectMember } from '../utils/dashboard.js';
+import { duplicateSprintTicket, normalizeProjectMember } from '../utils/dashboard.js';
 import { createId, slugify } from '../utils/format.js';
 import { icon } from '../utils/icons.js';
 
@@ -50,6 +50,8 @@ export function createDashboardApp(root, initialSnapshot, persistence) {
   };
   let modalReturnAction = null;
   let modalWasOpen = false;
+  let pendingSyncCount = 0;
+  let syncError = null;
   const noteResizeObserver = new ResizeObserver(entries => {
     entries.forEach(({ target: body }) => {
       const expansion = body.closest('.shared-note-entry')?.querySelector('.shared-note-expand');
@@ -59,7 +61,31 @@ export function createDashboardApp(root, initialSnapshot, persistence) {
 
   function persist(snapshot) {
     persistence.setSnapshot(snapshot);
-    return persistence.schedule(snapshot);
+    pendingSyncCount++;
+    updateSyncIndicator();
+    return Promise.resolve().then(() => persistence.schedule(snapshot))
+      .then(() => {
+        if (!persistence.hasFailedWrites?.()) syncError = null;
+      })
+      .catch((error) => {
+        syncError = error;
+        throw error;
+      })
+      .finally(() => {
+        pendingSyncCount--;
+        updateSyncIndicator();
+      });
+  }
+
+  function updateSyncIndicator() {
+    const indicator = root.querySelector('.sync-indicator');
+    if (!indicator) return;
+    indicator.textContent = syncError ? 'Save failed' : pendingSyncCount ? 'Saving...' : 'Supabase';
+    indicator.classList.toggle('is-live', !syncError && pendingSyncCount === 0);
+    indicator.classList.toggle('has-error', Boolean(syncError));
+    indicator.disabled = !syncError || pendingSyncCount > 0;
+    indicator.setAttribute('role', 'status');
+    indicator.title = syncError ? 'Save failed. Click to retry saving changes.' : '';
   }
 
   function filterSharedNotes() {
@@ -132,7 +158,7 @@ export function createDashboardApp(root, initialSnapshot, persistence) {
             ${TAB_ORDER.map((tab) => `<button class="app-tabs__button ${uiState.tab === tab ? 'is-active' : ''}" type="button" data-action="switch-tab" data-tab="${tab}" aria-label="${getTabLabel(tab)}" title="${getTabLabel(tab)}" ${uiState.tab === tab ? 'aria-current="page"' : ''}>${icon(tab)}<span>${getTabLabel(tab)}</span></button>`).join('')}
           </nav>
           <div class="sidebar-footer"><button class="theme-toggle" type="button" data-action="toggle-theme" title="${getThemeToggleLabel()}" aria-label="${getThemeToggleLabel()}">${icon(document.documentElement.dataset.theme === 'dark' ? 'sun' : 'moon')}</button>
-          <div class="sync-indicator ${persistence.canSync ? 'is-live' : 'is-local'}">${persistence.canSync ? '● Supabase' : '○ Local'}</div></div>
+          <button type="button" data-action="retry-sync" class="sync-indicator ${persistence.canSync ? 'is-live' : 'is-local'}">${persistence.canSync ? '● Supabase' : '○ Local'}</button></div>
         </aside>
         <section class="app-content">
           ${renderCurrentTab(state, uiState)}
@@ -144,6 +170,7 @@ export function createDashboardApp(root, initialSnapshot, persistence) {
       const key = panel.dataset.sprintPanel || panel.dataset.uiPanel;
       if (panelStates.has(key)) panel.open = panelStates.get(key);
     });
+    updateSyncIndicator();
     syncStatusSelectThemes(root);
     noteResizeObserver.disconnect();
     root.querySelectorAll('.shared-note-entry').forEach(entry => {
@@ -190,8 +217,7 @@ export function createDashboardApp(root, initialSnapshot, persistence) {
 
     const nextState = cloneState(store.getState());
     mutator(nextState);
-    persistence.setSnapshot(nextState);
-    return persistence.schedule(nextState)
+    return persist(nextState)
       .then(() => {
         store.replace(nextState);
       })
@@ -207,6 +233,12 @@ export function createDashboardApp(root, initialSnapshot, persistence) {
     }
 
     const action = trigger.dataset.action;
+    if (action === 'retry-sync') {
+      persist(store.getState()).catch((error) => {
+        console.error('Dashboard sync retry failed.', error);
+      });
+      return;
+    }
     if (['edit-de-task', 'edit-sprint-ticket', 'open-add-sprint-ticket-modal'].includes(action)) {
       modalReturnAction = { ...trigger.dataset };
     }
@@ -252,6 +284,7 @@ export function createDashboardApp(root, initialSnapshot, persistence) {
     }
 
     if (action === 'select-sprint') {
+      if (trigger instanceof HTMLSelectElement) return;
       uiState.selectedSprintIndex = Number(trigger.dataset.index);
       uiState.editingSprintIndex = null;
       uiState.reorderingSprintIndex = null;
@@ -373,6 +406,8 @@ export function createDashboardApp(root, initialSnapshot, persistence) {
 
   root.addEventListener('input', (event) => {
     if (event.target instanceof Element) {
+      const draftForm = event.target.closest('[data-form]');
+      if (draftForm && !event.target.dataset.action?.startsWith('update-')) draftForm.dataset.unsavedDraft = 'true';
       const richEditor = event.target.closest('.sprint-note-editor__input[contenteditable="true"]');
       if (richEditor) {
         const editorRoot = richEditor.closest('[data-note-editor]');
@@ -587,6 +622,20 @@ export function createDashboardApp(root, initialSnapshot, persistence) {
     });
   });
 
+  window.addEventListener('beforeunload', (event) => {
+    const activeField = document.activeElement;
+    if ((activeField instanceof HTMLInputElement || activeField instanceof HTMLTextAreaElement)
+      && root.contains(activeField) && activeField.dataset.action
+      && activeField.value !== activeField.defaultValue) {
+      activeField.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+    const hasDrafts = uiState.sharedNoteDrafts.size > 0 || uiState.sharedNoteTitleDrafts.size > 0
+      || root.querySelector('[data-unsaved-draft="true"]');
+    if (!pendingSyncCount && !syncError && !hasDrafts) return;
+    event.preventDefault();
+    event.returnValue = '';
+  });
+
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'hidden') {
       persistence.flush().catch((error) => {
@@ -715,14 +764,10 @@ function handleClickAction(trigger, updateState, root, uiState, render, getState
   }
 
   if (trigger.dataset.action === 'remove-sprint-quick-link') {
-    const sourceUrl = trigger.dataset.sourceUrl;
     const linkId = trigger.dataset.linkId;
-    if (!Number.isInteger(sprintIndex) || (!sourceUrl && !linkId)) return;
+    if (!linkId) return;
     updateState(state => {
-      const sprint = state.spData[sprintIndex];
-      if (!sprint) return;
-      if (linkId) sprint.quickLinks = (sprint.quickLinks || []).filter(link => link.id !== linkId);
-      else sprint.quickLinkOverrides = { ...sprint.quickLinkOverrides, [sourceUrl]: { ...sprint.quickLinkOverrides?.[sourceUrl], removed: true } };
+      state.spQuickLinks = (state.spQuickLinks || []).filter(link => link.id !== linkId);
     });
     return;
   }
@@ -748,21 +793,16 @@ function handleClickAction(trigger, updateState, root, uiState, render, getState
     labelInput.setCustomValidity(label ? '' : 'Enter a title.');
     urlInput.setCustomValidity(validUrl ? '' : 'Enter an HTTP or HTTPS URL.');
     if (!form.reportValidity()) return;
-    const sourceUrl = trigger.dataset.sourceUrl;
     const linkId = trigger.dataset.linkId;
     const creating = trigger.dataset.action === 'add-sprint-quick-link';
-    if (!Number.isInteger(sprintIndex) || (!creating && !sourceUrl && !linkId)) return;
+    if (!creating && !linkId) return;
     editor.open = false;
     updateState(state => {
-      const sprint = state.spData[sprintIndex];
-      if (!sprint) return;
       if (creating) {
-        sprint.quickLinks = [...(sprint.quickLinks || []), { id: createId('quick-link'), label, url }];
-      } else if (linkId) {
-        const link = (sprint.quickLinks || []).find(item => item.id === linkId);
-        if (link) Object.assign(link, { label, url });
+        state.spQuickLinks = [...(state.spQuickLinks || []), { id: createId('quick-link'), label, url }];
       } else {
-        sprint.quickLinkOverrides = { ...sprint.quickLinkOverrides, [sourceUrl]: { label, url } };
+        const link = (state.spQuickLinks || []).find(item => item.id === linkId);
+        if (link) Object.assign(link, { label, url });
       }
     });
     return;
@@ -1610,6 +1650,28 @@ function handleClickAction(trigger, updateState, root, uiState, render, getState
     return;
   }
 
+  if (trigger.dataset.action === 'duplicate-sprint-ticket') {
+    const snapshot = getState();
+    const source = snapshot.spData[sprintIndex];
+    const ticket = source?.tickets?.[ticketIndex];
+    if (!ticket) return;
+    const options = snapshot.spData.map(sprint => ({ value: sprint.id, label: `${sprint.name || 'Untitled sprint'}${sprint.id === source.id ? ' (current)' : ''}` }));
+    openSelectPopup({
+      title: 'Duplicate ticket to sprint',
+      options,
+      initialValue: options.find(option => option.value !== source.id)?.value || source.id,
+      onConfirm: (targetId) => {
+        const current = getState();
+        if (!current.spData.some(sprint => sprint.id === targetId) || !current.spData.find(sprint => sprint.id === source.id)?.tickets?.some(item => item.id === ticket.id)) {
+          window.alert('The ticket or destination sprint no longer exists.');
+          return false;
+        }
+        updateState(state => { duplicateSprintTicket(state, source.id, ticket.id, targetId); });
+      },
+    });
+    return;
+  }
+
   if (trigger.dataset.action === 'duplicate-sprint-epic' && Number.isInteger(sprintIndex)) {
     const assignee = String(trigger.dataset.assignee || '').trim();
     const epicKey = String(trigger.dataset.epicKey || '').trim();
@@ -2305,6 +2367,17 @@ function handleChangeAction(field, updateState, uiState, render) {
   const taskIndex = Number(field.dataset.taskIndex);
   const milestoneIndex = Number(field.dataset.milestoneIndex);
   const ticketIndex = Number(field.dataset.ticketIndex);
+
+  if (action === 'update-sprint-history-name') {
+    const name = String(field.value || '').trim();
+    field.setCustomValidity(name ? '' : 'Enter a sprint name.');
+    if (!field.reportValidity()) return;
+    updateState(state => {
+      const sprint = state.spData.find(item => item.id === field.dataset.sprintId);
+      if (sprint) sprint.name = name;
+    });
+    return;
+  }
 
   if (action === 'update-velocity-sprint' || action === 'update-velocity-metric' || action === 'update-velocity-distribution' || action === 'toggle-velocity-sprint-completed') {
     const id = field.dataset.sprintId;

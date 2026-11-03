@@ -3055,7 +3055,12 @@ button {
 .redesigned-shell .app-tabs__button.is-active { color:#72f5db; background:#075e56; box-shadow:inset 3px 0 #20d3b0; }
 .redesigned-shell .app-tabs__button:hover { color:var(--text); background:var(--surface-strong); transform:none; box-shadow:none; }
 .redesigned-shell .sidebar-footer { margin-top:auto; border-top:1px solid var(--line); padding-top:16px; display:flex; gap:6px; align-items:center; }
-.redesigned-shell .sync-indicator { background:transparent; padding:4px; font-size:11px; color:var(--accent); }
+.redesigned-shell .sync-indicator { background:transparent; border:0; padding:4px; font-family:inherit; font-size:11px; color:var(--accent); }
+.redesigned-shell .sync-indicator.has-error { color:var(--danger, #dc2626); cursor:pointer; }
+@media (max-width:760px) {
+  .redesigned-shell .sidebar-footer .sync-indicator { display:inline-flex; justify-content:center; white-space:normal; max-width:64px; }
+  .redesigned-shell .app-sidebar .sidebar-footer { flex-direction:column; }
+}
 .redesigned-shell .theme-toggle { background:var(--surface); color:var(--muted); width:32px; height:32px; border:1px solid var(--line); border-radius:6px; }
 .redesigned-shell .app-content { display:block; min-width:0; margin:0; padding:0 22px 24px; }
 .redesigned-shell .button { border:1px solid var(--line); border-radius:6px; padding:7px 12px; font-size:12px; min-height:32px; background:var(--surface-strong); color:var(--text); }
@@ -3410,6 +3415,10 @@ button {
 .sprint-management-panel[open]>summary { margin-bottom:16px; color:var(--accent); }
 .redesigned-shell .sprint-management-panel section { padding:0; }
 .sprint-history-list { display:grid; gap:8px; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); }
+.sprint-history-item { display:flex; gap:8px; align-items:center; min-width:0; }
+.sprint-history-item > div { flex:1; min-width:0; }
+.sprint-history-item .field-input { width:100%; min-width:0; }
+.sprint-history-item .btn-icon { flex-shrink:0; }
 .sprint-history-list button { justify-content:space-between; flex-wrap:wrap; white-space:normal; text-align:left; }
 .sprint-history-list span { color:var(--muted); font-size:10px; }
 .sprint-view-notes .sprint-board { display:none; }

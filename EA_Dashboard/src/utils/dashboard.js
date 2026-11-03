@@ -1,4 +1,15 @@
-import { formatNumber, initials } from './format.js';
+import { createId, formatNumber, initials } from './format.js';
+
+export function duplicateSprintTicket(snapshot, sourceSprintId, ticketId, targetSprintId) {
+  const source = snapshot.spData.find(sprint => sprint.id === sourceSprintId);
+  const target = snapshot.spData.find(sprint => sprint.id === targetSprintId);
+  const ticket = source?.tickets?.find(item => item.id === ticketId);
+  if (!ticket || !target) throw new Error('The ticket or destination sprint no longer exists.');
+  const duplicate = { ...structuredClone(ticket), id: createId('sprint-ticket'), createdAt: new Date().toISOString() };
+  target.tickets = [...(target.tickets || []), duplicate];
+  if (duplicate.assignee) target.columnAssignees = [...new Set([...(target.columnAssignees || []), duplicate.assignee])];
+  return duplicate;
+}
 
 export function getWorkingDays(settings) {
   const hoursPerDay = Number(settings.hoursPerDay) || 8;
