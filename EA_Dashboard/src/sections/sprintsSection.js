@@ -63,10 +63,10 @@ export function renderSprintsSection(state, uiState) {
   return `
     <section class="panel-stack sprint-panel-stack sprint-view-${sprintView}">
       <header class="workspace-titlebar"><h1>${icon('sprints')}Sprints</h1><button class="button button--primary" type="button" data-action="open-sprint-panel" data-panel="create">${icon('plus')}New Sprint</button></header>
-      <div class="sprint-toolbar"><div class="sprint-selector"><button class="button" type="button" data-action="select-sprint" data-index="${sprintEntries[activePosition+1]?.index??''}" ${activePosition+1>=sprintEntries.length?'disabled':''} title="Previous sprint" aria-label="Previous sprint">${icon('left')}</button><select aria-label="Sprint" data-action="select-sprint">${sprintEntries.length?sprintEntries.map(({sprint,index})=>`<option value="${index}" ${active?.index===index?'selected':''}>${escapeHtml(sprint.name||'Untitled sprint')}</option>`).join(''):'<option>No sprints</option>'}</select><button class="button" type="button" data-action="select-sprint" data-index="${sprintEntries[activePosition-1]?.index??''}" ${activePosition<=0?'disabled':''} title="Next sprint" aria-label="Next sprint">${icon('right')}</button>${active?`<span class="sprint-toolbar-date">${icon('calendar')}${escapeHtml([active.sprint.startDate,active.sprint.endDate].filter(Boolean).join(' – ')||'Dates not set')}</span><span class="sprint-state">${active.sprint.endDate&&active.sprint.endDate<today?'Completed':active.sprint.startDate&&active.sprint.startDate>today?'Planned':'In Progress'}</span>`:''}</div><div class="workspace-actions"><button class="button" type="button" data-action="open-sprint-panel" data-panel="history">${icon('history')}Sprint History</button><button class="button" type="button" data-action="open-sprint-panel" data-panel="epics">${icon('layers')}Manage Epics</button><button class="button" type="button" data-action="open-sprint-panel" data-panel="members">${icon('users')}Team</button></div></div>
+      <div class="sprint-toolbar"><div class="sprint-selector"><button class="button" type="button" data-action="select-sprint" data-index="${sprintEntries[activePosition+1]?.index??''}" ${activePosition+1>=sprintEntries.length?'disabled':''} title="Previous sprint" aria-label="Previous sprint">${icon('left')}</button><select aria-label="Sprint" data-action="select-sprint">${sprintEntries.length?sprintEntries.map(({sprint,index})=>`<option value="${index}" ${active?.index===index?'selected':''}>${escapeHtml(sprint.name||'Untitled sprint')}</option>`).join(''):'<option>No sprints</option>'}</select><button class="button" type="button" data-action="select-sprint" data-index="${sprintEntries[activePosition-1]?.index??''}" ${activePosition<=0?'disabled':''} title="Next sprint" aria-label="Next sprint">${icon('right')}</button>${active?`<span class="sprint-toolbar-date">${icon('calendar')}${escapeHtml([active.sprint.startDate,active.sprint.endDate].filter(Boolean).join(' – ')||'Dates not set')}</span><span class="sprint-state">${active.sprint.endDate&&active.sprint.endDate<today?'Completed':active.sprint.startDate&&active.sprint.startDate>today?'Planned':'In Progress'}</span>`:''}</div><div class="workspace-actions"><button class="button" type="button" data-action="open-sprint-panel" data-panel="history">${icon('history')}Sprint History</button><button class="button" type="button" data-action="open-sprint-panel" data-panel="epics">${icon('layers')}Manage Epics</button><button class="button" type="button" data-action="open-sprint-panel" data-panel="members">${icon('users')}Team</button><button class="button" type="button" data-action="open-sprint-panel" data-panel="notes">${icon('report')}Notes</button></div></div>
       ${active?renderSprintOverview(active.sprint):''}
       <nav class="workspace-tabs" aria-label="Sprint views">${[['board','Team Board','users'],['notes','Sprint Notes','report']].map(([key,label,symbol])=>`<button type="button" class="${sprintView===key?'is-active':''}" data-action="sprint-view" data-view="${key}" aria-pressed="${sprintView===key}">${icon(symbol)}${label}</button>`).join('')}</nav>
-      ${active?renderSprintCard(active.index,active.sprint,sprintMembers,uiState,{isCollapsed:false,sprintKey:getSprintUiKey(active.sprint,active.index),quickLinks:state.spQuickLinks || []}):`<div class="empty-card"><h3>No sprints yet</h3></div>${renderSprintQuickLinks(state.spQuickLinks || [])}`}
+      ${active?renderSprintCard(active.index,active.sprint,sprintMembers,uiState,{isCollapsed:false,sprintKey:getSprintUiKey(active.sprint,active.index),quickLinks:state.spQuickLinks || []}):`<div class="empty-card"><h3>No sprints yet</h3></div>${sprintView === 'notes' ? renderSprintQuickLinks(state.spQuickLinks || []) : ''}`}
       <details class="sprint-management-panel" data-sprint-panel="epics"><summary>Global epics · ${globalEpics.length}</summary><section class="sprint-epics-library">
         <div class="section-header-inline">
           <div><p class="section-kicker">Reusable library</p><h2>Global epics</h2><p class="velocity-subtitle">Create an epic once and reuse its title and Jira link across sprints.</p></div>
@@ -438,7 +438,7 @@ function renderSprintCard(sprintIndex, sprint, sprintMembers, uiState, options =
             : '<div class="sprint-board__empty">No sprint members configured yet.</div>'}
         </div>
 
-        <div class="sprint-lower-grid"><div class="sprint-card-notesboard">
+        ${uiState.sprintView === 'notes' ? `<div class="sprint-lower-grid"><div class="sprint-card-notesboard">
           <div class="sprint-card-notesboard__head">
             <h4>Sprint notes</h4>
             <span class="sprint-members-count">${sprintBoardNotes.length} notes</span>
@@ -458,7 +458,7 @@ function renderSprintCard(sprintIndex, sprint, sprintMembers, uiState, options =
             })}
             <button class="button button--secondary button--sm" type="button" data-action="add-sprint-board-note" data-sprint-index="${sprintIndex}">Add note</button>
           </div>
-        </div>${renderSprintQuickLinks(options.quickLinks || [])}</div>
+        </div>${renderSprintQuickLinks(options.quickLinks || [])}</div>` : ''}
       </div>
     </article>
   `;
@@ -557,7 +557,7 @@ function renderAssigneeColumn(sprintIndex, assignee, items, sprintMembers, uiSta
       </header>
       <progress class="member-progress" max="${totalStoryPoints||1}" value="${completedSP}" aria-label="${escapeHtml(assignee)} completed story points"></progress>
       <div class="sprint-column__body">
-        ${items.length ? (uiState.reorderingSprintIndex===sprintIndex?epicGroups.map(group=>renderSprintEpicCard(sprintIndex,assignee,group,sprintMembers,uiState)).join(''):items.map(({ticket,ticketIndex})=>renderSprintTicket(sprintIndex,ticketIndex,ticket,sprintMembers,uiState)).join('')) : '<div class="sprint-column__empty">No tickets assigned</div>'}
+        ${items.length ? (uiState.reorderingSprintIndex===sprintIndex?epicGroups.map(group=>renderSprintEpicCard(sprintIndex,assignee,group,sprintMembers,uiState)).join(''):items.map(({ticket,ticketIndex},position)=>renderSprintTicket(sprintIndex,ticketIndex,ticket,sprintMembers,uiState,{canMoveUp:position>0,canMoveDown:position<items.length-1})).join('')) : '<div class="sprint-column__empty">No tickets assigned</div>'}
       </div>
       <button class="sprint-add-ticket-inline" type="button" data-action="open-add-sprint-ticket-modal" data-sprint-index="${sprintIndex}" data-assignee="${escapeHtml(assignee)}">${icon('plus')}Add ticket</button>
     </section>
@@ -590,7 +590,7 @@ function renderSprintHistoryItem(sprint, index, selected, editing) {
   </div>`;
 }
 
-function renderSprintTicket(sprintIndex, ticketIndex, ticket, sprintMembers, uiState) {
+function renderSprintTicket(sprintIndex, ticketIndex, ticket, sprintMembers, uiState, ordering = {}) {
   const jiraHref = resolveJiraHref(ticket);
   const epicHref = resolveEpicHref(ticket);
   const statusColor = STATUS_COLOR[ticket.status] || '#64748b';
@@ -605,8 +605,8 @@ function renderSprintTicket(sprintIndex, ticketIndex, ticket, sprintMembers, uiS
   return `
     <article class="sprint-ticket-card compact-ticket" style="--ticket-status-color:${statusColor};">
       <div class="compact-ticket-top">${jiraHref?`<a href="${escapeHtml(jiraHref)}" target="_blank" rel="noopener noreferrer">${escapeHtml(ticketKey)}</a>`:`<span>${escapeHtml(ticketKey)}</span>`}<select aria-label="Status for ${escapeHtml(ticketLabel)}" class="status-select" name="status" data-status="${escapeHtml(String(ticket.status||'todo'))}" data-action="update-sprint-ticket-status" data-sprint-index="${sprintIndex}" data-ticket-index="${ticketIndex}">${TICKET_STATUSES.map(status=>`<option value="${status}" ${ticket.status===status?'selected':''}>${formatStatus(status)}</option>`).join('')}</select></div>
-      <button class="compact-ticket-title" type="button" data-action="edit-sprint-ticket" data-sprint-index="${sprintIndex}" data-ticket-index="${ticketIndex}" title="Edit ticket">${escapeHtml(ticket.title||ticket.jiraId||'Untitled ticket')}</button>
-      <div class="compact-ticket-footer">${epicHref?`<a class="compact-epic" href="${escapeHtml(epicHref)}" target="_blank" rel="noopener noreferrer">${escapeHtml(epicTitle)}</a>`:`<span class="compact-epic">${escapeHtml(epicTitle)}</span>`}<span class="compact-points">${escapeHtml(storyPointsLabel||'0')} SP</span><button class="btn-icon" type="button" data-action="duplicate-sprint-ticket" data-sprint-index="${sprintIndex}" data-ticket-index="${ticketIndex}" title="Duplicate ticket to sprint" aria-label="Duplicate ${escapeHtml(ticketKey)}">${icon('copy')}</button><button class="btn-icon" type="button" data-action="remove-sprint-ticket" data-sprint-index="${sprintIndex}" data-ticket-index="${ticketIndex}" title="Delete ticket" aria-label="Delete ${escapeHtml(ticketKey)}">${icon('remove')}</button></div>
+      <div class="compact-ticket-heading"><span class="compact-ticket-title">${escapeHtml(ticket.title||ticket.jiraId||'Untitled ticket')}</span><button class="btn-icon btn-icon--edit compact-ticket-edit" type="button" data-action="edit-sprint-ticket" data-sprint-index="${sprintIndex}" data-ticket-index="${ticketIndex}" title="Edit ticket" aria-label="Edit ${escapeHtml(ticketLabel)}">${icon('edit')}</button></div>
+      <div class="compact-ticket-footer">${epicHref?`<a class="compact-epic" href="${escapeHtml(epicHref)}" target="_blank" rel="noopener noreferrer">${escapeHtml(epicTitle)}</a>`:`<span class="compact-epic">${escapeHtml(epicTitle)}</span>`}<span class="compact-points">${escapeHtml(storyPointsLabel||'0')} SP</span><span class="compact-ticket-order" aria-label="Ticket order">${[['up',ordering.canMoveUp],['down',ordering.canMoveDown]].map(([direction,enabled])=>`<button class="btn-icon" type="button" data-action="move-sprint-ticket" data-direction="${direction}" data-sprint-index="${sprintIndex}" data-ticket-index="${ticketIndex}" title="Move ticket ${direction}" aria-label="Move ${escapeHtml(ticketKey)} ${direction}" ${enabled?'':'disabled'}>${icon(direction)}</button>`).join('')}</span><button class="btn-icon" type="button" data-action="duplicate-sprint-ticket" data-sprint-index="${sprintIndex}" data-ticket-index="${ticketIndex}" title="Duplicate ticket to sprint" aria-label="Duplicate ${escapeHtml(ticketKey)}">${icon('copy')}</button><button class="btn-icon" type="button" data-action="remove-sprint-ticket" data-sprint-index="${sprintIndex}" data-ticket-index="${ticketIndex}" title="Delete ticket" aria-label="Delete ${escapeHtml(ticketKey)}">${icon('remove')}</button></div>
       ${hasNotes?`<p class="sprint-ticket-note-preview">${escapeHtml(ticketNotes)}</p>`:''}
     </article>
   `;
@@ -951,11 +951,24 @@ export function renderGlobalTicketEditModal(sprintIndex, ticketIndex, ticket, sp
   `;
 }
 
+export function renderSprintTicketCreateRow() {
+  return `<div class="ticket-link-row ticket-create-row" data-ticket-link-row>
+    <label>Ticket ID<input class="field-input" name="jiraId" type="text" placeholder="DP-3333" /></label>
+    <label>Title<input class="field-input" name="title" type="text" placeholder="Title" /></label>
+    <label>Story Points<input class="field-input" name="storyPoints" type="number" min="0" step="0.5" placeholder="0" /></label>
+    <label>Notes<input class="field-input" name="notes" type="text" placeholder="Notes" /></label>
+    <div class="ticket-create-row__link"><span>Link</span><button class="button button--secondary button--sm" type="button" data-action="set-ticket-link" title="Set ticket link" aria-label="Set ticket link">${icon('link')}</button><input name="jiraUrl" type="hidden" value="" /><p class="sprint-link-hint" data-link-preview="jiraUrl">Sem link</p></div>
+    <div class="ticket-create-row__actions">
+      <button class="button button--sm" type="button" data-action="remove-ticket-link-row" title="Delete ticket" aria-label="Delete ticket">${icon('remove')}</button>
+    </div>
+  </div>`;
+}
+
 export function renderSprintTicketCreateModal(sprintIndex, defaultAssignee, sprintMembers) {
   const selectedAssignee = String(defaultAssignee || '').trim();
 
   return `
-    <article class="sprint-ticket-edit-modal" data-form="sprint-ticket-create-modal" data-sprint-index="${sprintIndex}">
+    <article class="sprint-ticket-edit-modal sprint-ticket-create-modal" data-form="sprint-ticket-create-modal" data-sprint-index="${sprintIndex}">
       <div class="modal-overlay"></div>
       <div class="modal-card">
         <div class="modal-header">
@@ -987,19 +1000,7 @@ export function renderSprintTicketCreateModal(sprintIndex, defaultAssignee, spri
             <div class="form-group">
               <label>Tickets</label>
               <div class="ticket-links-list" data-ticket-links-list>
-                <div class="ticket-link-row" data-ticket-link-row>
-                  <div class="inline-link-field inline-link-field--with-delete">
-                    <input class="field-input" name="jiraId" type="text" placeholder="DP-3333" />
-                    <button class="button button--secondary button--sm" type="button" data-action="set-ticket-link">Link</button>
-                    <button class="btn-icon" type="button" data-action="remove-ticket-link-row" title="Delete ticket">
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 6l-1.4 14H6.4L5 6M10 11v6M14 11v6M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/></svg>
-                    </button>
-                  </div>
-                  <input name="jiraUrl" type="hidden" value="" />
-                  <input class="field-input" name="storyPoints" type="number" min="0" step="0.5" value="" placeholder="Story points" />
-                  <input class="field-input" name="notes" type="text" value="" placeholder="Notes" />
-                  <p class="sprint-link-hint" data-link-preview="jiraUrl">Sem link</p>
-                </div>
+                ${renderSprintTicketCreateRow()}
               </div>
               <button class="button button--secondary button--sm" type="button" data-action="add-ticket-link-row">Add ticket</button>
             </div>

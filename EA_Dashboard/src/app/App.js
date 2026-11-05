@@ -1,11 +1,11 @@
 import { renderDataExplorerSection, renderDataExplorerTaskEditModal } from '../sections/dataExplorerSection.js';
 import { renderInvoicingSection } from '../sections/invoicingSection.js';
 import { renderMilestonesSection } from '../sections/milestonesSection.js';
-import { renderSprintsSection, renderGlobalTicketEditModal, renderSprintTicketCreateModal, getSprintMembers } from '../sections/sprintsSection.js';
+import { renderSprintsSection, renderGlobalTicketEditModal, renderSprintTicketCreateModal, renderSprintTicketCreateRow, getSprintMembers } from '../sections/sprintsSection.js';
 import { renderVelocitySection, buildConfluenceReport, getVelocitySelection } from '../sections/velocitySection.js';
 import { cloneState, createDefaultSnapshot } from '../state/defaults.js';
 import { createStore } from '../state/store.js';
-import { duplicateSprintTicket, normalizeProjectMember } from '../utils/dashboard.js';
+import { duplicateSprintTicket, moveSprintTicket, normalizeProjectMember } from '../utils/dashboard.js';
 import { createId, slugify } from '../utils/format.js';
 import { icon } from '../utils/icons.js';
 
@@ -1001,9 +1001,22 @@ function handleClickAction(trigger, updateState, root, uiState, render, getState
     return;
   }
 
+  if (trigger.dataset.action === 'move-sprint-ticket' && Number.isInteger(sprintIndex) && Number.isInteger(ticketIndex)) {
+    updateState((state) => {
+      moveSprintTicket(state.spData[sprintIndex]?.tickets, ticketIndex, trigger.dataset.direction);
+    });
+    return;
+  }
+
   if (trigger.dataset.action === 'add-ticket-link-row') {
     const list = trigger.closest('.form-group')?.querySelector('[data-ticket-links-list]');
     if (!(list instanceof Element)) return;
+
+    if (trigger.closest('[data-form="sprint-ticket-create-modal"]')) {
+      list.insertAdjacentHTML('beforeend', renderSprintTicketCreateRow());
+      list.lastElementChild.querySelector('input[name="jiraId"]')?.focus();
+      return;
+    }
 
     const row = document.createElement('div');
     row.className = 'ticket-link-row';
@@ -1040,11 +1053,13 @@ function handleClickAction(trigger, updateState, root, uiState, render, getState
       const existingIdInput = row.querySelector('input[name="existingTicketId"]');
       const spInput = row.querySelector('input[name="storyPoints"]');
       const notesInput = row.querySelector('input[name="notes"]');
+      const titleInput = row.querySelector('input[name="title"]');
       if (idInput instanceof HTMLInputElement) idInput.value = '';
       if (urlInput instanceof HTMLInputElement) urlInput.value = '';
       if (existingIdInput instanceof HTMLInputElement) existingIdInput.value = '';
       if (spInput instanceof HTMLInputElement) spInput.value = '';
       if (notesInput instanceof HTMLInputElement) notesInput.value = '';
+      if (titleInput instanceof HTMLInputElement) titleInput.value = '';
       updateLinkPreview(row, 'jiraUrl', '');
       return;
     }
@@ -1824,6 +1839,7 @@ function handleClickAction(trigger, updateState, root, uiState, render, getState
     const ticketsToCreate = ticketRows
       .map((row) => {
         const jiraIdInput = row.querySelector('input[name="jiraId"]');
+        const titleInput = row.querySelector('input[name="title"]');
         const jiraUrlInput = row.querySelector('input[name="jiraUrl"]');
         const storyPointsInput = row.querySelector('input[name="storyPoints"]');
         const notesInput = row.querySelector('input[name="notes"]');
@@ -1833,6 +1849,7 @@ function handleClickAction(trigger, updateState, root, uiState, render, getState
         if (!jiraId) return null;
         return {
           jiraId,
+          title: String(titleInput?.value || '').trim() || jiraId,
           jiraUrl: normalizeUrl(jiraUrlRaw),
           storyPoints: normalizeStoryPoints(storyPointsInput instanceof HTMLInputElement ? storyPointsInput.value : ''),
           notes,
@@ -1848,7 +1865,7 @@ function handleClickAction(trigger, updateState, root, uiState, render, getState
       ticketsToCreate.forEach((ticketSeed) => {
         sprint.tickets.push({
           id: createId('sprint-ticket'),
-          title: ticketSeed.jiraId,
+          title: ticketSeed.title,
           jiraId: ticketSeed.jiraId,
           epicId: '',
           jiraUrl: ticketSeed.jiraUrl,
@@ -1994,7 +2011,7 @@ function handleClickAction(trigger, updateState, root, uiState, render, getState
         return {
           ...(reused || {}),
           id: ticketId,
-          title: row.jiraId,
+          title: reused?.title && reused.title !== reused.jiraId ? reused.title : row.jiraId,
           jiraId: row.jiraId,
           epicId: '',
           jiraUrl: row.jiraUrl,

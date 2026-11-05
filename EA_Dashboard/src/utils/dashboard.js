@@ -11,6 +11,19 @@ export function duplicateSprintTicket(snapshot, sourceSprintId, ticketId, target
   return duplicate;
 }
 
+export function moveSprintTicket(tickets, ticketIndex, direction) {
+  const ticket = tickets?.[ticketIndex];
+  if (!ticket || !['up', 'down'].includes(direction)) return false;
+  const step = direction === 'up' ? -1 : 1;
+  const assignee = String(ticket.assignee || '').trim();
+  for (let index = ticketIndex + step; index >= 0 && index < tickets.length; index += step) {
+    if (String(tickets[index].assignee || '').trim() !== assignee) continue;
+    [tickets[ticketIndex], tickets[index]] = [tickets[index], ticket];
+    return true;
+  }
+  return false;
+}
+
 export function getWorkingDays(settings) {
   const hoursPerDay = Number(settings.hoursPerDay) || 8;
   const monthlyHours = Number(settings.monthlyHours) || 176;

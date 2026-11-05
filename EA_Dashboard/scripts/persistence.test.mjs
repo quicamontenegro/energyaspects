@@ -4,8 +4,8 @@ import test from 'node:test';
 import { loadAllData, saveCoreSnapshot, setSupabaseClient } from '../supabase-data-layer.js';
 import { createDashboardPersistence } from '../src/lib/dashboard-data.js';
 import { createDefaultSnapshot, mergeSnapshot } from '../src/state/defaults.js';
-import { renderSprintsSection } from '../src/sections/sprintsSection.js';
-import { duplicateSprintTicket } from '../src/utils/dashboard.js';
+import { renderSprintsSection, renderSprintTicketCreateModal, renderSprintTicketCreateRow } from '../src/sections/sprintsSection.js';
+import { duplicateSprintTicket, moveSprintTicket } from '../src/utils/dashboard.js';
 
 const columns = {
   settings: ['key', 'value', 'updated_at'],
@@ -332,10 +332,21 @@ test('legacy manual quick links become shared without importing ticket URLs', as
   assert.deepEqual(snapshot.spQuickLinks.map(link => link.url), ['https://example.com/common', 'https://example.com/edited']);
   assert.equal(database.writes.length, 0);
   assert.deepEqual(mergeSnapshot(createDefaultSnapshot(), { spData: sprints }).spQuickLinks, snapshot.spQuickLinks);
-  const firstView = renderSprintsSection(snapshot, { selectedSprintIndex: 0 });
-  const secondView = renderSprintsSection(snapshot, { selectedSprintIndex: 1 });
+  const firstView = renderSprintsSection(snapshot, { selectedSprintIndex: 0, sprintView: 'notes' });
+  const secondView = renderSprintsSection(snapshot, { selectedSprintIndex: 1, sprintView: 'notes' });
   assert.ok(firstView.includes('https://example.com/edited'));
   assert.ok(secondView.includes('https://example.com/edited'));
+});
+
+test('sprint notes and quick links only render in the Sprint Notes view', () => {
+  const snapshot = fixture();
+  for (const sprintView of [undefined, 'board', 'notes']) {
+    const markup = renderSprintsSection(snapshot, { selectedSprintIndex: 0, sprintView });
+    assert.equal(markup.includes('class="sprint-card-notesboard"'), sprintView === 'notes');
+    assert.equal(markup.includes('class="sprint-quick-links"'), sprintView === 'notes');
+    const emptyMarkup = renderSprintsSection({ ...snapshot, spData: [] }, { sprintView });
+    assert.equal(emptyMarkup.includes('class="sprint-quick-links"'), sprintView === 'notes');
+  }
 });
 
 test('editing and removing shared quick links only writes their global setting', async () => {
@@ -401,6 +412,51 @@ test('history rename and ticket duplication persist in both canonical and struct
   assert.equal(database.tables.sprint_tickets.find(ticket => ticket.id === copied.id).sprint_id, 'destination');
   assert.throws(() => duplicateSprintTicket(changed, 'sprint', original.id, 'missing'));
   assert.throws(() => duplicateSprintTicket(changed, 'sprint', 'missing', 'destination'));
+});
+
+test('ticket creation rows include all fields without board ordering controls', () => {
+  const row = renderSprintTicketCreateRow();
+  for (const name of ['jiraId', 'title', 'storyPoints', 'notes', 'jiraUrl']) {
+    assert.ok(row.includes(`name="${name}"`));
+  }
+  assert.ok(!row.includes('data-direction='));
+  assert.ok(renderSprintTicketCreateModal(0, '', []).includes(row));
+});
+
+test('board ticket ordering stays within its member column and survives reload', async () => {
+  const database = createDatabase();
+  setSupabaseClient(database);
+  await loadAllData();
+  const snapshot = fixture();
+  const tickets = snapshot.spData[0].tickets = [
+    { id: 'first', title: 'First', assignee: 'Alice' },
+    { id: 'other', title: 'Other', assignee: 'Bob' },
+    { id: 'last', title: 'Last', assignee: 'Alice' },
+  ];
+  assert.equal(moveSprintTicket(tickets, 0, 'up'), false);
+  assert.equal(moveSprintTicket(tickets, 2, 'down'), false);
+  assert.equal(moveSprintTicket(tickets, 2, 'up'), true);
+  assert.deepEqual(tickets.map(ticket => ticket.id), ['last', 'other', 'first']);
+  const markup = renderSprintsSection(snapshot, {});
+  assert.ok(markup.includes('data-action="move-sprint-ticket" data-direction="up"'));
+  await saveCoreSnapshot(snapshot);
+  assert.deepEqual((await loadAllData()).spData[0].tickets.map(ticket => ticket.id), ['last', 'other', 'first']);
+  assert.equal(moveSprintTicket(tickets, 0, 'down'), true);
+  assert.deepEqual(tickets.map(ticket => ticket.id), ['first', 'other', 'last']);
+});
+
+test('sprint ticket title is not clickable and edit action is on a pencil button', () => {
+  const snapshot = fixture();
+  const markup = renderSprintsSection(snapshot, { selectedSprintIndex: 0 });
+  assert.match(markup, /<div class="compact-ticket-heading"><span class="compact-ticket-title">/);
+  assert.match(markup, /<button class="btn-icon btn-icon--edit compact-ticket-edit" type="button" data-action="edit-sprint-ticket"[^>]*><svg/);
+});
+
+test('Notes toolbar button targets the shared notes panel', () => {
+  const markup = renderSprintsSection(fixture(), {});
+  const toolbar = markup.slice(markup.indexOf('class="workspace-actions"'), markup.indexOf('<nav class="workspace-tabs"'));
+  assert.match(toolbar, /<button class="button" type="button" data-action="open-sprint-panel" data-panel="notes">.*?Notes<\/button>/);
+  assert.ok(markup.includes('data-sprint-panel="notes"'));
 });
 
 test('sprint history stays navigable and only renders the requested rename editor', () => {
