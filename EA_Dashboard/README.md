@@ -1,6 +1,6 @@
 # EA Dashboard v2 + Supabase
 
-Esta e a versao principal, promovida de `EA_Dashboard_redesigned_v2` em 2026-11-02.
+Esta e a versao principal, promovida da versao arquivada `archive/EA_Dashboard_redesigned_v2` em 2026-11-02.
 O desenvolvimento local usa a porta 3000; a producao usa `http://192.168.1.172:8082/`.
 
 ## Estado da base de dados

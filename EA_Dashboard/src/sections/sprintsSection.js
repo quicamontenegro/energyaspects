@@ -2,6 +2,7 @@ import { escapeHtml, formatStatus, initials } from '../utils/format.js';
 import { icon } from '../utils/icons.js';
 
 const TICKET_STATUSES = ['todo', 'inprogress', 'inreview', 'testing', 'done', 'blocked', 'onhold', 'deployed'];
+const TICKET_STATUS_OPTIONS = ['todo', 'inprogress', 'inreview', 'testing', 'done', 'blocked', 'deployed'];
 const PRIORITY_OPTIONS = ['High', 'Medium', 'Low'];
 
 const PRIORITY_COLOR = {
@@ -590,6 +591,24 @@ function renderSprintHistoryItem(sprint, index, selected, editing) {
   </div>`;
 }
 
+function formatSprintTicketStatus(status) {
+  const labels = {
+    testing: 'QA',
+    blocked: 'Blocked / On Hold',
+    onhold: 'Blocked / On Hold',
+    deployed: 'For Deployment',
+  };
+  return labels[status] || formatStatus(status);
+}
+
+function renderTicketStatusOptions(currentStatus = '') {
+  const selectedStatus = String(currentStatus || '').toLowerCase();
+  return TICKET_STATUS_OPTIONS.map((status) => {
+    const value = status === 'blocked' && selectedStatus === 'onhold' ? 'onhold' : status;
+    return `<option value="${value}" ${selectedStatus === value ? 'selected' : ''}>${formatSprintTicketStatus(status)}</option>`;
+  }).join('');
+}
+
 function renderSprintTicket(sprintIndex, ticketIndex, ticket, sprintMembers, uiState, ordering = {}) {
   const jiraHref = resolveJiraHref(ticket);
   const epicHref = resolveEpicHref(ticket);
@@ -604,7 +623,7 @@ function renderSprintTicket(sprintIndex, ticketIndex, ticket, sprintMembers, uiS
 
   return `
     <article class="sprint-ticket-card compact-ticket" style="--ticket-status-color:${statusColor};">
-      <div class="compact-ticket-top">${jiraHref?`<a href="${escapeHtml(jiraHref)}" target="_blank" rel="noopener noreferrer">${escapeHtml(ticketKey)}</a>`:`<span>${escapeHtml(ticketKey)}</span>`}<select aria-label="Status for ${escapeHtml(ticketLabel)}" class="status-select" name="status" data-status="${escapeHtml(String(ticket.status||'todo'))}" data-action="update-sprint-ticket-status" data-sprint-index="${sprintIndex}" data-ticket-index="${ticketIndex}">${TICKET_STATUSES.map(status=>`<option value="${status}" ${ticket.status===status?'selected':''}>${formatStatus(status)}</option>`).join('')}</select></div>
+      <div class="compact-ticket-top">${jiraHref?`<a href="${escapeHtml(jiraHref)}" target="_blank" rel="noopener noreferrer">${escapeHtml(ticketKey)}</a>`:`<span>${escapeHtml(ticketKey)}</span>`}<select aria-label="Status for ${escapeHtml(ticketLabel)}" class="status-select" name="status" data-status="${escapeHtml(String(ticket.status||'todo'))}" data-action="update-sprint-ticket-status" data-sprint-index="${sprintIndex}" data-ticket-index="${ticketIndex}">${renderTicketStatusOptions(ticket.status)}</select></div>
       <div class="compact-ticket-heading"><span class="compact-ticket-title">${escapeHtml(ticket.title||ticket.jiraId||'Untitled ticket')}</span><button class="btn-icon btn-icon--edit compact-ticket-edit" type="button" data-action="edit-sprint-ticket" data-sprint-index="${sprintIndex}" data-ticket-index="${ticketIndex}" title="Edit ticket" aria-label="Edit ${escapeHtml(ticketLabel)}">${icon('edit')}</button></div>
       <div class="compact-ticket-footer">${epicHref?`<a class="compact-epic" href="${escapeHtml(epicHref)}" target="_blank" rel="noopener noreferrer">${escapeHtml(epicTitle)}</a>`:`<span class="compact-epic">${escapeHtml(epicTitle)}</span>`}<span class="compact-points">${escapeHtml(storyPointsLabel||'0')} SP</span><span class="compact-ticket-order" aria-label="Ticket order">${[['up',ordering.canMoveUp],['down',ordering.canMoveDown]].map(([direction,enabled])=>`<button class="btn-icon" type="button" data-action="move-sprint-ticket" data-direction="${direction}" data-sprint-index="${sprintIndex}" data-ticket-index="${ticketIndex}" title="Move ticket ${direction}" aria-label="Move ${escapeHtml(ticketKey)} ${direction}" ${enabled?'':'disabled'}>${icon(direction)}</button>`).join('')}</span><button class="btn-icon" type="button" data-action="duplicate-sprint-ticket" data-sprint-index="${sprintIndex}" data-ticket-index="${ticketIndex}" title="Duplicate ticket to sprint" aria-label="Duplicate ${escapeHtml(ticketKey)}">${icon('copy')}</button><button class="btn-icon" type="button" data-action="remove-sprint-ticket" data-sprint-index="${sprintIndex}" data-ticket-index="${ticketIndex}" title="Delete ticket" aria-label="Delete ${escapeHtml(ticketKey)}">${icon('remove')}</button></div>
       ${hasNotes?`<p class="sprint-ticket-note-preview">${escapeHtml(ticketNotes)}</p>`:''}
@@ -658,7 +677,7 @@ function renderSprintEpicCard(sprintIndex, assignee, group, sprintMembers, uiSta
                         : `<span class="sprint-ticket-preview__ticket-text">${escapeHtml(ticketLabel)}</span>`}
                       ${storyPointsLabel ? `<span class="sprint-ticket-preview__ticket-sp">(${escapeHtml(storyPointsLabel)} sp)</span>` : ''}
                       <select class="status-select status-select--inline" name="status" data-status="${escapeHtml(String(ticket.status || 'todo'))}" data-action="update-sprint-ticket-status" data-sprint-index="${sprintIndex}" data-ticket-index="${ticketIndex}">
-                        ${TICKET_STATUSES.map((status) => `<option value="${status}" ${ticket.status === status ? 'selected' : ''}>${formatStatus(status)}</option>`).join('')}
+                        ${renderTicketStatusOptions(ticket.status)}
                       </select>
                     </span>
                     <button class="btn-icon" type="button" data-action="duplicate-sprint-ticket" data-sprint-index="${sprintIndex}" data-ticket-index="${ticketIndex}" title="Duplicate ticket to sprint" aria-label="Duplicate ${escapeHtml(ticketLabel)}">${icon('copy')}</button>
@@ -807,10 +826,10 @@ function parseSprintDate(value) {
 }
 
 function groupSprintTicketsByStatus(tickets) {
-  const grouped = Object.fromEntries(TICKET_STATUSES.map((status) => [status, []]));
+  const grouped = Object.fromEntries(TICKET_STATUS_OPTIONS.map((status) => [status, []]));
 
   tickets.forEach((ticket, ticketIndex) => {
-    const status = TICKET_STATUSES.includes(ticket?.status) ? ticket.status : 'todo';
+    const status = ticket?.status === 'onhold' ? 'blocked' : TICKET_STATUS_OPTIONS.includes(ticket?.status) ? ticket.status : 'todo';
     grouped[status].push({ ticket, ticketIndex });
   });
 
@@ -936,7 +955,7 @@ export function renderGlobalTicketEditModal(sprintIndex, ticketIndex, ticket, sp
             <div class="form-group">
               <label>Status</label>
               <select class="field-input" name="status">
-                ${TICKET_STATUSES.map((status) => `<option value="${status}" ${ticket.status === status ? 'selected' : ''}>${formatStatus(status)}</option>`).join('')}
+                ${renderTicketStatusOptions(ticket.status)}
               </select>
             </div>
 
@@ -1008,7 +1027,7 @@ export function renderSprintTicketCreateModal(sprintIndex, defaultAssignee, spri
             <div class="form-group">
               <label>Status</label>
               <select class="field-input" name="status">
-                ${TICKET_STATUSES.map((status) => `<option value="${status}">${formatStatus(status)}</option>`).join('')}
+                ${renderTicketStatusOptions()}
               </select>
             </div>
 

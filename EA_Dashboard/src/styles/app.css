@@ -3477,15 +3477,17 @@ button {
 :root[data-theme] .redesigned-shell .sprint-card { background:transparent; }
 .redesigned-shell .sprint-column__title,.redesigned-shell .sprint-column__title small { font-family:'IBM Plex Sans',sans-serif; }
 .redesigned-shell .sprint-column__sp { background:color-mix(in srgb,var(--accent) 12%,transparent)!important; color:var(--accent)!important; }
-.redesigned-shell .compact-ticket [data-status='done'],.redesigned-shell .compact-ticket [data-status='deployed'] { background:#105342; color:#9cf3ce; }
+.redesigned-shell .compact-ticket [data-status='done'] { background:#105342; color:#9cf3ce; }
+.redesigned-shell .compact-ticket [data-status='deployed'] { background:#4c3a75; color:#e0d1ff; }
 .redesigned-shell .compact-ticket [data-status='inprogress'] { background:#124c68; color:#8ee4ff; }
 .redesigned-shell .compact-ticket [data-status='inreview'] { background:#44346a; color:#ddc8ff; }
 .redesigned-shell .compact-ticket [data-status='testing'] { background:#634b1c; color:#ffe4a0; }
-.redesigned-shell .compact-ticket [data-status='blocked'] { background:#722c3a; color:#ffd0da; }
+.redesigned-shell .compact-ticket [data-status='blocked'],.redesigned-shell .compact-ticket [data-status='onhold'] { background:#722c3a; color:#ffd0da; }
 .redesigned-shell .compact-ticket-footer .compact-points { margin-left:auto; }
 .redesigned-shell .compact-ticket-footer .btn-icon { width:21px; height:21px; }
 .redesigned-shell .compact-ticket-footer .btn-icon .ui-icon { width:13px; height:13px; }
 @media (max-width:1150px) { .sprint-summary-band { grid-template-columns:repeat(4,minmax(0,1fr)); } .sprint-summary-intro { grid-column:1/-1; border:0; } .sprint-summary-metric { padding:12px; } .sprint-summary-progress { grid-template-columns:1fr; gap:4px; } .sprint-summary-progress>.ui-icon { display:none; } .sprint-summary-progress progress,.sprint-summary-progress small { grid-column:1; } .sprint-lower-grid { grid-template-columns:minmax(0,2fr) minmax(180px,1fr); } }
+@media (max-width:1000px) { .redesigned-shell .sprint-board { grid-template-columns:minmax(0,1fr); overflow-x:visible; } }
 @media (max-width:760px) { .sprint-summary-band { grid-template-columns:1fr 1fr; gap:8px; padding:12px; } .sprint-summary-metric strong { font-size:19px; } .sprint-lower-grid { grid-template-columns:1fr; } .redesigned-shell .sprint-board { grid-template-columns:1fr; overflow-x:visible; } .sprint-selector { gap:6px; } .sprint-selector select { max-width:calc(100% - 80px); width:100%; font-size:12px; } .sprint-toolbar-date { width:100%; } .sprint-toolbar>.workspace-actions { gap:4px; } .sprint-toolbar>.workspace-actions .button { padding:6px 8px; font-size:10px; } .redesigned-shell .sprint-column__body { min-height:80px; } .redesigned-shell .sprint-members-form,.redesigned-shell .sprint-create-form { display:grid; grid-template-columns:1fr; } .redesigned-shell .sprint-card__head { flex-wrap:wrap; } }
 @media (min-width:1600px) { .redesigned-shell .app-content { padding-left:30px; padding-right:30px; } .velocity-chart svg { height:190px; } }
 @media (max-width:1150px) { .velocity-kpi { grid-template-columns:30px minmax(0,1fr); gap:8px; padding:12px; } .velocity-kpi .delta { grid-column:2; justify-self:start; } .velocity-kpi .kpi-icon { width:30px; height:30px; } .velocity-delivery-grid { grid-template-columns:1fr; } .velocity-secondary-grid { grid-template-columns:1fr 1fr; } .velocity-insights { grid-column:1/-1; } .velocity-filters { gap:10px; } }
